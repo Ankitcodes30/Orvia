@@ -77,7 +77,7 @@ class DBProvider {
       final File dbFile = File(p.join(appSuppDir, 'dbv3.isar'));
       if (!await dbFile.exists()) {
         // Legacy backup paths retained for backward compatibility with
-        // existing BloomeeTunes installations. Do not rename.
+        // existing installations. Do not rename.
         await checkAndRestoreDB(dbFile.path, [
           p.join(appDocDir, 'dbv3.isar'),
           p.join(appDocDir, 'bloomee_backup_dbv3.isar'),
@@ -169,7 +169,7 @@ class DBProvider {
   static Future<String> getDbBackupFilePath() async {
     String backupPath = (await getDownloadsDirectory())?.path ?? appDocDir;
     // Legacy backup path retained for backward compatibility with
-    // existing BloomeeTunes installations. Do not rename.
+    // existing installations. Do not rename.
     backupPath =
         p.join(backupPath, 'bloomeeBackup', 'bloomee_backup_dbv3.json');
     return backupPath;
