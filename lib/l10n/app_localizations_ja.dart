@@ -1380,7 +1380,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get aboutCreativeHighlights => 'アップデートとクリエイティブな活動';
 
   @override
-  String get aboutTipQuote => 'Orvia を気に入っていただけましたか？応援が活動の励みになります。 🌸';
+  String get aboutTipQuote => '情熱を込めて制作、音楽の力で駆動。';
 
   @override
   String get aboutTipButton => '応援する';

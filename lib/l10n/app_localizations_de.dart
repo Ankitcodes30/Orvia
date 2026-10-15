@@ -1470,7 +1470,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get aboutCraftingSubtitle => 'Sinfonien aus Code erschaffen.';
 
   @override
-  String get aboutFollowGitHub => 'Folge ihm auf GitHub';
+  String get aboutFollowGitHub => 'Auf GitHub folgen';
 
   @override
   String get aboutSendInquiry => 'Geschäftliche Anfrage senden';
@@ -1480,7 +1480,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get aboutTipQuote =>
-      'Gefällt dir Orvia? Eine kleine Unterstützung lässt die App weiter blühen. 🌸';
+      'Mit Leidenschaft geschaffen, von Musik angetrieben.';
 
   @override
   String get aboutTipButton => 'Ich möchte helfen';

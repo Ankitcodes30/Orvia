@@ -1462,7 +1462,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutCraftingSubtitle => 'Crafting symphonies in code.';
 
   @override
-  String get aboutFollowGitHub => 'Follow him on GitHub';
+  String get aboutFollowGitHub => 'Follow on GitHub';
 
   @override
   String get aboutSendInquiry => 'Send a business inquiry';
@@ -1471,8 +1471,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutCreativeHighlights => 'Updates and creative highlights';
 
   @override
-  String get aboutTipQuote =>
-      'Enjoying Orvia? A small tip keeps it blooming. 🌸';
+  String get aboutTipQuote => 'Made with passion, powered by music.';
 
   @override
   String get aboutTipButton => 'I\'ll help';

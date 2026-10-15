@@ -177,7 +177,7 @@ class About extends StatelessWidget {
                     const SizedBox(width: 12),
                     Flexible(
                       child: Text(
-                        '@iamhemantindia',
+                        'Ankit Kumbhare',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: kPrimaryTextColor,
@@ -189,7 +189,7 @@ class About extends StatelessWidget {
                               color: const Color.fromARGB(255, 255, 246, 238)
                                   .withValues(alpha: 0.4),
                               blurRadius: 12,
-                              offset: Offset(0, 0),
+                              offset: Offset.zero,
                             ),
                           ],
                         ),
@@ -207,34 +207,35 @@ class About extends StatelessWidget {
                 runSpacing: 12.0, // Spacing when items wrap to the next line
                 spacing: 12.0, // Horizontal spacing
                 children: [
-                  // Maintainer opens GitHub account
+                  // Creator & Maintainer opens GitHub profile
                   _InfoPill(
                       icon: Icons.shield_outlined,
-                      text: 'Maintainer',
+                      text: 'Creator & Maintainer',
                       tooltip: l10n.aboutFollowGitHub,
                       onTap: () {
-                        launchUrl(Uri.parse('https://github.com/HemantKArya'),
+                        launchUrl(Uri.parse('https://github.com/Ankitcodes30'),
                             mode: LaunchMode.externalApplication);
                       }),
-                  // Short label 'Email' opens mail composer
+                  // Contact opens email composer
                   _InfoPill(
-                      icon: FontAwesome.x_twitter_brand,
+                      icon: Icons.mail_outline_rounded,
                       text: 'Contact',
                       tooltip: l10n.aboutSendInquiry,
                       onTap: () {
                         launchUrl(
-                          Uri.parse('https://x.com/iamhemantindia'),
+                          Uri.parse('mailto:ankitkumbhare301@gmail.com'),
                           mode: LaunchMode.externalApplication,
                         );
                       }),
-                  // Short label 'Linkedin' opens Linkedin profile
+                  // LinkedIn opens owner's LinkedIn profile
                   _InfoPill(
                       icon: FontAwesome.linkedin_brand,
-                      text: 'Linkedin',
+                      text: 'LinkedIn',
                       tooltip: l10n.aboutCreativeHighlights,
                       onTap: () {
                         launchUrl(
-                            Uri.parse('https://linkedin.com/in/iamhemantindia'),
+                            Uri.parse(
+                                'https://www.linkedin.com/in/ankit-kumbhare-024465366/'),
                             mode: LaunchMode.externalApplication);
                       }),
                 ],
@@ -247,82 +248,41 @@ class About extends StatelessWidget {
   }
 
   Widget _buildSupportSection(AppLocalizations l10n) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Text(
-            l10n.aboutTipQuote,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: kSecondaryTextColor, fontSize: 14, fontFamily: 'Gilroy'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20.0),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: BoxDecoration(
-            gradient: kButtonGradient,
-            // slightly larger radius for a more prominent pill
-            borderRadius: BorderRadius.circular(34.0),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFDE6262).withValues(alpha: 0.5),
-                blurRadius: 25,
-                offset: const Offset(0, 8),
+            color: kCardBackgroundColor,
+            borderRadius: BorderRadius.circular(20.0),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.music_note_rounded,
+                  color: Color(0xFFF17C98), size: 18),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  l10n.aboutTipQuote,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: kPrimaryTextColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    fontStyle: FontStyle.italic,
+                    fontFamily: 'Gilroy',
+                  ),
+                ),
               ),
             ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              // increase the ink response radius to match the larger pill
-              borderRadius: BorderRadius.circular(32.0),
-              onTap: () {
-                launchUrl(
-                  Uri.parse("https://hemantkarya.github.io/Orvia/"),
-                  mode: LaunchMode.externalApplication,
-                );
-              },
-              child: Container(
-                // increased padding for a larger touch target
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 44, vertical: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32.0),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.favorite,
-                        color: kPrimaryTextColor, size: 20),
-                    const SizedBox(width: 10),
-                    Text(
-                      l10n.aboutTipButton,
-                      style: const TextStyle(
-                        color: kPrimaryTextColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Gilroy',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ),
-        const SizedBox(height: 20),
-        Text(
-          l10n.aboutTipDesc,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-              color: kSecondaryTextColor, fontSize: 14, fontFamily: 'Gilroy'),
-        ),
-      ],
+      ),
     );
   }
 
@@ -337,7 +297,7 @@ class About extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               onTap: () {
                 launchUrl(
-                    Uri.parse("https://hemantkarya.github.io/Orvia/"),
+                    Uri.parse("https://github.com/Ankitcodes30"),
                     mode: LaunchMode.externalApplication);
               },
               child: Row(

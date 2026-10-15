@@ -1476,8 +1476,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get aboutCreativeHighlights => 'अपडेट्स और रचनात्मक बातें';
 
   @override
-  String get aboutTipQuote =>
-      'Orvia पसंद आ रहा है? आपका छोटा-सा सहयोग इसे और बेहतर बनाने में मदद करेगा। 🌸';
+  String get aboutTipQuote => 'संगीत के प्रति समर्पण, जुनून के साथ निर्मित।';
 
   @override
   String get aboutTipButton => 'मैं सहायता करना चाहता/चाहती हूँ';

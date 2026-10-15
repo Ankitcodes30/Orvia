@@ -2661,7 +2661,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutFollowGitHub.
   ///
   /// In en, this message translates to:
-  /// **'Follow him on GitHub'**
+  /// **'Follow on GitHub'**
   String get aboutFollowGitHub;
 
   /// No description provided for @aboutSendInquiry.
@@ -2679,7 +2679,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutTipQuote.
   ///
   /// In en, this message translates to:
-  /// **'Enjoying Orvia? A small tip keeps it blooming. 🌸'**
+  /// **'Made with passion, powered by music.'**
   String get aboutTipQuote;
 
   /// No description provided for @aboutTipButton.

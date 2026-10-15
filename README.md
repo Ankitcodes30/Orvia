@@ -93,27 +93,15 @@
 
 ---
 
-## 💖 Support the Development
+## 💖 About & Attribution
 
-Orvia is a passion project. I spend countless hours building, refining, and fixing bugs to give everyone a premium, ad-free music experience. If you love the app and want to see it grow, consider supporting my work! 
-
-Every contribution, big or small, keeps the music playing. ☕🎶
-
-<p align="center">
-  <a href="https://liberapay.com/hemantkarya/donate">
-    <img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg">
-  </a>
-</p>
-<p align="center">
-  <img src="https://img.shields.io/liberapay/receives/hemantkarya?style=for-the-badge"> 
-  <img src="https://img.shields.io/liberapay/patrons/hemantkarya?style=for-the-badge">
-</p>
+**Orvia** is created and maintained by **Ankit Kumbhare**. It is built upon the open-source foundation originally created by Hemant Karya, licensed under the **GNU General Public License v2 (GPL-2.0)**.
 
 ---
 
 ## 🤝 Contribute to Orvia
 
-**Every note counts!** Whether you're a seasoned developer or a beginner (I am relatively new to Flutter myself!), your pull requests, bug reports, and feature suggestions are highly appreciated. 
+**Every note counts!** Whether you're a seasoned developer or a beginner, your pull requests, bug reports, and feature suggestions are highly appreciated.
 
 Contributing to Orvia is a great way to learn **Flutter, clean architecture, and BLoC patterns** in a real-world codebase.
 
@@ -128,14 +116,13 @@ Contributing to Orvia is a great way to learn **Flutter, clean architecture, and
 
 ## 📫 Get in Touch
 
-Have questions, feedback, or just want to say hi? Connect with me here:
+Have questions, feedback, or want to connect? Reach out:
 
 <div align="center">
 
-<a href="https://www.linkedin.com/in/iamhemantindia/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"/></a>
-<a href="https://x.com/iamhemantindia/"><img src="https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white"/></a>
-<a href="https://instagram.com/iamhemantindia/"><img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white"/></a>
-<a href="mailto:iamhemantindia@protonmail.com"><img src="https://img.shields.io/badge/ProtonMail-6D4AFF?style=for-the-badge&logo=protonmail&logoColor=white"/></a>
+<a href="https://www.linkedin.com/in/ankit-kumbhare-024465366/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"/></a>
+<a href="https://github.com/Ankitcodes30"><img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
+<a href="mailto:ankitkumbhare301@gmail.com"><img src="https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white"/></a>
 
 </div>
 

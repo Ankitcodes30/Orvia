@@ -1367,7 +1367,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutCraftingSubtitle => '用代码编织交响乐。';
 
   @override
-  String get aboutFollowGitHub => '在 GitHub 上关注他';
+  String get aboutFollowGitHub => '在 GitHub 上关注';
 
   @override
   String get aboutSendInquiry => '发送商务咨询';
@@ -1376,7 +1376,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutCreativeHighlights => '更新与创作亮点';
 
   @override
-  String get aboutTipQuote => '喜欢 Orvia 吗？小小的打赏能让它持续绽放。🌸';
+  String get aboutTipQuote => '用心创造，因乐而动。';
 
   @override
   String get aboutTipButton => '我要赞赏';
