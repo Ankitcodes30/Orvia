@@ -1,7 +1,7 @@
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class SquareImgCard extends StatefulWidget {
   final String imgPath;
@@ -194,3 +194,4 @@ class _SquareImgCardState extends State<SquareImgCard> {
     );
   }
 }
+

@@ -7,7 +7,7 @@ import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 import 'package:Orvia/src/rust/api/plugin/types.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 /// Shows a bottom sheet listing track segments/chapters.
 ///
@@ -213,3 +213,4 @@ class _SegmentsSheetBodyState extends State<_SegmentsSheetBody> {
     );
   }
 }
+

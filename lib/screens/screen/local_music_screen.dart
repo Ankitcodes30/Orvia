@@ -14,7 +14,7 @@ import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/services/local_music_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:path/path.dart' as p;
 
 class LocalMusicScreen extends StatefulWidget {
@@ -771,3 +771,4 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
     );
   }
 }
+

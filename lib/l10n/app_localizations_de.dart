@@ -1164,8 +1164,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get updateNewVersionAvailable =>
-      'Neue Version von Orvia🌸 verfügbar!';
+  String get updateNewVersionAvailable => 'Neue Version von Orvia🌸 verfügbar!';
 
   @override
   String updateVersion(String ver, String build) {
@@ -1552,8 +1551,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get songInfoSearchTitle => 'In Orvia nach diesem Song suchen';
 
   @override
-  String get songInfoSearchArtist =>
-      'In Orvia nach diesem Interpreten suchen';
+  String get songInfoSearchArtist => 'In Orvia nach diesem Interpreten suchen';
 
   @override
   String get songInfoSearchAlbum => 'In Orvia nach diesem Album suchen';

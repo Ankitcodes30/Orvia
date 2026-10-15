@@ -1,9 +1,10 @@
 import 'dart:developer';
 
-import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
-Future<void> launch_Url(_url) async {
-  if (!await launchUrl(_url, mode: LaunchMode.externalApplication)) {
-    log('Could not launch $_url', name: "launch_Url");
+Future<void> launchUrl(Uri url) async {
+  if (!await url_launcher.launchUrl(url,
+      mode: url_launcher.LaunchMode.externalApplication)) {
+    log('Could not launch $url', name: 'launchUrl');
   }
 }

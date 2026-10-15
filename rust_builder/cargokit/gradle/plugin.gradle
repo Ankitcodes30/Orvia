@@ -80,6 +80,11 @@ abstract class CargoKitBuildTask extends DefaultTask {
             environment "CARGOKIT_MIN_SDK_VERSION", minSdkVersion
             environment "CARGOKIT_TARGET_PLATFORMS", targetPlatforms.join(",")
             environment "CARGOKIT_JAVA_HOME", System.properties['java.home']
+            // Limit Cargo parallelism: debug builds compile 4 Android targets and
+            // large crates (lofty, wit-component, rand) OOM with default jobs on
+            // constrained hosts (rustc-LLVM out of memory / 0xc0000409).
+            // Cargo maps CARGO_BUILD_JOBS to build.jobs. Fall back to "1" if OOM persists.
+            environment "CARGO_BUILD_JOBS", "2"
         }
     }
 }

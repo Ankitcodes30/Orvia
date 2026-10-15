@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Required for Clipboard
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/plugins/blocs/repository/plugin_repository_cubit.dart';
@@ -48,7 +48,7 @@ class _PluginRepositoryViewState extends State<PluginRepositoryView> {
         contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
         title: Text(
           l10n.pluginRepositoryAddTitle,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -195,9 +195,28 @@ class _PluginRepositoryViewState extends State<PluginRepositoryView> {
                     );
                   } else if (state is PluginRepositoryLoaded) {
                     if (state.repositories.isEmpty) {
-                      return SignBoardWidget(
-                        message: l10n.pluginRepositoryEmpty,
-                        icon: MingCute.cloud_snow_line,
+                      return Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SignBoardWidget(
+                                message: l10n.pluginRepositoryEmpty,
+                                icon: MingCute.cloud_snow_line,
+                              ),
+                              const SizedBox(height: 20),
+                              _AestheticButton(
+                                text: 'Sync official repositories',
+                                icon: MingCute.refresh_3_line,
+                                color: Default_Theme.accentColor2,
+                                onTap: () => context
+                                    .read<PluginRepositoryCubit>()
+                                    .syncOfficialRepositories(),
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     }
                     return RefreshIndicator(
@@ -556,3 +575,4 @@ class _AestheticButton extends StatelessWidget {
     );
   }
 }
+

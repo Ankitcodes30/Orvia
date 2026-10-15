@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class CountrySettings extends StatelessWidget {
   const CountrySettings({super.key});
@@ -318,3 +318,4 @@ final Map<String, String> countries = {
   'Zimbabwe': 'ZW',
   // Add more countries and their ISO alpha-2 codes here
 };
+

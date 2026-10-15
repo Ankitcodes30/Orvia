@@ -1,7 +1,7 @@
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class DownloadsView extends StatelessWidget {
   const DownloadsView({super.key});
@@ -27,3 +27,4 @@ class DownloadsView extends StatelessWidget {
     );
   }
 }
+

@@ -4,7 +4,7 @@ import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 enum LibItemTypes {
   userPlaylist,
@@ -165,3 +165,4 @@ class LibItemCard extends StatelessWidget {
     );
   }
 }
+

@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/plugins/models/plugin_repository.dart';
 import 'package:Orvia/plugins/services/plugin_repository_service.dart';
+import 'package:Orvia/services/plugin_bootstrap_service.dart';
 
 abstract class PluginRepositoryState {}
 
@@ -71,6 +72,19 @@ class PluginRepositoryCubit extends Cubit<PluginRepositoryState> {
       await loadRepositories();
     } catch (e) {
       emit(PluginRepositoryError('Failed to remove repository: $e'));
+      await loadRepositories();
+    }
+  }
+
+  Future<void> syncOfficialRepositories() async {
+    emit(PluginRepositoryLoading());
+    try {
+      await PluginBootstrapService.ensureHostedRepositoriesPresent(
+        repositoryService: _service,
+      );
+      await loadRepositories();
+    } catch (e) {
+      emit(PluginRepositoryError('Failed to sync official repositories: $e'));
       await loadRepositories();
     }
   }

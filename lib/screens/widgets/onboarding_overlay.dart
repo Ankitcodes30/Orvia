@@ -8,7 +8,7 @@ import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/onboarding_service.dart';
 import 'package:Orvia/utils/country_info.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class OnboardingOverlay extends StatefulWidget {
   final VoidCallback onComplete;
@@ -471,3 +471,4 @@ class _AestheticSwitch extends StatelessWidget {
     );
   }
 }
+

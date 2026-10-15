@@ -13,7 +13,7 @@ import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -782,3 +782,4 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
+

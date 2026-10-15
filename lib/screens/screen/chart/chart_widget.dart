@@ -2,7 +2,7 @@
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 
@@ -105,3 +105,4 @@ class _ChartPlaceholder extends StatelessWidget {
     );
   }
 }
+

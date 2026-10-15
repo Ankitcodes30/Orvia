@@ -39,6 +39,7 @@ class _PluginBootstrapOverlayState extends State<PluginBootstrapOverlay>
   final ValueNotifier<_Phase> _phase = ValueNotifier(_Phase.running);
   final ValueNotifier<int> _progress = ValueNotifier(0);
   int _runToken = 0;
+  String? _errorMessage;
 
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulse;
@@ -80,6 +81,7 @@ class _PluginBootstrapOverlayState extends State<PluginBootstrapOverlay>
     final token = ++_runToken;
     _phase.value = _Phase.running;
     _progress.value = 0;
+    _errorMessage = null;
 
     final settingsDao = SettingsDAO(DBProvider.db);
     final repositoryService = PluginRepositoryService(settingsDao: settingsDao);
@@ -107,9 +109,17 @@ class _PluginBootstrapOverlayState extends State<PluginBootstrapOverlay>
       if (mounted) widget.onComplete();
     } else if (result.failureReason ==
         PluginBootstrapFailureReason.noInternet) {
+      _errorMessage = result.errors.isNotEmpty ? result.errors.first : null;
       _phase.value = _Phase.noInternet;
     } else {
+      _errorMessage = result.errors.isNotEmpty ? result.errors.first : null;
       _phase.value = _Phase.failed;
+    }
+  }
+
+  void _continueOffline() {
+    if (mounted) {
+      widget.onComplete();
     }
   }
 
@@ -143,10 +153,13 @@ class _PluginBootstrapOverlayState extends State<PluginBootstrapOverlay>
                         ? _NoInternetBody(
                             onRetry: _run,
                             onExit: _exitApp,
+                            onContinueOffline: _continueOffline,
                           )
                         : phase == _Phase.failed
                             ? _ErrorBody(
                                 onRetry: _run,
+                                onContinueOffline: _continueOffline,
+                                errorMessage: _errorMessage,
                               )
                             : _SpinnerBody(
                                 pulse: _pulse,
@@ -267,16 +280,20 @@ class _SpinnerBody extends StatelessWidget {
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({
     required this.onRetry,
+    required this.onContinueOffline,
+    this.errorMessage,
   });
 
   final VoidCallback onRetry;
+  final VoidCallback onContinueOffline;
+  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
       child: Container(
-        padding: const EdgeInsets.all(28),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: _PluginBootstrapOverlayState._surfaceCol,
           borderRadius: BorderRadius.circular(20),
@@ -289,12 +306,21 @@ class _ErrorBody extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              color: _PluginBootstrapOverlayState._errorAccent,
-              size: 48,
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _PluginBootstrapOverlayState._errorAccent
+                    .withValues(alpha: 0.1),
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                color: _PluginBootstrapOverlayState._errorAccent,
+                size: 30,
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             const Text(
               'Setup incomplete',
               textAlign: TextAlign.center,
@@ -304,17 +330,19 @@ class _ErrorBody extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
-              'Some plugins could not be installed right now. Retry to finish setup cleanly.',
+              errorMessage != null && errorMessage!.isNotEmpty
+                  ? errorMessage!
+                  : 'Some plugins could not be installed right now. Retry to finish setup cleanly, or continue offline to access your local music.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: Colors.white.withValues(alpha: 0.62),
                 fontSize: 13.5,
-                height: 1.55,
+                height: 1.5,
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -322,7 +350,7 @@ class _ErrorBody extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: _PluginBootstrapOverlayState._successAccent,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -336,6 +364,39 @@ class _ErrorBody extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onContinueOffline,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.22),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Continue offline',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'You can retry plugin setup anytime in Settings > Plugins.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.38),
+                fontSize: 12,
+              ),
+            ),
           ],
         ),
       ),
@@ -347,10 +408,12 @@ class _NoInternetBody extends StatelessWidget {
   const _NoInternetBody({
     required this.onRetry,
     required this.onExit,
+    required this.onContinueOffline,
   });
 
   final VoidCallback onRetry;
   final VoidCallback onExit;
+  final VoidCallback onContinueOffline;
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +456,7 @@ class _NoInternetBody extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Orvia needs an internet connection once to detect your country and set up the plugin engine.',
+              'Orvia needs an internet connection once to detect your country and set up online plugins. You can continue offline to use local music and playback.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.62),
@@ -437,6 +500,30 @@ class _NoInternetBody extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onContinueOffline,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.22),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Continue offline',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

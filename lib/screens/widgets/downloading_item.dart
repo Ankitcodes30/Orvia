@@ -5,7 +5,7 @@ import 'package:Orvia/utils/download_types.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class DownloadingCardWidget extends StatelessWidget {
   final DownloadProgress downloadProgress;
@@ -354,3 +354,4 @@ class DownloadingCardWidget extends StatelessWidget {
     }
   }
 }
+

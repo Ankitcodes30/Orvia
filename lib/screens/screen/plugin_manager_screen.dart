@@ -16,7 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/screens/screen/home_views/plugin_repository_view.dart';
 import 'package:Orvia/plugins/blocs/repository/plugin_repository_cubit.dart';
 import 'package:Orvia/plugins/utils/plugin_constants.dart';
@@ -1399,3 +1399,4 @@ class _DetailDivider extends StatelessWidget {
         color: Default_Theme.primaryColor1.withValues(alpha: 0.05));
   }
 }
+

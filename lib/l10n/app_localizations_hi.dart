@@ -1161,8 +1161,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get updateNewVersionAvailable =>
-      'Orvia🌸 का एक नया वर्शन उपलब्ध है!';
+  String get updateNewVersionAvailable => 'Orvia🌸 का एक नया वर्शन उपलब्ध है!';
 
   @override
   String updateVersion(String ver, String build) {

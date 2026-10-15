@@ -76,10 +76,12 @@ class DBProvider {
     if (Isar.instanceNames.isEmpty) {
       final File dbFile = File(p.join(appSuppDir, 'dbv3.isar'));
       if (!await dbFile.exists()) {
-        // Legacy backup paths retained for backward compatibility with
-        // existing installations. Do not rename.
+        // Check for Orvia backup, or fallback to legacy Bloomee backup paths
+        // retained for backward compatibility with existing installations.
         await checkAndRestoreDB(dbFile.path, [
           p.join(appDocDir, 'dbv3.isar'),
+          p.join(appDocDir, 'orvia_backup_dbv3.isar'),
+          p.join(appSuppDir, 'orvia_backup_dbv3.isar'),
           p.join(appDocDir, 'bloomee_backup_dbv3.isar'),
           p.join(appSuppDir, 'bloomee_backup_dbv3.isar'),
         ]);
@@ -168,11 +170,20 @@ class DBProvider {
   /// Get the database backup file path.
   static Future<String> getDbBackupFilePath() async {
     String backupPath = (await getDownloadsDirectory())?.path ?? appDocDir;
-    // Legacy backup path retained for backward compatibility with
-    // existing installations. Do not rename.
-    backupPath =
+    final orviaPath =
+        p.join(backupPath, 'orviaBackup', 'orvia_backup_dbv3.json');
+    final legacyPath =
         p.join(backupPath, 'bloomeeBackup', 'bloomee_backup_dbv3.json');
-    return backupPath;
+
+    // If legacy backup exists and new Orvia backup does not, fall back to legacy for restore
+    final orviaIsar = orviaPath.replaceAll('.json', '.isar');
+    final legacyIsar = legacyPath.replaceAll('.json', '.isar');
+    if (!File(orviaPath).existsSync() &&
+        !File(orviaIsar).existsSync() &&
+        (File(legacyPath).existsSync() || File(legacyIsar).existsSync())) {
+      return legacyPath;
+    }
+    return orviaPath;
   }
 
   /// Check whether a backup file exists.

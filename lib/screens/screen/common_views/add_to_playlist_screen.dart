@@ -13,7 +13,7 @@ import 'package:Orvia/screens/widgets/create_playlist_bottomsheet.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/utils/load_image.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class AddToPlaylistScreen extends StatefulWidget {
   const AddToPlaylistScreen({super.key});
@@ -930,3 +930,4 @@ class _PlaylistAvatar extends StatelessWidget {
     );
   }
 }
+

@@ -1882,8 +1882,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pluginBootstrapErrorTitle => '连接过慢';
 
   @override
-  String get pluginBootstrapErrorBody =>
-      '部分插件无法安装。您仍可使用 Orvia —— 插件将在下次启动时重试。';
+  String get pluginBootstrapErrorBody => '部分插件无法安装。您仍可使用 Orvia —— 插件将在下次启动时重试。';
 
   @override
   String get pluginBootstrapContinue => '仍然继续';

@@ -21,7 +21,7 @@ import 'package:Orvia/screens/widgets/create_playlist_bottomsheet.dart';
 import 'package:Orvia/screens/widgets/libitem_tile.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/blocs/library/search_cubit/library_search_cubit.dart';
 import 'package:Orvia/core/models/library_search_result.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
@@ -656,3 +656,4 @@ Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
     child: child,
   );
 }
+

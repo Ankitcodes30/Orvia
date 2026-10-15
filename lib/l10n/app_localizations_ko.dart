@@ -1550,8 +1550,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get importNoteTitle => '주의';
 
   @override
-  String get importNoteMessage =>
-      'Orvia에서 생성한 파일만 정상적으로 가져올 수 있습니다. 계속하시겠습니까?';
+  String get importNoteMessage => 'Orvia에서 생성한 파일만 정상적으로 가져올 수 있습니다. 계속하시겠습니까?';
 
   @override
   String get importTitle => '가져오기';

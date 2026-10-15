@@ -21,7 +21,7 @@ import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AlbumView extends StatefulWidget {
@@ -663,3 +663,4 @@ class _PremiumCircularButton extends StatelessWidget {
     );
   }
 }
+

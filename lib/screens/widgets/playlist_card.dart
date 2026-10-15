@@ -3,7 +3,7 @@ import 'package:Orvia/screens/screen/common_views/playlist_view.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class PlaylistCard extends StatefulWidget {
   final PlaylistSummary playlist;
@@ -145,3 +145,4 @@ class _PlaylistCardState extends State<PlaylistCard> {
     );
   }
 }
+

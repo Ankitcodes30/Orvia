@@ -60,6 +60,11 @@ class PluginBootstrapService {
   static const String hostedRepositoriesUrl =
       'https://hemantkarya.github.io/Orvia/repositories.json';
 
+  static const List<String> hostedRepositoriesUrls = [
+    'https://hemantkarya.github.io/Orvia/repositories.json',
+    'https://hemantkarya.github.io/BloomeeTunes/repositories.json',
+  ];
+
   static const int maxRetries = 3;
 
   static const Duration syncGap = Duration(minutes: 30);
@@ -118,12 +123,15 @@ class PluginBootstrapService {
           name: 'PluginBootstrap');
     } catch (e) {
       log('Failed to fetch repositories.json: $e', name: 'PluginBootstrap');
-      errors
-          .add('Could not reach the plugin catalogue. Check your connection.');
+      final isOffline = _isOfflineError(e);
+      final errorMsg = isOffline
+          ? 'Could not reach the plugin catalogue. Check your connection or continue offline.'
+          : 'Could not load plugin catalogue: $e';
+      errors.add(errorMsg);
       return PluginBootstrapResult(
         success: false,
         errors: errors,
-        failureReason: _isOfflineError(e)
+        failureReason: isOffline
             ? PluginBootstrapFailureReason.noInternet
             : PluginBootstrapFailureReason.setupFailed,
       );
@@ -596,29 +604,70 @@ class PluginBootstrapService {
   }
 
   static Future<List<_HostedRepoEntry>> _fetchHostedEntries() async {
-    final response = await http
-        .get(Uri.parse(hostedRepositoriesUrl))
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode != 200) {
-      throw Exception('HTTP ${response.statusCode}');
+    Object? lastError;
+    for (final url in hostedRepositoriesUrls) {
+      try {
+        final response = await http
+            .get(Uri.parse(url))
+            .timeout(const Duration(seconds: 15));
+        if (response.statusCode != 200) {
+          throw HttpException('HTTP ${response.statusCode}: Failed to fetch repository catalogue from $url');
+        }
+        final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+        final bodyTrimmed = response.body.trim();
+        if (contentType.contains('text/html') ||
+            bodyTrimmed.startsWith('<!DOCTYPE') ||
+            bodyTrimmed.startsWith('<html') ||
+            bodyTrimmed.startsWith('<?xml') ||
+            bodyTrimmed.startsWith('<')) {
+          throw FormatException('Server at $url returned HTML instead of repository catalogue');
+        }
+        final dynamic decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          throw FormatException('Invalid JSON catalogue structure from $url');
+        }
+        final list = decoded['repositories'] as List<dynamic>?;
+        if (list == null) throw FormatException('Missing "repositories" key in catalogue from $url');
+        final entries = list
+            .map((e) =>
+                _HostedRepoEntry.fromJson(Map<String, dynamic>.from(e as Map)))
+            .where((e) => e.url.isNotEmpty && (Uri.tryParse(e.url)?.isAbsolute ?? false))
+            .toList();
+        if (entries.isNotEmpty) {
+          return entries;
+        }
+      } catch (e) {
+        lastError = e;
+        log('Candidate catalogue URL failed ($url): $e', name: 'PluginBootstrap');
+      }
     }
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final list = json['repositories'] as List<dynamic>?;
-    if (list == null) throw const FormatException('Missing "repositories" key');
-    return list
-        .map((e) =>
-            _HostedRepoEntry.fromJson(Map<String, dynamic>.from(e as Map)))
-        .where((e) => e.url.isNotEmpty)
-        .toList();
+    throw lastError ?? const HttpException('All candidate repository catalogues were unreachable');
   }
 
   static Future<Uint8List> _downloadBytes(String url) async {
     final response =
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 45));
     if (response.statusCode != 200) {
-      throw Exception('HTTP ${response.statusCode}');
+      throw HttpException('HTTP ${response.statusCode}');
     }
-    return response.bodyBytes;
+    final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+    if (contentType.contains('text/html')) {
+      throw const FormatException('Remote server returned HTML content-type instead of binary file');
+    }
+    final bytes = response.bodyBytes;
+    if (_isHtmlBytes(bytes)) {
+      throw const FormatException('Remote server returned HTML markup instead of binary file');
+    }
+    return bytes;
+  }
+
+  static bool _isHtmlBytes(Uint8List bytes) {
+    if (bytes.length < 5) return false;
+    final prefix = String.fromCharCodes(bytes.take(16)).toLowerCase();
+    return prefix.startsWith('<!doctype') ||
+        prefix.startsWith('<html') ||
+        prefix.startsWith('<?xml') ||
+        prefix.startsWith('<head');
   }
 
   static Future<List<PluginInfo>> _safeGetAvailable(
@@ -643,6 +692,20 @@ class PluginBootstrapService {
   }
 
   static bool _isOfflineError(Object error) {
-    return error is SocketException || error is TimeoutException;
+    if (error is SocketException ||
+        error is TimeoutException ||
+        error is http.ClientException ||
+        error is HandshakeException ||
+        error is TlsException) {
+      return true;
+    }
+    final msg = error.toString().toLowerCase();
+    return msg.contains('failed host lookup') ||
+        msg.contains('connection refused') ||
+        msg.contains('connection timed out') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('network error') ||
+        msg.contains('html instead of') ||
+        msg.contains('clientexception');
   }
 }

@@ -30,7 +30,19 @@ class PluginRepositoryService {
       final response =
           await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        final jsonMap = jsonDecode(response.body);
+        final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+        final bodyTrimmed = response.body.trim();
+        if (contentType.contains('text/html') ||
+            bodyTrimmed.startsWith('<!DOCTYPE') ||
+            bodyTrimmed.startsWith('<html') ||
+            bodyTrimmed.startsWith('<?xml') ||
+            bodyTrimmed.startsWith('<')) {
+          throw const FormatException('Server returned HTML instead of repository JSON');
+        }
+        final dynamic jsonMap = jsonDecode(response.body);
+        if (jsonMap is! Map<String, dynamic>) {
+          throw const FormatException('Invalid repository JSON structure');
+        }
         return PluginRepositoryModel.fromJson(url, jsonMap);
       } else {
         throw Exception(
@@ -74,12 +86,20 @@ class PluginRepositoryService {
   Future<int> ensureRepositoryUrls(Iterable<String> urls) {
     return _enqueueMutation(() async {
       final existing = (await getSavedRepositoryUrls()).toSet();
-      final validToAdd = urls
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .where((e) => Uri.tryParse(e)?.isAbsolute ?? false)
-          .where((e) => !existing.contains(e))
-          .toList(growable: false);
+      final validToAdd = <String>{};
+      for (final raw in urls) {
+        final trimmed = raw.trim();
+        if (trimmed.isEmpty) continue;
+        final uri = Uri.tryParse(trimmed);
+        if (uri == null ||
+            !uri.isAbsolute ||
+            (uri.scheme != 'http' && uri.scheme != 'https')) {
+          continue;
+        }
+        if (!existing.contains(trimmed)) {
+          validToAdd.add(trimmed);
+        }
+      }
 
       if (validToAdd.isEmpty) return 0;
 

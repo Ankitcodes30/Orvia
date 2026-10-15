@@ -4,7 +4,7 @@ import 'package:Orvia/core/models/app_notification.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/check_update_view.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class NotificationTile extends StatelessWidget {
   final AppNotification notification;
@@ -57,3 +57,4 @@ class NotificationTile extends StatelessWidget {
     );
   }
 }
+

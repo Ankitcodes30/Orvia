@@ -25,8 +25,22 @@ merge_rust.py
 # Visual Studio Code related
 .classpath
 .project
+# IDE settings
+.vscode/
 .settings/
-.vscode/*
+
+# Root runtime test artifacts and screenshots
+/*.png
+
+# Windows host test helper — copied from pub cache to run Isar tests locally.
+# Must NOT be committed; regenerate from pub cache when needed.
+libisar.dll
+
+# Build/analyze logs generated during local CI runs
+build_debug.log
+flutter_analyze.log
+flutter_test_all.log
+flutter_test.log
 
 # Flutter repo-specific
 /bin/cache/

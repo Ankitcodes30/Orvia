@@ -166,7 +166,7 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
 
 Future<Map<String, dynamic>> githubUpdate(
     {Duration timeout = const Duration(seconds: 6)}) async {
-  final url =
+  const url =
       'https://api.github.com/repos/HemantKArya/Orvia/releases/latest';
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   try {

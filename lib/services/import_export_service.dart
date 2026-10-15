@@ -96,7 +96,7 @@ class ImportExportService {
         );
       }
 
-      Artwork thumbnail = Artwork(url: '', layout: ImageLayout.square);
+      Artwork thumbnail = const Artwork(url: '', layout: ImageLayout.square);
       if (m['thumbnail'] is Map) {
         final t = m['thumbnail'] as Map;
         thumbnail = Artwork(
@@ -487,8 +487,8 @@ class ImportExportService {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => WillPopScope(
-              onWillPop: () async => false,
+            builder: (ctx) => PopScope(
+              canPop: false,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.all(24),
@@ -582,8 +582,8 @@ class ImportExportService {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => WillPopScope(
-              onWillPop: () async => false,
+            builder: (ctx) => PopScope(
+              canPop: false,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.all(24),

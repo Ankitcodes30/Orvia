@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/url_launcher.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
-import 'package:icons_plus/icons_plus.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
 
 class CheckUpdateView extends StatelessWidget {
   const CheckUpdateView({super.key});
@@ -43,7 +43,7 @@ class CheckUpdateView extends StatelessWidget {
                       padding: const EdgeInsets.all(5.0),
                       child: FilledButton(
                         onPressed: () {
-                          launch_Url(Uri.parse(
+                          launchUrl(Uri.parse(
                               "https://github.com/HemantKArya/Orvia/releases"));
                         },
                         child: SizedBox(
@@ -114,7 +114,7 @@ class CheckUpdateView extends StatelessWidget {
                       padding: const EdgeInsets.all(8.0),
                       child: FilledButton(
                         onPressed: () {
-                          launch_Url(
+                          launchUrl(
                               Uri.parse("https://orvia.sourceforge.io/"));
                         },
                         child: SizedBox(
@@ -186,3 +186,4 @@ class CheckUpdateView extends StatelessWidget {
     );
   }
 }
+

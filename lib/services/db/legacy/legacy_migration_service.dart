@@ -58,7 +58,7 @@ LegacyDbLocation? findLegacyDbLocation({
   final dbFallbackCandidates = <LegacyDbLocation>[];
   final seenPaths = <String>{};
 
-  bool _isMigratedArtifact(String filePath) {
+  bool isMigratedArtifact(String filePath) {
     final lower = filePath.toLowerCase();
     // Skip already-migrated files, temp files, lock files, and staging directories
     return lower.endsWith('.migrated') ||
@@ -120,7 +120,7 @@ LegacyDbLocation? findLegacyDbLocation({
   ) {
     final filePath = p.join(dir, filename);
     if (!seenPaths.add(filePath)) return;
-    if (_isMigratedArtifact(filePath)) return;
+    if (isMigratedArtifact(filePath)) return;
     if (File(filePath).existsSync()) {
       target.add(LegacyDbLocation(directory: dir, filePath: filePath));
     }
@@ -283,6 +283,11 @@ Future<_MigrationPlan> _buildMigrationPlan(Isar legacyIsar) async {
   for (final item in mediaItems) {
     if (item.mediaID.isEmpty) continue;
     mediaByLegacyMediaId.putIfAbsent(item.mediaID, () => item);
+    final stripped = _stripYoutubePrefix(item.mediaID);
+    if (stripped.isNotEmpty) {
+      mediaByLegacyMediaId.putIfAbsent(stripped, () => item);
+      mediaByLegacyMediaId.putIfAbsent('youtube$stripped', () => item);
+    }
   }
 
   final playlistInfos =
@@ -364,7 +369,8 @@ Future<_MigrationPlan> _buildMigrationPlan(Isar legacyIsar) async {
       legacyIsar.collection<legacy.DownloadDB>().where().findAllSync();
   for (var index = 0; index < legacyDownloads.length; index++) {
     final download = legacyDownloads[index];
-    final mediaItem = mediaByLegacyMediaId[download.mediaId];
+    final mediaItem = mediaByLegacyMediaId[download.mediaId] ??
+        mediaByLegacyMediaId[_stripYoutubePrefix(download.mediaId)];
     final newMediaId = mediaItem != null
         ? _buildNewMediaId(
             download.mediaId,
