@@ -1,12 +1,14 @@
-// ignore_for_file: public_member_api_docs, sort_constructors_first
+import 'package:Orvia/core/di/service_locator.dart';
+import 'package:Orvia/services/cache/plugin_cache_repository.dart';
+import 'package:Orvia/services/plugin_cache_codec.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 import 'package:flutter/material.dart';
-import 'package:iconsx_plus/iconsx_plus.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 
-class ChartWidget extends StatelessWidget {
+class ChartWidget extends StatefulWidget {
   final ChartSummary chart;
   final String pluginId;
 
@@ -17,12 +19,84 @@ class ChartWidget extends StatelessWidget {
   });
 
   @override
+  State<ChartWidget> createState() => _ChartWidgetState();
+}
+
+class _ChartWidgetState extends State<ChartWidget> {
+  String? _resolvedArtworkUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkTopItemArtwork();
+  }
+
+  @override
+  void didUpdateWidget(ChartWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chart.id != widget.chart.id ||
+        oldWidget.chart.thumbnail != widget.chart.thumbnail) {
+      _checkTopItemArtwork();
+    }
+  }
+
+  bool _isGenericIcon(String? url) => isGenericProviderIcon(url);
+
+  Future<void> _checkTopItemArtwork() async {
+    final artwork = widget.chart.thumbnail;
+    final currentUrl = artwork?.urlHigh ?? artwork?.url ?? artwork?.urlLow;
+
+    if (currentUrl != null && !_isGenericIcon(currentUrl)) {
+      if (_resolvedArtworkUrl != currentUrl) {
+        setState(() {
+          _resolvedArtworkUrl = currentUrl;
+        });
+      }
+      return;
+    }
+
+    // Try reading cached chart items to extract genuine track artwork
+    try {
+      final cacheKey = 'chart_cache::${widget.pluginId}::${widget.chart.id}';
+      final cached = await ServiceLocator.pluginCache
+          .getCachedWithStaleness<List<ChartItem>>(
+        key: cacheKey,
+        type: CacheType.chart,
+        decode: decodeChartItemsCacheAsync,
+        stalenessThreshold: const Duration(hours: 12),
+      );
+
+      if (cached.value != null && cached.value!.isNotEmpty) {
+        for (final item in cached.value!) {
+          final topUrl = item.item.when(
+            track: (t) => t.thumbnail.urlHigh ?? t.thumbnail.url,
+            album: (a) => a.thumbnail?.urlHigh ?? a.thumbnail?.url,
+            artist: (a) => a.thumbnail?.urlHigh ?? a.thumbnail?.url,
+            playlist: (p) => p.thumbnail.urlHigh ?? p.thumbnail.url,
+          );
+          if (topUrl != null &&
+              topUrl.isNotEmpty &&
+              !isGenericProviderIcon(topUrl) &&
+              mounted) {
+            setState(() {
+              _resolvedArtworkUrl = topUrl;
+            });
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveBreakpoints.of(context).isMobile;
     final isTablet = ResponsiveBreakpoints.of(context).isTablet;
 
-    final artwork = chart.thumbnail;
-    final thumbnailUrl = artwork?.urlHigh ?? artwork?.url ?? artwork?.urlLow;
+    final artwork = widget.chart.thumbnail;
+    final fallbackUrl = artwork?.urlHigh ?? artwork?.url ?? artwork?.urlLow;
+    final effectiveUrl = _resolvedArtworkUrl ??
+        (!_isGenericIcon(fallbackUrl) ? fallbackUrl : null);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -38,10 +112,10 @@ class ChartWidget extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+            if (effectiveUrl != null && effectiveUrl.isNotEmpty)
               LoadImageCached(
-                imageUrl: thumbnailUrl,
-                fallbackUrl: artwork?.url ?? thumbnailUrl,
+                imageUrl: effectiveUrl,
+                fallbackUrl: fallbackUrl,
                 fit: BoxFit.cover,
               )
             else
@@ -67,7 +141,7 @@ class ChartWidget extends StatelessWidget {
               right: 14,
               bottom: 14,
               child: Text(
-                chart.title,
+                widget.chart.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Default_Theme.secondoryTextStyleMedium.merge(
@@ -96,10 +170,11 @@ class _ChartPlaceholder extends StatelessWidget {
     return Container(
       color: Default_Theme.primaryColor2.withValues(alpha: 0.08),
       child: Center(
-        child: Icon(
-          MingCute.music_2_fill,
-          size: 48,
-          color: Colors.white.withValues(alpha: 0.15),
+        child: Image.asset(
+          'assets/icons/OrviaLogo_System.png',
+          width: 56,
+          height: 56,
+          opacity: const AlwaysStoppedAnimation(0.25),
         ),
       ),
     );

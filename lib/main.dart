@@ -317,9 +317,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
 
     if (_pluginBootstrapPending) {
-      return Directionality(
-        textDirection: TextDirection.ltr,
-        child: PluginBootstrapOverlay(
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: Default_Theme().defaultThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: PluginBootstrapOverlay(
           onComplete: () {
             if (!mounted) return;
             setState(() => _pluginBootstrapPending = false);
@@ -351,7 +354,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         BlocProvider(
             create: (context) =>
                 MiniPlayerCubit(playerCubit: orviaPlayerCubit),
-            lazy: true),
+            lazy: false),
         BlocProvider(
           create: (context) => SettingsCubit(
             SettingsRepository(SettingsDAO(DBProvider.db)),

@@ -19,6 +19,7 @@ import 'package:Orvia/screens/screen/chart/chart_view.dart';
 /// provides backward-compatible access for existing callers.
 class AppRouter {
   static final globalRouterKey = GlobalKey<NavigatorState>();
+  static final exploreNavigatorKey = GlobalKey<NavigatorState>();
 
   static final globalRouter = GoRouter(
     initialLocation: '/Explore',
@@ -34,7 +35,9 @@ class AppRouter {
           builder: (context, state, navigationShell) =>
               GlobalFooter(navigationShell: navigationShell),
           branches: [
-            StatefulShellBranch(routes: [
+            StatefulShellBranch(
+                navigatorKey: exploreNavigatorKey,
+                routes: [
               GoRoute(
                   name: RoutePaths.exploreScreen,
                   path: '/Explore',

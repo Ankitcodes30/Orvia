@@ -124,6 +124,30 @@ class HistoryDAO {
     await isar.writeTxn(() => isar.playbackHistoryDBs.delete(id));
   }
 
+  /// Delete playback history for a specific track [mediaId].
+  ///
+  /// Removes the [PlaybackHistoryDB] entry for this track without deleting
+  /// the underlying [TrackDB] row or affecting liked/playlist status.
+  Future<int> removeTrackHistory(String mediaId) async {
+    final isar = await _db;
+    final entries = await isar.playbackHistoryDBs.where().findAll();
+    await Future.wait(entries.map((e) => e.track.load()));
+
+    final matchingIds = entries
+        .where((e) => e.track.value?.mediaId == mediaId)
+        .map((e) => e.id)
+        .toList(growable: false);
+
+    if (matchingIds.isEmpty) return 0;
+
+    final deleted = await isar.writeTxn(() async {
+      return isar.playbackHistoryDBs.deleteAll(matchingIds);
+    });
+    log('Removed $deleted history entries for track $mediaId',
+        name: 'HistoryDAO');
+    return deleted;
+  }
+
   /// Delete all history entries.
   Future<void> clearHistory() async {
     final isar = await _db;

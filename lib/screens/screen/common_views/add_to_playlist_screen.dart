@@ -412,6 +412,8 @@ class _SongInfoCard extends StatelessWidget {
                 imageUrl: mediaItem.thumbnail.urlLow ?? mediaItem.thumbnail.url,
                 fallbackUrl:
                     mediaItem.thumbnail.urlLow ?? mediaItem.thumbnail.url,
+                mediaId: mediaItem.id,
+                placeholderUrl: resolveSongPlaceholder(mediaId: mediaItem.id),
                 fit: BoxFit.cover,
               ),
             ),

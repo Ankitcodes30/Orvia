@@ -1,11 +1,14 @@
-// ignore_for_file: public_member_api_docs, sort_constructors_first
-import 'dart:ui';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:Orvia/core/models/exported.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
+import 'package:Orvia/core/models/exported.dart' hide MediaItem;
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/screens/screen/chart/chart_view.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
+
 
 /// A rich list tile for chart items with rank, trend indicator, artwork,
 /// metadata, stats, and action buttons.
@@ -28,40 +31,83 @@ class ChartListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (title, subtitle, imgUrl) = extractItemInfo(chartItem);
+    final trackId = chartItem.item.when(
+      track: (t) => t.id,
+      album: (a) => a.id,
+      artist: (a) => a.id,
+      playlist: (p) => p.id,
+    );
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final isMobile = constraints.maxWidth < 600;
+    final playerCubit = context.read<OrviaPlayerCubit>();
+    final player = playerCubit.orviaPlayer;
 
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: Colors.white.withValues(alpha: 0.02),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : 24.0,
-              vertical: 12.0,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ── Rank number ──
-                SizedBox(
-                  width: isMobile ? 38 : 50,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      chartItem.rank.toString(),
-                      style: TextStyle(
-                        fontSize: isMobile ? 24 : 28,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        color: _rankColor(chartItem.rank),
-                      ),
+    return StreamBuilder<MediaItem?>(
+      stream: player.mediaItem,
+      builder: (context, mediaSnapshot) {
+        final currentMedia = mediaSnapshot.data;
+        final isCurrent = (currentMedia != null &&
+            (isMatchingTrackId(currentMedia.id, trackId) ||
+                (title.trim().isNotEmpty &&
+                    currentMedia.title.trim().toLowerCase() ==
+                        title.trim().toLowerCase())));
+
+        return StreamBuilder<PlaybackState>(
+          stream: player.playbackState,
+          initialData: player.playbackState.valueOrNull,
+          builder: (context, playingSnapshot) {
+            final isPlaying = isCurrent && (playingSnapshot.data?.playing ?? false);
+
+            return LayoutBuilder(builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 600;
+
+              return Material(
+                color: isCurrent
+                    ? Default_Theme.accentColor2.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                child: InkWell(
+                  onTap: isCurrent
+                      ? (isPlaying ? () => player.pause() : () => player.play())
+                      : onTap,
+                  hoverColor: Colors.white.withValues(alpha: 0.02),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 16 : 24.0,
+                      vertical: 12.0,
                     ),
-                  ),
-                ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // ── Rank number ──
+                        SizedBox(
+                          width: isMobile ? 38 : 50,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: isPlaying
+                                ? const Icon(
+                                    MingCute.volume_line,
+                                    color: Default_Theme.accentColor2,
+                                    size: 22,
+                                  )
+                                : isCurrent
+                                    ? const Icon(
+                                        Icons.pause_rounded,
+                                        color: Default_Theme.accentColor2,
+                                        size: 22,
+                                      )
+                                    : Text(
+                                        chartItem.rank.toString(),
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 24 : 28,
+                                          fontWeight: FontWeight.w700,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                          color: _rankColor(chartItem.rank),
+                                        ),
+                                      ),
+                          ),
+                        ),
                 const SizedBox(width: 14),
 
                 // ── Trend tag ──
@@ -91,8 +137,17 @@ class ChartListTile extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : const Center(
-                          child: Icon(MingCute.music_2_line,
-                              color: Colors.white24, size: 24)),
+                          child: Opacity(
+                            opacity: 0.25,
+                            child: Image(
+                              image: AssetImage(
+                                  'assets/icons/OrviaLogo_System.png'),
+                              width: 24,
+                              height: 24,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 16),
 
@@ -111,7 +166,9 @@ class ChartListTile extends StatelessWidget {
                             fontSize: isMobile ? 15 : 17,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.2,
-                            color: Colors.white.withValues(alpha: 0.95),
+                            color: isCurrent
+                                ? Default_Theme.accentColor2
+                                : Colors.white.withValues(alpha: 0.95),
                           ),
                         ),
                       ),
@@ -141,12 +198,18 @@ class ChartListTile extends StatelessWidget {
                 const SizedBox(width: 16),
 
                 _ChartActionButton(
-                  onPressed: onTap,
-                  icon: MingCute.play_fill,
+                  onPressed: isCurrent
+                      ? (isPlaying ? () => player.pause() : () => player.play())
+                      : onTap,
+                  icon: isPlaying ? MingCute.pause_fill : MingCute.play_fill,
                   status: playStatus,
-                  tooltip: 'Play',
-                  backgroundColor: Colors.white.withValues(alpha: 0.04),
-                  foregroundColor: Colors.white.withValues(alpha: 0.7),
+                  tooltip: isPlaying ? 'Pause' : 'Play',
+                  backgroundColor: isCurrent
+                      ? Default_Theme.accentColor2.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.04),
+                  foregroundColor: isCurrent
+                      ? Default_Theme.accentColor2
+                      : Colors.white.withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 10),
                 _ChartActionButton(
@@ -163,7 +226,11 @@ class ChartListTile extends StatelessWidget {
         ),
       );
     });
-  }
+  },
+);
+},
+);
+}
 
   Color _rankColor(int rank) {
     if (rank <= 3) return const Color(0xFFCD9A7B); // Bronze/gold

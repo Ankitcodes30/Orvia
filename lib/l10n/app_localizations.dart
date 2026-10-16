@@ -1131,7 +1131,7 @@ abstract class AppLocalizations {
   /// No description provided for @exploreDiscover.
   ///
   /// In en, this message translates to:
-  /// **'Discover'**
+  /// **'Explore'**
   String get exploreDiscover;
 
   /// No description provided for @exploreRecently.

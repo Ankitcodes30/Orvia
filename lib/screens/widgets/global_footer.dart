@@ -1,4 +1,5 @@
 import 'package:Orvia/blocs/player_overlay/player_overlay_cubit.dart';
+import 'package:Orvia/routes/app_router.dart';
 import 'package:Orvia/screens/widgets/player_overlay_wrapper.dart';
 import 'package:Orvia/screens/widgets/mini_player_widget.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -36,24 +37,34 @@ class GlobalFooter extends StatelessWidget {
           final overlayC = context.read<PlayerOverlayCubit>();
           final router = GoRouter.of(context);
 
-          // ① Navigator MUST have first priority — always.
+          // If the full player overlay is currently visible:
+          if (overlayC.state) {
+            // ① Collapse UpNext panel if expanded.
+            if (overlayC.collapseUpNextPanel()) {
+              return true;
+            }
+
+            // ② If a modal screen is pushed on top of the player (e.g. FullscreenLyricsView or dialog),
+            // pop that screen first.
+            final rootNav = AppRouter.globalRouterKey.currentState;
+            if (rootNav != null && rootNav.canPop()) {
+              rootNav.pop();
+              return true;
+            }
+
+            // ③ Dismiss/hide the full player overlay, returning to the originating chart/album screen.
+            overlayC.hidePlayer();
+            return true;
+          }
+
+          // ④ When player overlay is NOT visible:
+          // Normal GoRouter route navigation (pop subroutes within current tab).
           if (router.canPop()) {
             router.pop();
             return true;
           }
 
-          // ② Collapse UpNext panel if expanded (player must be visible).
-          if (overlayC.state && overlayC.collapseUpNextPanel()) {
-            return true;
-          }
-
-          // ③ Hide the player overlay.
-          if (overlayC.state) {
-            overlayC.hidePlayer();
-            return true;
-          }
-
-          // ④ Let PopScope handle tab/exit navigation below.
+          // ⑤ Let PopScope handle tab/exit navigation below.
           return false;
         },
         child: PopScope(
@@ -107,28 +118,33 @@ class GlobalFooter extends StatelessWidget {
     final overlayC = context.read<PlayerOverlayCubit>();
     final router = GoRouter.of(context);
 
-    // ① Navigator routes first
+    // If player overlay is visible:
+    if (overlayC.state) {
+      if (overlayC.collapseUpNextPanel()) return;
+
+      final rootNav = AppRouter.globalRouterKey.currentState;
+      if (rootNav != null && rootNav.canPop()) {
+        rootNav.pop();
+        return;
+      }
+
+      overlayC.hidePlayer();
+      return;
+    }
+
+    // Navigator routes in current tab
     if (router.canPop()) {
       router.pop();
       return;
     }
 
-    // ② Collapse UpNext panel
-    if (overlayC.state && overlayC.collapseUpNextPanel()) return;
-
-    // ③ Hide player
-    if (overlayC.state) {
-      overlayC.hidePlayer();
-      return;
-    }
-
-    // ④ Navigate to home tab
+    // Navigate to home tab
     if (navigationShell.currentIndex != 0) {
       navigationShell.goBranch(0);
       return;
     }
 
-    // ⑤ Exit app
+    // Exit app
     if (context.mounted) {
       await SystemNavigator.pop();
     }
@@ -202,6 +218,37 @@ class _AnimatedPageViewState extends State<_AnimatedPageView>
   }
 }
 
+void _handleTabNavigation(
+  BuildContext context,
+  StatefulNavigationShell navigationShell,
+  int index,
+) {
+  if (index == 0) {
+    // 1. Pop any modal or dialog routes on root Navigator
+    final rootNav = AppRouter.globalRouterKey.currentState;
+    if (rootNav != null && rootNav.canPop()) {
+      rootNav.popUntil((route) => route.isFirst);
+    }
+    // 2. Pop any nested screens on the Explore branch (e.g. Settings -> About)
+    final exploreNav = AppRouter.exploreNavigatorKey.currentState;
+    if (exploreNav != null && exploreNav.canPop()) {
+      exploreNav.popUntil((route) => route.isFirst);
+    }
+    // 3. Pop any active context navigator routes
+    final currentNav = Navigator.maybeOf(context);
+    if (currentNav != null && currentNav.canPop()) {
+      currentNav.popUntil((route) => route.isFirst);
+    }
+    // 4. Navigate to initial location of Home tab
+    navigationShell.goBranch(0, initialLocation: true);
+  } else {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
+  }
+}
+
 class VerticalNavBar extends StatelessWidget {
   const VerticalNavBar({super.key, required this.navigationShell});
   final StatefulNavigationShell navigationShell;
@@ -230,7 +277,8 @@ class VerticalNavBar extends StatelessWidget {
       ],
       selectedIndex: navigationShell.currentIndex,
       minWidth: 70,
-      onDestinationSelected: navigationShell.goBranch,
+      onDestinationSelected: (index) =>
+          _handleTabNavigation(context, navigationShell, index),
       groupAlignment: 0.0,
       unselectedIconTheme:
           const IconThemeData(color: Default_Theme.primaryColor2),
@@ -268,7 +316,8 @@ class HorizontalNavBar extends StatelessWidget {
         GButton(icon: MingCute.folder_download_fill, text: l10n.navOffline),
       ],
       selectedIndex: navigationShell.currentIndex,
-      onTabChange: navigationShell.goBranch,
+      onTabChange: (index) =>
+          _handleTabNavigation(context, navigationShell, index),
     );
   }
 }

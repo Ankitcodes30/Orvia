@@ -6,6 +6,7 @@ import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/screens/screen/common_views/song_info_screen.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/blocs/downloader/cubit/downloader_cubit.dart';
@@ -14,6 +15,7 @@ import 'package:Orvia/core/models/exported.dart' hide MediaItem;
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/screens/widgets/media_metadata_links.dart';
 import 'package:Orvia/utils/load_image.dart';
+
 
 class SongCardWidget extends StatelessWidget {
   final Track song;
@@ -54,112 +56,141 @@ class SongCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playerCubit = context.read<OrviaPlayerCubit>();
+    final player = playerCubit.orviaPlayer;
 
     return StreamBuilder<MediaItem?>(
-      stream: playerCubit.orviaPlayer.mediaItem,
-      builder: (context, snapshot) {
-        final isPlaying = snapshot.data?.id == song.id;
-        final l10n = AppLocalizations.of(context)!;
+      stream: player.mediaItem,
+      builder: (context, mediaSnapshot) {
+        final currentMedia = mediaSnapshot.data;
+        final isCurrent = isMatchingTrackId(currentMedia?.id, song.id);
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic,
-          height: 66,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          decoration: BoxDecoration(
-            color: isPlaying
-                ? Default_Theme.accentColor2.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              splashColor: Default_Theme.primaryColor1.withValues(alpha: 0.06),
-              highlightColor:
-                  Default_Theme.primaryColor1.withValues(alpha: 0.03),
-              onTap: onTap,
-              onLongPress: onOptionsTap,
-              onSecondaryTap: onOptionsTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                child: Row(
-                  children: [
-                    if (index != null || isPlaying)
-                      SizedBox(
-                        width: 36,
-                        child: Center(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            switchInCurve: Curves.easeOutBack,
-                            switchOutCurve: Curves.easeIn,
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                              opacity: animation,
-                              child: ScaleTransition(
-                                  scale: animation, child: child),
+        return StreamBuilder<PlaybackState>(
+          stream: player.playbackState,
+          initialData: player.playbackState.valueOrNull,
+          builder: (context, playingSnapshot) {
+            final isPlaying = isCurrent && (playingSnapshot.data?.playing ?? false);
+            final l10n = AppLocalizations.of(context)!;
+
+            final trackThumb = song.thumbnail.urlLow ?? song.thumbnail.url;
+            final albumThumb =
+                song.album?.thumbnail?.urlHigh ?? song.album?.thumbnail?.url;
+            final effectiveThumb = trackThumb.trim().isNotEmpty
+                ? trackThumb
+                : (albumThumb?.trim() ?? '');
+            final fallbackThumb = song.thumbnail.url.trim().isNotEmpty
+                ? song.thumbnail.url
+                : (albumThumb?.trim() ?? '');
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeOutCubic,
+              height: 66,
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: isCurrent
+                    ? Default_Theme.accentColor2.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  splashColor:
+                      Default_Theme.primaryColor1.withValues(alpha: 0.06),
+                  highlightColor:
+                      Default_Theme.primaryColor1.withValues(alpha: 0.03),
+                  onTap: onTap,
+                  onLongPress: onOptionsTap,
+                  onSecondaryTap: onOptionsTap,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                    child: Row(
+                      children: [
+                        if (index != null || isCurrent)
+                          SizedBox(
+                            width: 36,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                switchInCurve: Curves.easeOutBack,
+                                switchOutCurve: Curves.easeIn,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                  opacity: animation,
+                                  child: ScaleTransition(
+                                      scale: animation, child: child),
+                                ),
+                                child: isPlaying
+                                    ? const Icon(
+                                        MingCute.volume_line,
+                                        key: ValueKey('playing_icon'),
+                                        color: Default_Theme.accentColor2,
+                                        size: 18,
+                                      )
+                                    : isCurrent
+                                        ? const Icon(
+                                            Icons.pause_rounded,
+                                            key: ValueKey('paused_icon'),
+                                            color: Default_Theme.accentColor2,
+                                            size: 18,
+                                          )
+                                        : Text(
+                                            index.toString(),
+                                            key: const ValueKey('index_text'),
+                                            style: TextStyle(
+                                              color: Default_Theme
+                                                  .primaryColor2
+                                                  .withValues(alpha: 0.5),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                              ),
                             ),
-                            child: isPlaying
-                                ? const Icon(
-                                    MingCute.right_fill,
-                                    key: ValueKey('playing_icon'),
-                                    color: Default_Theme.accentColor2,
-                                    size: 18,
-                                  )
-                                : Text(
-                                    index.toString(),
-                                    key: const ValueKey('index_text'),
-                                    style: TextStyle(
-                                      color: Default_Theme.primaryColor2
-                                          .withValues(alpha: 0.5),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                          ),
+
+                        // ── Thumbnail ──
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: isWide ? 86 : 50,
+                            height: 50,
+                            child: LoadImageCached(
+                              imageUrl: effectiveThumb,
+                              fallbackUrl: fallbackThumb,
+                              mediaId: song.id,
+                              placeholderUrl:
+                                  resolveSongPlaceholder(mediaId: song.id),
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 14),
 
-                    // ── Thumbnail ──
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: SizedBox(
-                        width: isWide ? 86 : 50,
-                        height: 50,
-                        child: LoadImageCached(
-                          imageUrl: song.thumbnail.urlLow ?? song.thumbnail.url,
-                          fallbackUrl:
-                              song.thumbnail.urlLow ?? song.thumbnail.url,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-
-                    // ── Animated Title & Subtitle ──
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOutCubic,
-                            style: TextStyle(
-                              color: isPlaying
-                                  ? Default_Theme.accentColor2
-                                  : Colors.white.withValues(alpha: 0.75),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.2,
-                              fontFamily:
-                                  Default_Theme.secondoryTextStyle.fontFamily,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            child: Text(song.title),
-                          ),
+                        // ── Animated Title & Subtitle ──
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOutCubic,
+                                style: TextStyle(
+                                  color: isCurrent
+                                      ? Default_Theme.accentColor2
+                                      : Colors.white.withValues(alpha: 0.75),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.2,
+                                  fontFamily: Default_Theme
+                                      .secondoryTextStyle.fontFamily,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                child: Text(song.title),
+                              ),
                           const SizedBox(height: 3),
                           if (subtitleOverride != null)
                             Text(
@@ -270,7 +301,9 @@ class SongCardWidget extends StatelessWidget {
         );
       },
     );
-  }
+  },
+);
+}
 }
 
 class _ActionButton extends StatelessWidget {

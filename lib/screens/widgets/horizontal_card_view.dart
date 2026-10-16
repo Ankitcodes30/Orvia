@@ -207,6 +207,24 @@ class _HorizontalCardViewState extends State<HorizontalCardView> {
         );
       },
       playlist: (playlist) {
+        final secTitle = widget.section.title.toLowerCase();
+        if (secTitle.contains('artist')) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ArtistView(
+                artist: ArtistSummary(
+                  id: playlist.id,
+                  name: playlist.title,
+                  thumbnail: playlist.thumbnail,
+                ),
+                pluginId: widget.pluginId,
+              ),
+            ),
+          );
+          return;
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -223,6 +241,7 @@ class _HorizontalCardViewState extends State<HorizontalCardView> {
       track: (track) => SquareImgCard(
         imgPath: track.thumbnail.url,
         fallbackImgPath: track.thumbnail.urlLow ?? track.thumbnail.url,
+        mediaId: track.id,
         title: track.title,
         subtitle: track.artists.map((a) => a.name).join(', '),
         isList: false,
@@ -244,14 +263,35 @@ class _HorizontalCardViewState extends State<HorizontalCardView> {
         isList: false,
         onTap: onTap,
       ),
-      playlist: (playlist) => SquareImgCard(
-        imgPath: playlist.thumbnail.url,
-        fallbackImgPath: playlist.thumbnail.url,
-        title: playlist.title,
-        subtitle: playlist.owner ?? '',
-        isList: true,
-        onTap: onTap,
-      ),
+      playlist: (playlist) {
+        final secTitle = widget.section.title.toLowerCase();
+        final String effectiveSubtitle;
+        final bool isList;
+        if (secTitle.contains('artist')) {
+          effectiveSubtitle = 'Artist Station';
+          isList = false;
+        } else if (secTitle.contains('radio')) {
+          effectiveSubtitle = 'Radio Station';
+          isList = true;
+        } else if (secTitle.contains('browse') ||
+            secTitle.contains('genre') ||
+            secTitle.contains('mood')) {
+          effectiveSubtitle = 'Category';
+          isList = true;
+        } else {
+          effectiveSubtitle = playlist.owner ?? '';
+          isList = true;
+        }
+
+        return SquareImgCard(
+          imgPath: playlist.thumbnail.url,
+          fallbackImgPath: playlist.thumbnail.url,
+          title: playlist.title,
+          subtitle: effectiveSubtitle,
+          isList: isList,
+          onTap: onTap,
+        );
+      },
     );
   }
 }

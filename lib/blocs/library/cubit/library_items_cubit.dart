@@ -10,6 +10,7 @@ import 'package:Orvia/services/db/mappers/media_item_mapper.dart';
 import 'package:Orvia/services/db/mappers/playlist_mapper.dart';
 import 'package:equatable/equatable.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:Orvia/services/db/dao/playlist_dao.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 part 'library_items_state.dart';
@@ -41,6 +42,7 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
 
   Future<void> _initialize() async {
     await _playlistDao.purgeBrokenPlaylistEntries();
+    await CreatorsChoiceService.ensurePlaylistExists(_playlistDao);
     await _fetchPlaylists();
     _setupWatchers();
   }

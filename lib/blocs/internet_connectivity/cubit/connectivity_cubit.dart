@@ -7,19 +7,26 @@ part 'connectivity_state.dart';
 class ConnectivityCubit extends Cubit<ConnectivityState> {
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   ConnectivityCubit() : super(ConnectivityState.disconnected) {
-    _subscription = Connectivity().onConnectivityChanged.listen((event) {
-      if (event.contains(ConnectivityResult.wifi) ||
-          event.contains(ConnectivityResult.mobile) ||
-          event.contains(ConnectivityResult.ethernet) ||
-          event.contains(ConnectivityResult.bluetooth) ||
-          event.contains(ConnectivityResult.vpn)) {
-        emit(ConnectivityState.connected);
-        log('Connected to network: $event', name: 'ConnectivityCubit');
-      } else {
-        emit(ConnectivityState.disconnected);
-        log('Disconnected from network: $event', name: 'ConnectivityCubit');
-      }
+    Connectivity().checkConnectivity().then((event) {
+      if (!isClosed) _handleResults(event);
+    }).catchError((e) {
+      log('Initial connectivity check failed: $e', name: 'ConnectivityCubit');
     });
+    _subscription = Connectivity().onConnectivityChanged.listen(_handleResults);
+  }
+
+  void _handleResults(List<ConnectivityResult> event) {
+    if (event.contains(ConnectivityResult.wifi) ||
+        event.contains(ConnectivityResult.mobile) ||
+        event.contains(ConnectivityResult.ethernet) ||
+        event.contains(ConnectivityResult.bluetooth) ||
+        event.contains(ConnectivityResult.vpn)) {
+      emit(ConnectivityState.connected);
+      log('Connected to network: $event', name: 'ConnectivityCubit');
+    } else {
+      emit(ConnectivityState.disconnected);
+      log('Disconnected from network: $event', name: 'ConnectivityCubit');
+    }
   }
   @override
   Future<void> close() {

@@ -12,6 +12,7 @@ import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/services/player/stream_quality_selector.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 
 class ResolvedMediaSource {
@@ -73,15 +74,24 @@ class MediaResolverService {
     }
 
     // 2. Plugin-based stream resolution.
-    final parts = tryParseMediaId(track.id);
+    var parts = tryParseMediaId(track.id);
     if (parts == null) {
-      GlobalEventBus.instance.emitError(
-        AppError.malformedMediaId(rawId: track.id),
-      );
-      throw Exception(
-        'Cannot resolve stream for "${track.title}" — '
-        'malformed media ID: "${track.id}"',
-      );
+      if (track.id.trim().isNotEmpty) {
+        final fallbackPluginId = await _resolveFallbackPluginId();
+        parts = MediaIdParts(pluginId: fallbackPluginId, localId: track.id.trim());
+        log(
+          'Track ID "${track.id}" is unstamped — resolved fallback plugin: $fallbackPluginId',
+          name: 'MediaResolverService',
+        );
+      } else {
+        GlobalEventBus.instance.emitError(
+          AppError.malformedMediaId(rawId: track.id),
+        );
+        throw Exception(
+          'Cannot resolve stream for "${track.title}" — '
+          'malformed media ID: "${track.id}"',
+        );
+      }
     }
 
     if (parts.pluginId == 'local') {
@@ -110,12 +120,31 @@ class MediaResolverService {
           AppError.pluginNotLoaded(pluginId: parts.pluginId, mediaId: track.id),
         );
       } else {
-        GlobalEventBus.instance.emitError(
-          AppError.pluginError(
-            pluginId: parts.pluginId,
-            message: e.message,
-          ),
-        );
+        final sanitized = formatUserFriendlyPluginError(e.message);
+        final lower = e.message.toLowerCase();
+        final isNetwork = lower.contains('http request failed') ||
+            lower.contains('error sending request') ||
+            lower.contains('connection refused') ||
+            lower.contains('failed to resolve') ||
+            lower.contains('offline') ||
+            lower.contains('no internet') ||
+            lower.contains('wasm execution error') ||
+            lower.contains('broken pipe') ||
+            lower.contains('reset');
+        if (isNetwork) {
+          GlobalEventBus.instance.emitError(
+            const AppError.networkFailure(
+              message: "You're offline. Connect to the internet to stream this song.",
+            ),
+          );
+        } else {
+          GlobalEventBus.instance.emitError(
+            AppError.pluginError(
+              pluginId: parts.pluginId,
+              message: sanitized,
+            ),
+          );
+        }
       }
       rethrow;
     }
@@ -211,4 +240,28 @@ class MediaResolverService {
       ack: () => throw Exception('Unexpected response type: ack'),
     );
   }
+
+  Future<String> _resolveFallbackPluginId() async {
+    try {
+      final preferred = await _settingsDao.getSettingStr(SettingKeys.homePluginId);
+      if (preferred != null && preferred.trim().isNotEmpty) {
+        return preferred.trim();
+      }
+      final searchPlugin = await _settingsDao.getSettingStr(SettingKeys.searchPluginId);
+      if (searchPlugin != null && searchPlugin.trim().isNotEmpty) {
+        return searchPlugin.trim();
+      }
+      final loaded = _pluginService.getLoadedPlugins();
+      if (loaded.contains(kDefaultSaavnPluginId)) {
+        return kDefaultSaavnPluginId;
+      }
+      if (loaded.isNotEmpty) {
+        return loaded.first;
+      }
+    } catch (e) {
+      log('Failed to resolve fallback plugin: $e', name: 'MediaResolverService');
+    }
+    return kDefaultSaavnPluginId;
+  }
 }
+

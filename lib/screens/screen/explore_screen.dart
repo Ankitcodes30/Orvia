@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'package:Orvia/blocs/explore/cubit/explore_cubits.dart';
 import 'package:Orvia/blocs/internet_connectivity/cubit/connectivity_cubit.dart';
@@ -5,6 +6,8 @@ import 'package:Orvia/blocs/lastdotfm/lastdotfm_cubit.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/blocs/notification/notification_cubit.dart';
 import 'package:Orvia/blocs/settings_cubit/cubit/settings_cubit.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/core/di/service_locator.dart';
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
@@ -30,6 +33,15 @@ import 'chart/carousal_widget.dart';
 import '../widgets/horizontal_card_view.dart';
 import '../widgets/tab_list_widget.dart';
 import 'package:badges/badges.dart' as badges;
+import 'package:collection/collection.dart';
+import 'package:Orvia/screens/widgets/bhakti_section.dart';
+import 'package:Orvia/screens/widgets/featured_artists_section.dart';
+import 'package:Orvia/screens/widgets/indian_browse_categories.dart';
+import 'package:Orvia/screens/widgets/instrumental_section.dart';
+import 'package:Orvia/screens/widgets/navratri_special_card.dart';
+import 'package:Orvia/screens/widgets/whats_hot_near_you.dart';
+import 'package:Orvia/screens/widgets/year_collections_section.dart';
+import 'package:Orvia/services/festival/festival_service.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -41,12 +53,95 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool isUpdateChecked = false;
   late final ContentBloc _homeContentBloc;
   Future<List<Track>> lFMData = Future.value(const []);
+  final GlobalKey<CaraouselWidgetState> _carouselKey =
+      GlobalKey<CaraouselWidgetState>();
+  final GlobalKey _festiveSectionKey = GlobalKey();
+  bool _isRefreshing = false;
+  DateTime? _lastReconnectRefreshTime;
 
   @override
   void initState() {
     super.initState();
     _homeContentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
     _tryLoadHomeSections();
+    FestivalService.refreshRemoteSchedule();
+  }
+
+  void _scrollToFestiveSpecial() {
+    final ctx = _festiveSectionKey.currentContext;
+    if (ctx != null) {
+      final disableAnim = MediaQuery.of(context).disableAnimations;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: disableAnim ? Duration.zero : const Duration(milliseconds: 650),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.08,
+      );
+    }
+  }
+
+  Future<void> _handleRefresh({bool isAutoReconnect = false}) async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+
+    try {
+      // 1. Reset failed image cache so previously failing thumbnails can retry
+      LoadImageCached.clearFailedUrls();
+
+      if (isAutoReconnect) {
+        SnackbarService.showMessage(
+          "You're back online. Refreshing content…",
+          duration: const Duration(seconds: 3),
+        );
+      }
+
+      // 2. Refresh top chart carousel with cache bypass
+      _carouselKey.currentState?.reloadCharts(bypassCache: true);
+
+      // 3. Refresh home sections with cache bypass
+      final contentResolvers =
+          context.read<PluginBloc>().state.loadedContentResolvers;
+      if (contentResolvers.isNotEmpty) {
+        final pluginId = _effectiveHomePluginId(contentResolvers);
+        final completer = Completer<void>();
+
+        late final StreamSubscription sub;
+        sub = _homeContentBloc.stream.listen((state) {
+          if (state.homeSectionsStatus == DetailStatus.loaded ||
+              state.homeSectionsStatus == DetailStatus.error) {
+            if (!completer.isCompleted) completer.complete();
+          }
+        });
+
+        _homeContentBloc.add(
+          GetHomeSections(pluginId: pluginId, bypassCache: true),
+        );
+
+        // Await with timeout so indicator never gets stuck
+        await completer.future.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {},
+        );
+        await sub.cancel();
+      }
+
+      // 4. Refresh Last.fm picks if enabled
+      if (mounted && context.read<SettingsCubit>().state.lFMPicks) {
+        setState(() {
+          lFMData = fetchLFMPicks(true, context);
+        });
+      }
+    } catch (e) {
+      log('Home refresh error: $e', name: 'ExploreScreen');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      } else {
+        _isRefreshing = false;
+      }
+    }
   }
 
   /// Only loads home sections when both settings are ready and plugins are loaded.
@@ -161,54 +256,102 @@ class _ExploreScreenState extends State<ExploreScreen> {
               _tryLoadHomeSections();
             },
           ),
+          BlocListener<ConnectivityCubit, ConnectivityState>(
+            listenWhen: (previous, current) =>
+                previous == ConnectivityState.disconnected &&
+                current == ConnectivityState.connected,
+            listener: (context, state) {
+              final now = DateTime.now();
+              if (_lastReconnectRefreshTime != null &&
+                  now.difference(_lastReconnectRefreshTime!) <
+                      const Duration(seconds: 5)) {
+                return; // Debounce rapid connectivity flip-flops
+              }
+              _lastReconnectRefreshTime = now;
+              _handleRefresh(isAutoReconnect: true);
+            },
+          ),
         ],
         child: Scaffold(
           body: RefreshIndicator(
-            onRefresh: () async {
-              final pluginId = _effectiveHomePluginId(
-                context.read<PluginBloc>().state.loadedContentResolvers,
-              );
-              _homeContentBloc.add(
-                GetHomeSections(pluginId: pluginId, bypassCache: true),
-              );
-            },
+            onRefresh: () => _handleRefresh(isAutoReconnect: false),
             child: CustomScrollView(
               shrinkWrap: true,
-              physics: const ClampingScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               slivers: [
                 const CustomDiscoverBar(),
                 SliverList(
                   delegate: SliverChildListDelegate(
                     [
-                      const CaraouselWidget(),
+                      CaraouselWidget(
+                        key: _carouselKey,
+                        onFestiveTap: _scrollToFestiveSpecial,
+                      ),
+                      // 2. Recently Played directly beneath the carousel
                       Padding(
                         padding: const EdgeInsets.only(top: 15.0),
-                        child: SizedBox(
-                          child: BlocBuilder<RecentlyCubit, RecentlyCubitState>(
-                            builder: (context, state) {
-                              if (state is RecentlyCubitInitial) {
-                                return const Center(
-                                  child: SizedBox(
-                                    height: 60,
-                                    width: 60,
-                                    child: CircularProgressIndicator(
-                                      color: Default_Theme.accentColor2,
+                        child: BlocBuilder<RecentlyCubit, RecentlyCubitState>(
+                          builder: (context, state) {
+                            if (state is RecentlyCubitInitial) {
+                              return const Center(
+                                child: SizedBox(
+                                  height: 60,
+                                  width: 60,
+                                  child: CircularProgressIndicator(
+                                    color: Default_Theme.accentColor2,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (state.tracks.isNotEmpty) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16.0, vertical: 4.0),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          AppLocalizations.of(context)!
+                                              .exploreRecently,
+                                          style: Default_Theme.primaryTextStyle
+                                              .merge(
+                                            const TextStyle(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              color:
+                                                  Default_Theme.primaryColor1,
+                                            ),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const HistoryView(),
+                                              ),
+                                            );
+                                          },
+                                          child: const Text(
+                                            'See All',
+                                            style: TextStyle(
+                                              color: Default_Theme.accentColor2,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                );
-                              }
-                              if (state.tracks.isNotEmpty) {
-                                return InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const HistoryView(),
-                                      ),
-                                    );
-                                  },
-                                  child: TabSongListWidget(
+                                  TabSongListWidget(
                                     list: state.tracks.map((e) {
                                       return SongCardWidget(
                                         song: e,
@@ -229,18 +372,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           context,
                                           e,
                                           showSinglePlay: true,
+                                          showRemoveFromHistory: true,
+                                          onRemoveFromHistory: () {
+                                            context
+                                                .read<RecentlyCubit>()
+                                                .removeTrack(e.id);
+                                            SnackbarService.showMessage(
+                                                'Removed from Recently Played');
+                                          },
                                         ),
                                       );
                                     }).toList(),
-                                    category: AppLocalizations.of(context)!
-                                        .exploreRecently,
+                                    category: '',
                                     columnSize: 3,
                                   ),
-                                );
-                              }
-                              return const SizedBox();
-                            },
-                          ),
+                                ],
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
                         ),
                       ),
                       BlocBuilder<SettingsCubit, SettingsState>(
@@ -266,8 +416,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                     tracks: snapshot.data!,
                                                     title: 'Last.Fm Picks',
                                                   ),
-                                                  idx:
-                                                      snapshot.data!.indexOf(e),
+                                                  idx: snapshot.data!.indexOf(e),
                                                   doPlay: true,
                                                 );
                                           },
@@ -291,108 +440,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           return const SizedBox.shrink();
                         },
                       ),
-                      // Home sections from plugin
-                      BlocBuilder<ContentBloc, ContentState>(
-                        bloc: _homeContentBloc,
-                        builder: (context, state) {
-                          final loadedResolvers = context
-                              .read<PluginBloc>()
-                              .state
-                              .loadedContentResolvers;
-                          if (loadedResolvers.isEmpty) {
+                      // 3-13. Master homepage structured sections
+                      BlocBuilder<PluginBloc, PluginState>(
+                        builder: (context, pluginState) {
+                          final resolvers = pluginState.loadedContentResolvers;
+                          if (resolvers.isEmpty) {
                             return const SignBoardWidget(
                               message:
                                   'No content plugin loaded.\nLoad a Content Resolver in Plugin Manager.',
                               icon: MingCute.plugin_2_line,
                             );
                           }
+                          final pluginId = _effectiveHomePluginId(resolvers);
 
-                          final sections = state.homeSections ?? const [];
-                          final hasSections = sections.isNotEmpty;
-                          final activePluginId = state.activePluginId;
-                          if (activePluginId != null &&
-                              !context
-                                  .read<PluginBloc>()
-                                  .state
-                                  .loadedPluginIds
-                                  .contains(activePluginId) &&
-                              !hasSections) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: SignBoardWidget(
-                                message:
-                                    'Refreshing Discover source...\nThe previous source is no longer available.',
-                                icon: MingCute.warning_line,
-                              ),
-                            );
-                          }
-
-                          if (state.homeSectionsStatus ==
-                              DetailStatus.loading) {
-                            if (hasSections) {
-                              return _HomeSectionsList(
+                          return BlocBuilder<ContentBloc, ContentState>(
+                            bloc: _homeContentBloc,
+                            builder: (context, state) {
+                              final sections = state.homeSections ?? const [];
+                              return _StructuredHomeSections(
+                                pluginId: pluginId,
                                 sections: sections,
                                 contentBloc: _homeContentBloc,
                                 state: state,
+                                festiveSectionKey: _festiveSectionKey,
                               );
-                            }
-
-                            return BlocBuilder<ConnectivityCubit,
-                                ConnectivityState>(
-                              builder: (context, connState) {
-                                if (connState ==
-                                    ConnectivityState.disconnected) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: SignBoardWidget(
-                                      message: 'No Internet Connection!',
-                                      icon: MingCute.wifi_off_line,
-                                    ),
-                                  );
-                                }
-
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 40),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: Default_Theme.accentColor2,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          }
-
-                          if (state.homeSectionsStatus == DetailStatus.error) {
-                            if (hasSections) {
-                              return _HomeSectionsList(
-                                sections: sections,
-                                contentBloc: _homeContentBloc,
-                                state: state,
-                              );
-                            }
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: SignBoardWidget(
-                                message: state.error ??
-                                    'Failed to load home sections.',
-                                icon: MingCute.sweats_line,
-                              ),
-                            );
-                          }
-
-                          if (!hasSections) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: SizedBox.shrink(),
-                            );
-                          }
-
-                          return _HomeSectionsList(
-                            sections: sections,
-                            contentBloc: _homeContentBloc,
-                            state: state,
+                            },
                           );
                         },
                       ),
@@ -409,45 +481,180 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 }
 
-class _HomeSectionsList extends StatelessWidget {
+/// Structured layout enforcing normal homepage ordering:
+/// 3. Trending Now (only once)
+/// 4. New Releases
+/// 5. What's Hot Near You
+/// 6. Indian First Discovery
+/// 7. Iconic Indian Artists
+/// 8. Festive Special (with automatic schedule promotion)
+/// 9. Best of 90s and year-based collections (2025, 2026)
+/// 10. Additional regular discovery, genre and mood sections
+/// 11. Bhakti & Spiritual
+/// 12. Instrumental Discovery
+/// 13. Radio/stations and remaining sections
+class _StructuredHomeSections extends StatelessWidget {
+  final String pluginId;
   final List<Section> sections;
   final ContentBloc contentBloc;
   final ContentState state;
+  final GlobalKey festiveSectionKey;
 
-  const _HomeSectionsList({
+  const _StructuredHomeSections({
+    required this.pluginId,
     required this.sections,
+    required this.contentBloc,
+    required this.state,
+    required this.festiveSectionKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Partition sections cleanly
+    final trending = sections.firstWhereOrNull(
+        (s) => s.title.toLowerCase().contains('trend'));
+    final newReleases = sections.firstWhereOrNull((s) =>
+        s != trending &&
+        (s.title.toLowerCase().contains('new') ||
+            s.title.toLowerCase().contains('release') ||
+            s.title.toLowerCase().contains('album')));
+    final radio = sections
+        .where((s) =>
+            s.title.toLowerCase().contains('radio') ||
+            s.title.toLowerCase().contains('station'))
+        .toList();
+    final otherSections = sections
+        .where((s) => s != trending && s != newReleases && !radio.contains(s))
+        .toList();
+
+    final activeFestival = FestivalService.getActiveOrUpcomingFestival();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 3. Trending Now — only once
+        if (trending != null) ...[
+          const SizedBox(height: 10),
+          _HomeSectionCard(
+            section: trending,
+            contentBloc: contentBloc,
+            state: state,
+          ),
+        ] else if (state.homeSectionsStatus == DetailStatus.loading) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Default_Theme.accentColor2,
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        // 4. New Releases
+        if (newReleases != null) ...[
+          const SizedBox(height: 10),
+          _HomeSectionCard(
+            section: newReleases,
+            contentBloc: contentBloc,
+            state: state,
+          ),
+        ],
+
+        // 5. What's Hot Near You
+        const SizedBox(height: 14),
+        WhatsHotNearYouSection(pluginId: pluginId),
+
+        // 6. Indian First Discovery
+        const SizedBox(height: 14),
+        IndianBrowseCategories(pluginId: pluginId),
+
+        // 7. Iconic Indian Artists
+        const SizedBox(height: 14),
+        FeaturedArtistsSection(pluginId: pluginId),
+
+        // 8. Festive Special (Automatic 10-day promotion window)
+        if (activeFestival != null) ...[
+          const SizedBox(height: 14),
+          KeyedSubtree(
+            key: festiveSectionKey,
+            child: const NavratriSpecialSection(),
+          ),
+        ],
+
+        // 9. Best of 90s and year-based collections (2025, 2026)
+        const SizedBox(height: 14),
+        YearCollectionsSection(pluginId: pluginId),
+
+        // 10. Additional regular discovery, genre and mood sections
+        for (final sec in otherSections) ...[
+          const SizedBox(height: 10),
+          _HomeSectionCard(
+            section: sec,
+            contentBloc: contentBloc,
+            state: state,
+          ),
+        ],
+
+        // 11. Bhakti & Spiritual
+        const SizedBox(height: 14),
+        BhaktiSpiritualSection(pluginId: pluginId),
+
+        // 12. Instrumental Discovery
+        const SizedBox(height: 14),
+        InstrumentalSection(pluginId: pluginId),
+
+        // 13. Radio/stations and remaining sections
+        for (final sec in radio) ...[
+          const SizedBox(height: 10),
+          _HomeSectionCard(
+            section: sec,
+            contentBloc: contentBloc,
+            state: state,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _HomeSectionCard extends StatelessWidget {
+  final Section section;
+  final ContentBloc contentBloc;
+  final ContentState state;
+
+  const _HomeSectionCard({
+    required this.section,
     required this.contentBloc,
     required this.state,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      shrinkWrap: true,
-      itemExtent: 275,
-      padding: const EdgeInsets.only(top: 0),
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: sections.length,
-      itemBuilder: (context, index) {
-        final section = sections[index];
-        return HorizontalCardView(
-          section: section,
-          pluginId: contentBloc.state.activePluginId ?? '',
-          canLoadMore: section.moreLink != null,
-          isLoadingMore: state.isHomeSectionLoading(section.id),
-          onLoadMore: section.moreLink == null
-              ? null
-              : () {
-                  contentBloc.add(
-                    LoadMoreHomeSectionItems(
-                      pluginId: contentBloc.state.activePluginId ?? '',
-                      sectionId: section.id,
-                      moreLink: section.moreLink!,
-                    ),
-                  );
-                },
-        );
-      },
+    return SizedBox(
+      height: 275,
+      child: HorizontalCardView(
+        section: section,
+        pluginId: contentBloc.state.activePluginId ?? '',
+        canLoadMore: section.moreLink != null,
+        isLoadingMore: state.isHomeSectionLoading(section.id),
+        onLoadMore: section.moreLink == null
+            ? null
+            : () {
+                contentBloc.add(
+                  LoadMoreHomeSectionItems(
+                    pluginId: contentBloc.state.activePluginId ?? '',
+                    sectionId: section.id,
+                    moreLink: section.moreLink!,
+                  ),
+                );
+              },
+      ),
     );
   }
 }

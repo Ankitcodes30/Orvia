@@ -12,6 +12,7 @@ import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/services/cache/plugin_cache_repository.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/services/plugin_cache_codec.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 
 /// Manages chart data: listing available charts and loading chart details.
@@ -33,6 +34,69 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
     on<PrefetchAllChartDetails>(_onPrefetchAllChartDetails);
     on<SetActiveChartPlugin>(_onSetActivePlugin);
     on<ClearCharts>(_onClearCharts);
+  }
+
+  static bool _isGenericProviderIcon(String? url) => isGenericProviderIcon(url);
+
+  static String? _extractTopItemArtwork(List<ChartItem> items) {
+    if (items.isEmpty) return null;
+    for (final chartItem in items) {
+      final artworkUrl = chartItem.item.when(
+        track: (t) => t.thumbnail.urlHigh ?? t.thumbnail.url,
+        album: (a) => a.thumbnail?.urlHigh ?? a.thumbnail?.url,
+        artist: (a) => a.thumbnail?.urlHigh ?? a.thumbnail?.url,
+        playlist: (p) => p.thumbnail.urlHigh ?? p.thumbnail.url,
+      );
+      if (artworkUrl != null &&
+          artworkUrl.trim().isNotEmpty &&
+          !isGenericProviderIcon(artworkUrl)) {
+        return artworkUrl.trim();
+      }
+    }
+    return null;
+  }
+
+  Future<List<ChartSummary>> _enrichChartsWithArtwork(
+    String pluginId,
+    List<ChartSummary> charts,
+  ) async {
+    final enriched = <ChartSummary>[];
+    for (final chart in charts) {
+      final cacheKey = 'chart_cache::$pluginId::${chart.id}';
+      try {
+        final cachedDetails =
+            await _cache.getCachedWithStaleness<List<ChartItem>>(
+          key: cacheKey,
+          type: CacheType.chart,
+          decode: decodeChartItemsCacheAsync,
+          stalenessThreshold: const Duration(hours: 12),
+        );
+        final topArtwork = cachedDetails.value != null
+            ? _extractTopItemArtwork(cachedDetails.value!)
+            : null;
+        if (topArtwork != null && topArtwork.isNotEmpty) {
+          enriched.add(ChartSummary(
+            id: chart.id,
+            title: chart.title,
+            description: chart.description,
+            thumbnail: Artwork(
+              url: topArtwork,
+              urlHigh: topArtwork,
+              layout: ImageLayout.square,
+            ),
+          ));
+          continue;
+        }
+      } catch (_) {}
+
+      if (chart.thumbnail != null &&
+          !_isGenericProviderIcon(chart.thumbnail?.url)) {
+        enriched.add(chart);
+        continue;
+      }
+      enriched.add(chart);
+    }
+    return enriched;
   }
 
   // ── Load Charts (stale-while-revalidate) ──────────────────────────────────
@@ -57,12 +121,14 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
 
     final hasCache = cached.value != null;
     if (hasCache) {
+      final enrichedCached =
+          await _enrichChartsWithArtwork(event.pluginId, cached.value!);
       emit(state.copyWith(
         chartsStatus: ChartStatus.loaded,
-        charts: cached.value!,
+        charts: enrichedCached,
       ));
-      if (!cached.isStale) return;
-      // Stale — continue to background network refresh (no re-emit of loading).
+      if (!event.bypassCache && !cached.isStale) return;
+      // Stale or bypassCache — continue to background network refresh (no re-emit of loading).
     }
 
     try {
@@ -77,39 +143,41 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
         if (!hasCache) _unexpectedResponse(emit, 'loadCharts');
       }
 
-      response.when(
-        charts: (charts) {
+      await response.when(
+        charts: (charts) async {
+          final enriched =
+              await _enrichChartsWithArtwork(event.pluginId, charts);
           emit(state.copyWith(
             chartsStatus: ChartStatus.loaded,
-            charts: charts,
+            charts: enriched,
           ));
           _cache.put(
             key: cacheKey,
-            value: charts,
+            value: enriched,
             type: CacheType.chartList,
-            blob: encodeChartListCache(charts),
+            blob: encodeChartListCache(enriched),
           );
         },
-        trackDetails: (_) => unexpectedFn(),
-        search: (_) => unexpectedFn(),
-        albumDetails: (_) => unexpectedFn(),
-        artistDetails: (_) => unexpectedFn(),
-        playlistDetails: (_) => unexpectedFn(),
-        streams: (_) => unexpectedFn(),
-        moreTracks: (_) => unexpectedFn(),
-        moreAlbums: (_) => unexpectedFn(),
-        homeSections: (_) => unexpectedFn(),
-        loadMoreItems: (_) => unexpectedFn(),
-        chartDetails: (_) => unexpectedFn(),
-        segments: (_) => unexpectedFn(),
-        lyricsResult: (_) => unexpectedFn(),
-        lyricsSearchResults: (_) => unexpectedFn(),
-        lyricsById: (_, __) => unexpectedFn(),
-        suggestions: (_) => unexpectedFn(),
-        canHandle: (_) => unexpectedFn(),
-        collectionInfo: (_) => unexpectedFn(),
-        importTracks: (_) => unexpectedFn(),
-        ack: () => unexpectedFn(),
+        trackDetails: (_) async => unexpectedFn(),
+        search: (_) async => unexpectedFn(),
+        albumDetails: (_) async => unexpectedFn(),
+        artistDetails: (_) async => unexpectedFn(),
+        playlistDetails: (_) async => unexpectedFn(),
+        streams: (_) async => unexpectedFn(),
+        moreTracks: (_) async => unexpectedFn(),
+        moreAlbums: (_) async => unexpectedFn(),
+        homeSections: (_) async => unexpectedFn(),
+        loadMoreItems: (_) async => unexpectedFn(),
+        chartDetails: (_) async => unexpectedFn(),
+        segments: (_) async => unexpectedFn(),
+        lyricsResult: (_) async => unexpectedFn(),
+        lyricsSearchResults: (_) async => unexpectedFn(),
+        lyricsById: (_, __) async => unexpectedFn(),
+        suggestions: (_) async => unexpectedFn(),
+        canHandle: (_) async => unexpectedFn(),
+        collectionInfo: (_) async => unexpectedFn(),
+        importTracks: (_) async => unexpectedFn(),
+        ack: () async => unexpectedFn(),
       );
     } on PluginException catch (e) {
       if (!hasCache) {
@@ -122,9 +190,53 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
       if (!hasCache) {
         emit(state.copyWith(
           chartsStatus: ChartStatus.error,
-          error: 'Failed to load charts: $e',
+          error: formatUserFriendlyPluginError(e,
+              fallback: 'Failed to load charts.'),
         ));
       }
+    }
+  }
+
+  void _propagateChartLeadingArtwork({
+    required String pluginId,
+    required String chartId,
+    required List<ChartItem> items,
+    required Emitter<ChartState> emit,
+  }) {
+    final topArtwork = _extractTopItemArtwork(items);
+    if (topArtwork != null && topArtwork.isNotEmpty && state.charts.isNotEmpty) {
+      final updatedCharts = state.charts.map((c) {
+        if (c.id == chartId) {
+          return ChartSummary(
+            id: c.id,
+            title: c.title,
+            description: c.description,
+            thumbnail: Artwork(
+              url: topArtwork,
+              urlHigh: topArtwork,
+              layout: ImageLayout.square,
+            ),
+          );
+        }
+        return c;
+      }).toList();
+      emit(state.copyWith(
+        chartDetailStatus: ChartStatus.loaded,
+        chartItems: items,
+        charts: updatedCharts,
+      ));
+      final listCacheKey = 'chart_list::$pluginId';
+      _cache.put(
+        key: listCacheKey,
+        value: updatedCharts,
+        type: CacheType.chartList,
+        blob: encodeChartListCache(updatedCharts),
+      );
+    } else {
+      emit(state.copyWith(
+        chartDetailStatus: ChartStatus.loaded,
+        chartItems: items,
+      ));
     }
   }
 
@@ -173,10 +285,12 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
 
       response.when(
         chartDetails: (items) {
-          emit(state.copyWith(
-            chartDetailStatus: ChartStatus.loaded,
-            chartItems: items,
-          ));
+          _propagateChartLeadingArtwork(
+            pluginId: event.pluginId,
+            chartId: event.chartId,
+            items: items,
+            emit: emit,
+          );
           _cache.put(
             key: cacheKey,
             value: items,
@@ -217,7 +331,8 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
       if (!hasCache) {
         emit(state.copyWith(
           chartDetailStatus: ChartStatus.error,
-          error: 'Failed to load chart details: $e',
+          error: formatUserFriendlyPluginError(e,
+              fallback: 'Failed to load chart details.'),
         ));
       }
     }
@@ -245,10 +360,12 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
 
       response.when(
         chartDetails: (items) {
-          emit(state.copyWith(
-            chartDetailStatus: ChartStatus.loaded,
-            chartItems: items,
-          ));
+          _propagateChartLeadingArtwork(
+            pluginId: event.pluginId,
+            chartId: event.chartId,
+            items: items,
+            emit: emit,
+          );
           _cache.put(
             key: 'chart_cache::${event.pluginId}::${event.chartId}',
             value: items,
@@ -309,7 +426,6 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
     PrefetchAllChartDetails event,
     Emitter<ChartState> emit,
   ) async {
-    // No state emissions — purely a cache-warming operation.
     for (final chartId in event.chartIds) {
       if (isClosed) break;
 
@@ -322,49 +438,90 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
           stalenessThreshold: const Duration(hours: 8),
         );
 
-        // Skip charts that are already fresh in cache.
-        if (cached.value != null && !cached.isStale) continue;
+        List<ChartItem>? chartItems = cached.value;
 
-        if (isClosed) break;
+        // Skip network fetch if fresh and not force-refreshing
+        if (cached.value == null || cached.isStale || event.forceRefresh) {
+          if (isClosed) break;
 
-        final localId = localIdOf(chartId) ?? chartId;
-        final response = await _pluginService.execute(
-          pluginId: event.pluginId,
-          request: PluginRequest.chartProvider(
-            ChartProviderCommand.getChartDetails(id: localId),
-          ),
-        );
+          final localId = localIdOf(chartId) ?? chartId;
+          final response = await _pluginService.execute(
+            pluginId: event.pluginId,
+            request: PluginRequest.chartProvider(
+              ChartProviderCommand.getChartDetails(id: localId),
+            ),
+          );
 
-        response.when(
-          chartDetails: (items) {
-            _cache.put(
-              key: cacheKey,
-              value: items,
-              type: CacheType.chart,
-              blob: encodeChartItemsCache(items),
-            );
-          },
-          trackDetails: (_) {},
-          search: (_) {},
-          albumDetails: (_) {},
-          artistDetails: (_) {},
-          playlistDetails: (_) {},
-          streams: (_) {},
-          moreTracks: (_) {},
-          moreAlbums: (_) {},
-          homeSections: (_) {},
-          loadMoreItems: (_) {},
-          charts: (_) {},
-          segments: (_) {},
-          lyricsResult: (_) {},
-          lyricsSearchResults: (_) {},
-          lyricsById: (_, __) {},
-          suggestions: (_) {},
-          canHandle: (_) {},
-          collectionInfo: (_) {},
-          importTracks: (_) {},
-          ack: () {},
-        );
+          response.when(
+            chartDetails: (items) {
+              chartItems = items;
+              _cache.put(
+                key: cacheKey,
+                value: items,
+                type: CacheType.chart,
+                blob: encodeChartItemsCache(items),
+              );
+            },
+            trackDetails: (_) {},
+            search: (_) {},
+            albumDetails: (_) {},
+            artistDetails: (_) {},
+            playlistDetails: (_) {},
+            streams: (_) {},
+            moreTracks: (_) {},
+            moreAlbums: (_) {},
+            homeSections: (_) {},
+            loadMoreItems: (_) {},
+            charts: (_) {},
+            segments: (_) {},
+            lyricsResult: (_) {},
+            lyricsSearchResults: (_) {},
+            lyricsById: (_, __) {},
+            suggestions: (_) {},
+            canHandle: (_) {},
+            collectionInfo: (_) {},
+            importTracks: (_) {},
+            ack: () {},
+          );
+        }
+
+        // Enrich the corresponding chart summary with the genuine top-item artwork
+        if (chartItems != null && chartItems!.isNotEmpty) {
+          final topArtwork = _extractTopItemArtwork(chartItems!);
+          if (topArtwork != null && topArtwork.isNotEmpty) {
+            final currentCharts = state.charts;
+            var updated = false;
+            final updatedCharts = currentCharts.map((c) {
+              if (c.id == chartId &&
+                  (c.thumbnail == null ||
+                      _isGenericProviderIcon(c.thumbnail?.url) ||
+                      c.thumbnail?.url != topArtwork)) {
+                updated = true;
+                return ChartSummary(
+                  id: c.id,
+                  title: c.title,
+                  description: c.description,
+                  thumbnail: Artwork(
+                    url: topArtwork,
+                    urlHigh: topArtwork,
+                    layout: ImageLayout.square,
+                  ),
+                );
+              }
+              return c;
+            }).toList();
+
+            if (updated && !isClosed) {
+              emit(state.copyWith(charts: updatedCharts));
+              _cache.put(
+                key: 'chart_list::${event.pluginId}',
+                value: updatedCharts,
+                type: CacheType.chartList,
+                blob: encodeChartListCache(updatedCharts),
+              );
+            }
+          }
+        }
       } catch (e) {
         log('Prefetch failed for chart $chartId: $e', name: 'ChartBloc');
         // Continue with next chart on failure.
@@ -424,7 +581,7 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
     emit(state.copyWith(
       chartsStatus: chartDetail ? null : ChartStatus.error,
       chartDetailStatus: chartDetail ? ChartStatus.error : null,
-      error: e.message,
+      error: formatUserFriendlyPluginError(e.message),
     ));
   }
 }

@@ -24,10 +24,12 @@ void showMoreBottomSheet(
   BuildContext context,
   Track song, {
   bool showDelete = false,
+  bool showRemoveFromHistory = false,
   bool showSinglePlay = false,
   bool showAddToQueue = true,
   bool showPlayNext = true,
   VoidCallback? onDelete,
+  VoidCallback? onRemoveFromHistory,
 }) {
   final playerCubit = context.read<OrviaPlayerCubit>();
   final libraryCubit = context.read<LibraryItemsCubit>();
@@ -57,10 +59,12 @@ void showMoreBottomSheet(
         child: _TrackOptionsBottomSheet(
           song: song,
           showDelete: showDelete,
+          showRemoveFromHistory: showRemoveFromHistory,
           showSinglePlay: showSinglePlay,
           showAddToQueue: showAddToQueue,
           showPlayNext: showPlayNext,
           onDelete: onDelete,
+          onRemoveFromHistory: onRemoveFromHistory,
           parentContext: context,
         ),
       );
@@ -71,10 +75,12 @@ void showMoreBottomSheet(
 class _TrackOptionsBottomSheet extends StatelessWidget {
   final Track song;
   final bool showDelete;
+  final bool showRemoveFromHistory;
   final bool showSinglePlay;
   final bool showAddToQueue;
   final bool showPlayNext;
   final VoidCallback? onDelete;
+  final VoidCallback? onRemoveFromHistory;
   final BuildContext parentContext;
 
   const _TrackOptionsBottomSheet({
@@ -84,7 +90,9 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
     required this.showAddToQueue,
     required this.showPlayNext,
     required this.parentContext,
+    this.showRemoveFromHistory = false,
     this.onDelete,
+    this.onRemoveFromHistory,
   });
 
   @override
@@ -324,6 +332,19 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                               }
                             },
                           ),
+                          if (showRemoveFromHistory) ...[
+                            const SizedBox(height: 8),
+                            _CompactTile(
+                              icon: MingCute.history_line,
+                              title: 'Remove from Recently Played',
+                              iconColor: Theme.of(context).colorScheme.error,
+                              titleColor: Theme.of(context).colorScheme.error,
+                              onTap: (ctx) {
+                                Navigator.pop(ctx);
+                                onRemoveFromHistory?.call();
+                              },
+                            ),
+                          ],
                           if (showDelete) ...[
                             const SizedBox(height: 8),
                             _CompactTile(

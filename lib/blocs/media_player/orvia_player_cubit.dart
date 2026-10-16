@@ -20,10 +20,10 @@ class OrviaPlayerCubit extends Cubit<OrviaPlayerState> {
 
   void _setupProgressStreams() {
     progressStreams = Rx.combineLatest4(
-      Rx.defer(() => orviaPlayer.engine.positionStream, reusable: true),
-      Rx.defer(() => orviaPlayer.engine.durationStream, reusable: true),
-      Rx.defer(() => orviaPlayer.engine.bufferedStream, reusable: true),
-      Rx.defer(() => orviaPlayer.engine.playingStream, reusable: true),
+      orviaPlayer.positionStream,
+      orviaPlayer.durationStream,
+      orviaPlayer.bufferedStream,
+      orviaPlayer.playingStream,
       (Duration position, Duration duration, Duration buffered, bool playing) =>
           ProgressBarStreams(
         position: position,

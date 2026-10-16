@@ -114,18 +114,17 @@ class About extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ShaderMask(
-                    blendMode: BlendMode.srcIn,
-                    shaderCallback: (bounds) => kTitleGradient.createShader(
-                      Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                    ),
-                    // Use Wrap so title + flower can wrap on narrow widths.
-                    child: const Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 6,
-                      children: [
-                        Text(
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 10,
+                    children: [
+                      ShaderMask(
+                        blendMode: BlendMode.srcIn,
+                        shaderCallback: (bounds) => kTitleGradient.createShader(
+                          Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                        ),
+                        child: const Text(
                           'Orvia',
                           style: TextStyle(
                             fontSize: 28,
@@ -133,10 +132,9 @@ class About extends StatelessWidget {
                             fontFamily: 'Gilroy',
                           ),
                         ),
-                        // Small animated flower
-                        GentleRotatingFlower(size: 28),
-                      ],
-                    ),
+                      ),
+                      _buildOrviaLogo(),
+                    ],
                   ),
                 ],
               ),
@@ -159,21 +157,7 @@ class About extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: kHandleGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                const Color(0xFFF88A6B).withValues(alpha: 0.5),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: const CircleAvatar(
-                          backgroundColor: Colors.transparent, radius: 10),
-                    ),
+                    _buildAnkitLogo(),
                     const SizedBox(width: 12),
                     Flexible(
                       child: Text(
@@ -327,6 +311,94 @@ class About extends StatelessWidget {
                         fontSize: 12,
                         fontFamily: 'Gilroy'));
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrviaLogo() {
+    const double size = 32.0;
+    // OrviaLogo_Master.png is 1500x1500px with leaf bounds [272, 237, 1189, 1235].
+    // Leaf height is 999px (66.6% of image), center is (730.5, 736.0).
+    // Zoom factor 1.45 expands leaf to 30.9px in a 32px box (filling ~96% of height),
+    // removing excessive navy padding while preserving full leaf and pause symbol.
+    const double zoom = 1.45;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8.0),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: OverflowBox(
+          minWidth: size * zoom,
+          maxWidth: size * zoom,
+          minHeight: size * zoom,
+          maxHeight: size * zoom,
+          alignment: const Alignment(-0.026, -0.019),
+          child: Image.asset(
+            'assets/icons/OrviaLogo_Master.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnkitLogo() {
+    const double size = 22.0;
+    // AnkitLogo.png is 278x243px. Center of golden ring is at (137.0, 124.5).
+    // Golden ring outer diameter is ~206.4px.
+    // Scaled to fit golden ring at ~19.0px inside the 22.0px circle.
+    // Centers the ring at (11.0, 11.0) with a uniform 1.5px margin to the 22.0px circle edge.
+    // A 0.8px outer border overlay leaves a clean, uniform ~0.7px natural black gap
+    // without any clipping at the bottom-right or elsewhere.
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipOval(
+              child: OverflowBox(
+                minWidth: 25.6,
+                maxWidth: 25.6,
+                minHeight: 22.4,
+                maxHeight: 22.4,
+                alignment: Alignment.topLeft,
+                child: Transform.translate(
+                  offset: const Offset(-1.60, -0.45),
+                  child: Image.asset(
+                    'assets/icons/AnkitLogo.png',
+                    width: 25.6,
+                    height: 22.4,
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.black,
+                  width: 0.8,
+                ),
+              ),
             ),
           ],
         ),
@@ -589,65 +661,5 @@ class Particle {
       required this.lifespan,
       required this.maxLifespan,
       required this.isSharp});
-}
-
-// A calming, natural-looking rotating flower using a sinusoidal motion.
-class GentleRotatingFlower extends StatefulWidget {
-  final double size;
-  const GentleRotatingFlower({this.size = 28, super.key});
-
-  @override
-  State<GentleRotatingFlower> createState() => _GentleRotatingFlowerState();
-}
-
-class _GentleRotatingFlowerState extends State<GentleRotatingFlower>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    // Slow, calming cycle. Repeats forever.
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value; // 0..1
-        // Sinusoidal rotation: small angle in radians (~ +/-9 deg)
-        final angle = sin(t * 2 * pi) * (pi / 20);
-        // Slight 'breathing' scale for softness
-        final scale = 1 + 0.03 * sin(t * 2 * pi);
-        // Gentle horizontal sway in logical pixels
-        final dx = 2.0 * sin(t * 2 * pi);
-
-        return Transform.translate(
-          offset: Offset(dx, 0),
-          child: Transform.rotate(
-            angle: angle,
-            child: Transform.scale(
-              scale: scale,
-              child: Text(
-                "🌸",
-                style: TextStyle(fontSize: widget.size),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 

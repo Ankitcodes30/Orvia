@@ -32,6 +32,11 @@ class HistoryCubit extends Cubit<HistoryState> {
     emit(state.copyWith(tracks: tracks));
   }
 
+  Future<void> removeTrack(String mediaId) async {
+    await _historyDao.removeTrackHistory(mediaId);
+    await _fetchHistory();
+  }
+
   @override
   Future<void> close() {
     _watcher?.cancel();

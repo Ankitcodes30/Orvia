@@ -3,6 +3,18 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
+
+const String kDefaultOnlinePlaceholder = "assets/icons/OrviaLogo_System.png";
+const String kDefaultLocalPlaceholder = "assets/icons/OrviaLogo_System.png";
+
+String resolveSongPlaceholder({String? mediaId, bool? isLocal}) {
+  if (isLocal == true || (mediaId != null && isLocalMediaId(mediaId))) {
+    return kDefaultLocalPlaceholder;
+  }
+  return kDefaultOnlinePlaceholder;
+}
 
 // Helpers
 bool _isValidNetworkUrl(String? url) {
@@ -54,10 +66,14 @@ Widget _placeholderImage(String placeholderPath, BoxFit fit) {
   );
 }
 
-Widget _lazyLoadingPlaceholder(BoxFit fit) {
-  return Image(
-    image: const AssetImage("assets/icons/lazy_loading.png"),
-    fit: fit,
+Widget _lazyLoadingPlaceholder(BoxFit fit, [String? placeholderPath]) {
+  if (placeholderPath != null &&
+      placeholderPath != kDefaultOnlinePlaceholder &&
+      placeholderPath != kDefaultLocalPlaceholder) {
+    return _placeholderImage(placeholderPath, fit);
+  }
+  return Container(
+    color: const Color(0xFF14141E),
   );
 }
 
@@ -82,8 +98,13 @@ Widget _buildLocalFileImage({
 ImageProvider<Object> getImageProviderSync(
   String? imageUrl, {
   String? fallbackUrl,
-  String placeholderUrl = "assets/icons/orvia_logo.png",
+  String? placeholderUrl,
+  String? mediaId,
+  bool? isLocal,
 }) {
+  final effectivePlaceholder = placeholderUrl ??
+      resolveSongPlaceholder(mediaId: mediaId, isLocal: isLocal);
+
   final primaryFile = _resolveLocalImageFile(imageUrl);
   if (primaryFile != null) return FileImage(primaryFile);
 
@@ -92,20 +113,22 @@ ImageProvider<Object> getImageProviderSync(
     return FileImage(fallbackFile);
   }
 
-  if (_isValidNetworkUrl(imageUrl)) {
+  if (_isValidNetworkUrl(imageUrl) && !isGenericProviderIcon(imageUrl)) {
     return CachedNetworkImageProvider(imageUrl!.trim());
   }
-  if (_isValidNetworkUrl(fallbackUrl)) {
+  if (_isValidNetworkUrl(fallbackUrl) && !isGenericProviderIcon(fallbackUrl)) {
     return CachedNetworkImageProvider(fallbackUrl!.trim());
   }
 
-  return AssetImage(placeholderUrl);
+  return AssetImage(effectivePlaceholder);
 }
 
 class LoadImageCached extends StatefulWidget {
   final String imageUrl;
   final String? fallbackUrl;
-  final String placeholderUrl;
+  final String? placeholderUrl;
+  final String? mediaId;
+  final bool? isLocal;
   final BoxFit fit;
   final double? width;
   final double? height;
@@ -114,7 +137,9 @@ class LoadImageCached extends StatefulWidget {
   const LoadImageCached({
     Key? key,
     required this.imageUrl,
-    this.placeholderUrl = "assets/icons/orvia_logo.png",
+    this.placeholderUrl,
+    this.mediaId,
+    this.isLocal,
     this.fit = BoxFit.cover,
     this.fallbackUrl,
     this.width,
@@ -129,7 +154,9 @@ class LoadImageCached extends StatefulWidget {
     Key? key,
     required String imageUrl,
     String? fallbackUrl,
-    String placeholderUrl = "assets/icons/orvia_logo.png",
+    String? placeholderUrl,
+    String? mediaId,
+    bool? isLocal,
     BoxFit fit = BoxFit.cover,
     BorderRadius? borderRadius,
   }) {
@@ -144,6 +171,8 @@ class LoadImageCached extends StatefulWidget {
           imageUrl: imageUrl,
           fallbackUrl: fallbackUrl,
           placeholderUrl: placeholderUrl,
+          mediaId: mediaId,
+          isLocal: isLocal,
           fit: fit,
           width: w,
           height: h,
@@ -153,12 +182,31 @@ class LoadImageCached extends StatefulWidget {
     );
   }
 
+  /// Clears failed URL cache so retries can proceed over network.
+  static void clearFailedUrls() {
+    _LoadImageCachedState.clearFailedUrls();
+  }
+
   @override
   State<LoadImageCached> createState() => _LoadImageCachedState();
 }
 
 class _LoadImageCachedState extends State<LoadImageCached> {
   static final Set<String> _failedImageUrls = <String>{};
+
+  static void clearFailedUrls() {
+    _failedImageUrls.clear();
+  }
+
+  String get _effectivePlaceholder {
+    if (widget.placeholderUrl != null && widget.placeholderUrl!.isNotEmpty) {
+      return widget.placeholderUrl!;
+    }
+    return resolveSongPlaceholder(
+      mediaId: widget.mediaId,
+      isLocal: widget.isLocal,
+    );
+  }
 
   /// Compute memCacheWidth based on explicit width + device pixel ratio
   /// for efficient memory usage while maintaining sharpness.
@@ -194,7 +242,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
     if (primaryFile != null) {
       return _buildLocalFileImage(
         file: primaryFile,
-        placeholderPath: widget.placeholderUrl,
+        placeholderPath: _effectivePlaceholder,
         fit: widget.fit,
         width: widget.width,
         height: widget.height,
@@ -206,7 +254,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
     if (!_isValidNetworkUrl(widget.imageUrl) && fallbackFile != null) {
       return _buildLocalFileImage(
         file: fallbackFile,
-        placeholderPath: widget.placeholderUrl,
+        placeholderPath: _effectivePlaceholder,
         fit: widget.fit,
         width: widget.width,
         height: widget.height,
@@ -214,11 +262,13 @@ class _LoadImageCachedState extends State<LoadImageCached> {
     }
 
     // ── 3. Resolve network URLs ──
-    final hasPrimary = _isValidNetworkUrl(widget.imageUrl);
-    final hasFallback = _isValidNetworkUrl(widget.fallbackUrl);
+    final hasPrimary = _isValidNetworkUrl(widget.imageUrl) &&
+        !isGenericProviderIcon(widget.imageUrl);
+    final hasFallback = _isValidNetworkUrl(widget.fallbackUrl) &&
+        !isGenericProviderIcon(widget.fallbackUrl);
 
     if (!hasPrimary && !hasFallback) {
-      return _placeholderImage(widget.placeholderUrl, widget.fit);
+      return _placeholderImage(_effectivePlaceholder, widget.fit);
     }
 
     final primaryUrl = hasPrimary ? widget.imageUrl : widget.fallbackUrl!;
@@ -227,7 +277,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
     // Both already known to fail — skip network entirely
     if (_failedImageUrls.contains(primaryUrl) &&
         (fallbackUrl == null || _failedImageUrls.contains(fallbackUrl))) {
-      return _placeholderImage(widget.placeholderUrl, widget.fit);
+      return _placeholderImage(_effectivePlaceholder, widget.fit);
     }
 
     // ── 4. Primary network image ──
@@ -236,7 +286,8 @@ class _LoadImageCachedState extends State<LoadImageCached> {
       width: widget.width,
       height: widget.height,
       memCacheWidth: _memCacheWidth,
-      placeholder: (context, url) => _lazyLoadingPlaceholder(widget.fit),
+      placeholder: (context, url) =>
+          _lazyLoadingPlaceholder(widget.fit, _effectivePlaceholder),
       errorWidget: (context, url, error) {
         _failedImageUrls.add(url);
 
@@ -244,7 +295,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
         if (fallbackFile != null) {
           return _buildLocalFileImage(
             file: fallbackFile,
-            placeholderPath: widget.placeholderUrl,
+            placeholderPath: _effectivePlaceholder,
             fit: widget.fit,
             width: widget.width,
             height: widget.height,
@@ -253,7 +304,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
 
         // Try network fallback
         if (fallbackUrl == null || _failedImageUrls.contains(fallbackUrl)) {
-          return _placeholderImage(widget.placeholderUrl, widget.fit);
+          return _placeholderImage(_effectivePlaceholder, widget.fit);
         }
 
         return CachedNetworkImage(
@@ -261,16 +312,17 @@ class _LoadImageCachedState extends State<LoadImageCached> {
           width: widget.width,
           height: widget.height,
           memCacheWidth: _memCacheWidth,
-          placeholder: (context, url) => _lazyLoadingPlaceholder(widget.fit),
+          placeholder: (context, url) =>
+              _lazyLoadingPlaceholder(widget.fit, _effectivePlaceholder),
           errorWidget: (context, url, error) {
             _failedImageUrls.add(url);
-            return _placeholderImage(widget.placeholderUrl, widget.fit);
+            return _placeholderImage(_effectivePlaceholder, widget.fit);
           },
-          fadeInDuration: const Duration(milliseconds: 300),
+          fadeInDuration: Duration.zero,
           fit: widget.fit,
         );
       },
-      fadeInDuration: const Duration(milliseconds: 300),
+      fadeInDuration: Duration.zero,
       fit: widget.fit,
     );
   }
@@ -279,8 +331,17 @@ class _LoadImageCachedState extends State<LoadImageCached> {
 // Async ImageProvider resolver (unchanged API)
 Future<ImageProvider> getImageProvider(
   String imageUrl, {
-  String placeholderUrl = "assets/icons/orvia_logo.png",
+  String? placeholderUrl,
+  String? mediaId,
+  bool? isLocal,
 }) async {
+  final effectivePlaceholder = placeholderUrl ??
+      resolveSongPlaceholder(mediaId: mediaId, isLocal: isLocal);
+
+  if (isGenericProviderIcon(imageUrl)) {
+    return AssetImage(effectivePlaceholder);
+  }
+
   final localFile = _resolveLocalImageFile(imageUrl);
   if (localFile != null) return FileImage(localFile);
 
@@ -292,8 +353,8 @@ Future<ImageProvider> getImageProvider(
     if (response.statusCode == 200) {
       return CachedNetworkImageProvider(imageUrl);
     } else {
-      return AssetImage(placeholderUrl);
+      return AssetImage(effectivePlaceholder);
     }
   }
-  return AssetImage(placeholderUrl);
+  return AssetImage(effectivePlaceholder);
 }

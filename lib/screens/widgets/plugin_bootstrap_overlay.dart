@@ -135,12 +135,12 @@ class _PluginBootstrapOverlayState extends State<PluginBootstrapOverlay>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-      child: FadeTransition(
-        opacity: _fadeIn,
-        child: Container(
-          color: _bgBase,
+    return Scaffold(
+      backgroundColor: _bgBase,
+      body: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+        child: FadeTransition(
+          opacity: _fadeIn,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxContentWidth),

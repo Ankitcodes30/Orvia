@@ -6,6 +6,7 @@ import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/screen/common_views/changelog_reader.dart';
 import 'package:Orvia/screens/widgets/orvia_ui_kit/orvia_dialog.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/services/plugin/plugin_event_bus.dart';
 import 'package:Orvia/src/rust/api/plugin/events.dart';
 import 'package:flutter/material.dart';
@@ -69,7 +70,7 @@ class _GlobalEventListenerState extends State<GlobalEventListener> {
       case MalformedMediaIdError(:final rawId):
         _throttledSnackbar('Malformed media ID: $rawId');
       case PluginErrorEvent(:final message):
-        _throttledSnackbar(message);
+        _throttledSnackbar(formatUserFriendlyPluginError(message));
       case NetworkFailureError(:final message):
         _throttledSnackbar(message);
     }
@@ -79,19 +80,19 @@ class _GlobalEventListenerState extends State<GlobalEventListener> {
     switch (event) {
       case PluginManagerEvent_PluginLoadFailed(:final id, :final error):
         log('Plugin load failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" failed to load: $error');
+        _throttledSnackbar('Plugin "$id" failed to load: ${formatUserFriendlyPluginError(error)}');
       case PluginManagerEvent_PluginUnloadFailed(:final id, :final error):
         log('Plugin unload failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" failed to unload: $error');
+        _throttledSnackbar('Plugin "$id" failed to unload.');
       case PluginManagerEvent_PluginInstallFailed(:final id, :final error):
         log('Plugin install failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" install failed: $error');
+        _throttledSnackbar('Plugin "$id" install failed: ${formatUserFriendlyPluginError(error)}');
       case PluginManagerEvent_PluginDeleteFailed(:final id, :final error):
         log('Plugin delete failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" delete failed: $error');
+        _throttledSnackbar('Plugin "$id" delete failed.');
       case PluginManagerEvent_Error(:final message):
         log('Plugin system error: $message', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin error: $message');
+        _throttledSnackbar(formatUserFriendlyPluginError(message));
       case PluginManagerEvent_PluginInstalled(:final id):
         if (mounted) {
           _throttledSnackbar(

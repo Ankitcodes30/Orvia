@@ -4,7 +4,7 @@ import 'package:Orvia/utils/load_image.dart';
 
 Future<PaletteGenerator> getPalleteFromImage(String url) async {
   ImageProvider<Object> placeHolder =
-      const AssetImage("assets/icons/orvia_logo.png");
+      const AssetImage("assets/icons/OrviaLogo_System.png");
 
   try {
     return await PaletteGenerator.fromImageProvider(

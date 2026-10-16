@@ -595,7 +595,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchPlaylists => 'Playlists';
 
   @override
-  String get exploreDiscover => 'Discover';
+  String get exploreDiscover => 'Explore';
 
   @override
   String get exploreRecently => 'Recently';

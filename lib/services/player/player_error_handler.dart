@@ -95,9 +95,21 @@ class PlayerErrorHandler {
         msg.contains('broken pipe') ||
         msg.contains('reset') ||
         msg.contains('timeout') ||
+        msg.contains('timed out') ||
         msg.contains('unreachable') ||
         msg.contains('socket') ||
         msg.contains('abnormal eof') ||
+        msg.contains('connection dropped') ||
+        msg.contains('network') ||
+        msg.contains('http request failed') ||
+        msg.contains('error sending request') ||
+        msg.contains('wasm execution error') ||
+        msg.contains('connection refused') ||
+        msg.contains('failed to resolve') ||
+        msg.contains('dns') ||
+        msg.contains('client error (connect)') ||
+        msg.contains('offline') ||
+        msg.contains('no internet') ||
         error is SocketException ||
         error is TimeoutException) {
       return PlayerErrorType.networkDropped;
@@ -143,6 +155,17 @@ class PlayerErrorHandler {
 
     if (type == PlayerErrorType.permissionError) {
       _handleTrackTotalFailure(track);
+      return;
+    }
+
+    if (type == PlayerErrorType.networkDropped) {
+      // Graceful offline handling: streaming audio cannot continue offline.
+      // Do not skip through the user's queue or show raw technical errors.
+      SnackbarService.showMessage(
+        "You're offline. Playback paused. Reconnect to resume.",
+        duration: const Duration(seconds: 4),
+      );
+      onStopPlayback?.call();
       return;
     }
 
@@ -200,7 +223,7 @@ class PlayerErrorHandler {
       case PlayerErrorType.sourceExpired:
         return 'Link expired, refreshing source...';
       case PlayerErrorType.networkDropped:
-        return 'Connection dropped, reconnecting...';
+        return "You're offline. Connect to the internet to stream this song.";
       case PlayerErrorType.sourceError:
         return 'Song format unsupported or corrupted.';
       case PlayerErrorType.playbackError:

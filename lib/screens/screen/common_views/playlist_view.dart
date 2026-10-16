@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
@@ -16,6 +17,7 @@ import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
+import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,13 +43,63 @@ class OnlPlaylistView extends StatefulWidget {
 class _OnlPlaylistViewState extends State<OnlPlaylistView> {
   late final ContentBloc _contentBloc;
   late final ScrollController _scrollController;
+  StreamSubscription<ContentState>? _contentSubscription;
   bool _isSaved = false;
+
+  List<Track> _fallbackTracks = const [];
+  bool _fallbackAttempted = false;
+  bool _isSearchingFallback = false;
 
   @override
   void initState() {
     super.initState();
     _contentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
     _scrollController = ScrollController()..addListener(_onScroll);
+
+    _contentSubscription = _contentBloc.stream.listen((state) {
+      if (!mounted) return;
+      if (state.playlistDetailStatus == DetailStatus.loaded) {
+        final tracks = state.playlistDetails?.tracks.items ?? [];
+        if (tracks.isEmpty && !_fallbackAttempted && !_isSearchingFallback) {
+          _fallbackAttempted = true;
+          _isSearchingFallback = true;
+          final query = widget.playlist.title.trim();
+          if (query.isNotEmpty) {
+            _contentBloc.add(SetActiveContentPlugin(pluginId: widget.pluginId));
+            _contentBloc.add(SearchContent(
+              query: query,
+              filter: ContentSearchFilter.all,
+            ));
+          }
+        }
+      }
+
+      if (_isSearchingFallback && state.searchStatus == SearchStatus.loaded) {
+        final results = state.searchResults?.items ?? [];
+        final collected = <Track>[];
+        for (final item in results) {
+          item.when(
+            track: (t) => collected.add(t),
+            album: (_) {},
+            artist: (_) {},
+            playlist: (_) {},
+          );
+        }
+        if (mounted) {
+          setState(() {
+            _fallbackTracks = collected;
+            _isSearchingFallback = false;
+          });
+        }
+      } else if (_isSearchingFallback &&
+          state.searchStatus == SearchStatus.error) {
+        if (mounted) {
+          setState(() {
+            _isSearchingFallback = false;
+          });
+        }
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -64,6 +116,7 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
 
   @override
   void dispose() {
+    _contentSubscription?.cancel();
     _scrollController.dispose();
     _contentBloc.close();
     super.dispose();
@@ -217,21 +270,68 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
         bloc: _contentBloc,
         builder: (context, state) {
           final details = state.playlistDetails;
-          final playlistSummary = details?.summary ?? widget.playlist;
-          final tracks = details?.tracks.items ?? [];
+          final rawSummary = details?.summary;
+          final bool isSuspiciousTitle = rawSummary != null &&
+              isSuspiciousPlaylistTitle(rawSummary.title);
+
+          final playlistSummary = (rawSummary == null || isSuspiciousTitle)
+              ? widget.playlist
+              : rawSummary;
+
+          final directTracks = details?.tracks.items ?? [];
+          final player = context.read<OrviaPlayerCubit>().orviaPlayer;
+          final isCurrentQueue = player.queueTracks.isNotEmpty &&
+              player.queueTitle.value.trim().toLowerCase() ==
+                  playlistSummary.title.trim().toLowerCase();
+
+          final tracks = directTracks.isNotEmpty
+              ? directTracks
+              : (_fallbackTracks.isNotEmpty
+                  ? _fallbackTracks
+                  : (isCurrentQueue ? player.queueTracks : const <Track>[]));
           final status = state.playlistDetailStatus;
 
           final imageUrl = playlistSummary.thumbnail.urlHigh ??
               playlistSummary.thumbnail.url;
 
           final metaParts = <String>[];
-          if (playlistSummary.owner != null &&
-              playlistSummary.owner!.trim().isNotEmpty) {
-            metaParts.add(playlistSummary.owner!.trim());
+          final lowerTitle = playlistSummary.title.toLowerCase();
+          final isStation = lowerTitle.contains('station') ||
+              lowerTitle.contains('radio') ||
+              (playlistSummary.owner?.toLowerCase().contains('station') ?? false);
+
+          if (isStation) {
+            metaParts.add('Station Playlist');
+          } else {
+            metaParts.add(sanitizePlaylistOwner(playlistSummary.owner));
           }
+
           if (tracks.isNotEmpty) {
             metaParts
                 .add('${tracks.length} Track${tracks.length == 1 ? '' : 's'}');
+          }
+
+          final String? description;
+          if (_cleanText(details?.description) != null) {
+            description = _cleanText(details?.description);
+          } else if (lowerTitle.contains('romance')) {
+            description = 'Popular and trending Romantic music across genres.';
+          } else if (lowerTitle.contains('carvaan')) {
+            description =
+                'Classic hits and timeless retro melodies from Carvaan.';
+          } else if (lowerTitle.contains('90s') ||
+              lowerTitle.contains('1990')) {
+            description =
+                'The finest nostalgic hits and classics from the 1990s.';
+          } else if (lowerTitle.contains('dance')) {
+            description = 'High-energy dance anthems and party chartbusters.';
+          } else if (lowerTitle.contains('workout')) {
+            description = 'Energizing workout beats to power your routine.';
+          } else if (lowerTitle.contains('chill')) {
+            description =
+                'Relaxing and mellow tunes to unwind and recharge.';
+          } else {
+            description = null;
           }
 
           return CustomScrollView(
@@ -250,7 +350,7 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                         fallbackUrl: playlistSummary.thumbnail.url,
                         title: playlistSummary.title,
                         meta: metaParts,
-                        description: _cleanText(details?.description),
+                        description: description,
                         pluginId: widget.pluginId,
                         playlistId: playlistSummary.id,
                         heroTag: widget.heroTag,
@@ -299,27 +399,93 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                     ),
                   ),
                 )
-              else if (status == DetailStatus.loaded)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 80, bottom: 120),
-                    child: Center(
-                        child: SignBoardWidget(
-                            message: 'No tracks available',
-                            icon: MingCute.music_2_line)),
-                  ),
-                )
-              else if (status == DetailStatus.error)
+              else if (status == DetailStatus.loaded && !_isSearchingFallback)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 80, bottom: 120),
                     child: Center(
-                      child: Text(
-                        state.error ?? 'Failed to load playlist',
-                        style: TextStyle(
-                                color: Default_Theme.primaryColor1
-                                    .withValues(alpha: 0.5))
-                            .merge(Default_Theme.secondoryTextStyle),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(MingCute.music_2_line,
+                              size: 40, color: Colors.white24),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No tracks available for ${playlistSummary.title}',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _contentBloc.add(SetActiveContentPlugin(
+                                  pluginId: widget.pluginId));
+                              _contentBloc.add(SearchContent(
+                                query: playlistSummary.title,
+                                filter: ContentSearchFilter.all,
+                              ));
+                            },
+                            icon: const Icon(MingCute.search_2_line, size: 16),
+                            label: const Text('Search for Tracks'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Default_Theme.accentColor2,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else if (status == DetailStatus.error && !_isSearchingFallback)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                        top: 60, bottom: 120, left: 24, right: 24),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            (state.error?.contains('offline') ?? false)
+                                ? MingCute.wifi_off_line
+                                : MingCute.warning_line,
+                            size: 44,
+                            color: Default_Theme.primaryColor1
+                                .withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            state.error ?? 'Failed to load playlist',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Default_Theme.primaryColor1
+                                  .withValues(alpha: 0.7),
+                            ).merge(Default_Theme.secondoryTextStyle),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _contentBloc.add(LoadPlaylistDetails(
+                                  pluginId: widget.pluginId,
+                                  playlistId: widget.playlist.id));
+                            },
+                            icon: const Icon(MingCute.refresh_3_line, size: 18),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Default_Theme.accentColor2,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -505,47 +671,108 @@ class _PlaylistHeaderContent extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context, {required bool isCentered}) {
-    return Wrap(
-      alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _PremiumPlayButton(
-          isEmpty: tracks.isEmpty,
-          onTap: () =>
-              context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
-                    Playlist(tracks: tracks, title: title),
-                    doPlay: true,
-                    idx: 0,
+    final player = context.read<OrviaPlayerCubit>().orviaPlayer;
+    return StreamBuilder<bool>(
+      stream: player.playingStream,
+      builder: (context, playSnap) {
+        return StreamBuilder<String>(
+          stream: player.queueTitle,
+          builder: (context, titleSnap) {
+            final isPlaying = playSnap.data ?? false;
+            final currentQueue = titleSnap.data ?? '';
+            final isThisQueue = currentQueue.trim().toLowerCase() ==
+                title.trim().toLowerCase();
+
+            return Wrap(
+              alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _PremiumPlayButton(
+                  isEmpty: tracks.isEmpty,
+                  isPlaying: isThisQueue && isPlaying,
+                  onTap: () {
+                    if (isThisQueue) {
+                      if (isPlaying) {
+                        player.pause();
+                      } else {
+                        player.play();
+                      }
+                    } else {
+                      player.loadPlaylist(
+                        Playlist(tracks: tracks, title: title),
+                        doPlay: true,
+                        idx: 0,
+                      );
+                    }
+                  },
+                ),
+                _PremiumCircularButton(
+                  icon: MingCute.shuffle_line,
+                  isActive: false,
+                  tooltip: 'Shuffle Play',
+                  onTap: tracks.isEmpty
+                      ? () {}
+                      : () {
+                          player.loadPlaylist(
+                            Playlist(tracks: tracks, title: title),
+                            doPlay: true,
+                            shuffling: true,
+                          );
+                        },
+                ),
+                _PremiumCircularButton(
+                  icon: MingCute.playlist_2_line,
+                  isActive: false,
+                  tooltip: 'Add to Up Next',
+                  onTap: tracks.isEmpty
+                      ? () {}
+                      : () {
+                          player.addQueueTracks(tracks, atLast: false);
+                          SnackbarService.showMessage(
+                              'Added ${tracks.length} track${tracks.length == 1 ? '' : 's'} to Up Next');
+                        },
+                ),
+                _PremiumCircularButton(
+                  icon: isSaved
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  isActive: isSaved,
+                  tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
+                  onTap: onToggleSave,
+                ),
+                if (url != null)
+                  _PremiumCircularButton(
+                    icon: MingCute.external_link_line,
+                    isActive: false,
+                    tooltip: 'Open Original Link',
+                    onTap: () {
+                      SnackbarService.showMessage(
+                          'Opening original playlist page.');
+                      launchUrl(Uri.parse(url!),
+                          mode: LaunchMode.externalApplication);
+                    },
                   ),
-        ),
-        _PremiumCircularButton(
-          icon:
-              isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          isActive: isSaved,
-          tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
-          onTap: onToggleSave,
-        ),
-        if (url != null)
-          _PremiumCircularButton(
-            icon: MingCute.external_link_line,
-            isActive: false,
-            tooltip: 'Open Original Link',
-            onTap: () {
-              SnackbarService.showMessage('Opening original playlist page.');
-              launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication);
-            },
-          ),
-      ],
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
 
 class _PremiumPlayButton extends StatelessWidget {
   final bool isEmpty;
+  final bool isPlaying;
   final VoidCallback onTap;
 
-  const _PremiumPlayButton({required this.isEmpty, required this.onTap});
+  const _PremiumPlayButton({
+    required this.isEmpty,
+    this.isPlaying = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -557,24 +784,30 @@ class _PremiumPlayButton extends StatelessWidget {
         splashColor: Default_Theme.accentColor2.withValues(alpha: 0.2),
         child: Container(
           height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(30),
-            color: Default_Theme.accentColor2.withValues(alpha: 0.1),
+            color: Default_Theme.accentColor2.withValues(alpha: 0.15),
             border: Border.all(color: Default_Theme.accentColor2, width: 1.5),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(MingCute.play_fill,
-                  size: 20, color: Default_Theme.accentColor2),
-              SizedBox(width: 8),
-              Text('Play',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Default_Theme.accentColor2)),
+              Icon(
+                isPlaying ? MingCute.pause_fill : MingCute.play_fill,
+                size: 20,
+                color: Default_Theme.accentColor2,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isPlaying ? 'Pause' : 'Play',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Default_Theme.accentColor2,
+                ),
+              ),
             ],
           ),
         ),
@@ -632,5 +865,26 @@ class _PremiumCircularButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Checks if a fetched playlist title indicates a generic/colliding user playlist
+/// (such as public user playlist collisions on JioSaavn).
+bool isSuspiciousPlaylistTitle(String? title) {
+  if (title == null) return true;
+  final trimmed = title.trim().toLowerCase();
+  return trimmed.isEmpty || trimmed == 'amit' || trimmed == 'starred songs';
+}
+
+/// Sanitizes a playlist owner string, falling back to a curated label if the
+/// owner indicates a user account collision or generic membership.
+String sanitizePlaylistOwner(String? rawOwner,
+    {String fallback = 'Curated Collection'}) {
+  final trimmed = rawOwner?.trim() ?? '';
+  if (trimmed.isEmpty ||
+      trimmed.toLowerCase() == 'amit' ||
+      trimmed.toLowerCase() == 'member') {
+    return fallback;
+  }
+  return trimmed;
 }
 

@@ -278,6 +278,9 @@ class CoverImageVolSlider extends StatelessWidget {
                   child: LoadImageCached(
                     imageUrl: highResUrl,
                     fallbackUrl: lowResUrl,
+                    mediaId: currentTrack.id,
+                    placeholderUrl:
+                        resolveSongPlaceholder(mediaId: currentTrack.id),
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -485,7 +488,7 @@ class _LikeButtonState extends State<_LikeButton> {
     final l10n = AppLocalizations.of(context)!;
 
     return StreamBuilder<bool>(
-      stream: player.engine.playingStream,
+      stream: player.playingStream,
       builder: (context, playingSnapshot) {
         final isPlaying = playingSnapshot.data ?? false;
         final currentMedia = player.mediaItem.valueOrNull;
@@ -757,6 +760,14 @@ class _PlayPauseButton extends StatelessWidget {
               musicPlayer.play();
             } else if (state.hasError) {
               musicPlayer.play();
+            } else if (state.isLoading || state.isResolving) {
+              musicPlayer.pause();
+            } else {
+              if (state.isPlaying) {
+                musicPlayer.pause();
+              } else {
+                musicPlayer.play();
+              }
             }
           },
           child: AnimatedContainer(

@@ -49,6 +49,7 @@ class DownloadingCardWidget extends StatelessWidget {
             height: 55,
             child: LoadImageCached(
               imageUrl: song.thumbnail.urlLow ?? song.thumbnail.url,
+              mediaId: song.id,
               fit: BoxFit.cover,
             ),
           ),

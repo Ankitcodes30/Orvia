@@ -12,6 +12,7 @@ class SquareImgCard extends StatefulWidget {
   final String? tag;
   final bool isWide;
   final bool isList;
+  final String? mediaId;
 
   const SquareImgCard({
     super.key,
@@ -23,6 +24,7 @@ class SquareImgCard extends StatefulWidget {
     this.isWide = false,
     this.tag,
     this.isList = true,
+    this.mediaId,
   });
 
   @override
@@ -75,6 +77,9 @@ class _SquareImgCardState extends State<SquareImgCard> {
                         child: LoadImageCached(
                           imageUrl: widget.imgPath,
                           fallbackUrl: widget.fallbackImgPath,
+                          mediaId: widget.mediaId,
+                          placeholderUrl:
+                              resolveSongPlaceholder(mediaId: widget.mediaId),
                         ),
                       ),
                       Visibility(

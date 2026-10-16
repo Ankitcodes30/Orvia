@@ -4,6 +4,7 @@ import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/storage_setting.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -69,8 +70,18 @@ class HistoryView extends StatelessWidget {
                                   idx: index,
                                   doPlay: true);
                         },
-                        onOptionsTap: () =>
-                            showMoreBottomSheet(context, state.tracks[index]),
+                        onOptionsTap: () => showMoreBottomSheet(
+                          context,
+                          state.tracks[index],
+                          showRemoveFromHistory: true,
+                          onRemoveFromHistory: () {
+                            context
+                                .read<HistoryCubit>()
+                                .removeTrack(state.tracks[index].id);
+                            SnackbarService.showMessage(
+                                'Removed from Recently Played');
+                          },
+                        ),
                       );
                     },
                   );

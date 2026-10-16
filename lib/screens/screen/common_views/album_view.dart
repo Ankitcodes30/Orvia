@@ -331,12 +331,47 @@ class _AlbumViewState extends State<AlbumView> {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
-                    child: Text(
-                      state.error ?? l10n.albumViewLoadFailed,
-                      style: TextStyle(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            (state.error?.contains('offline') ?? false)
+                                ? MingCute.wifi_off_line
+                                : MingCute.warning_line,
+                            size: 44,
+                            color: Default_Theme.primaryColor1
+                                .withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            state.error ?? l10n.albumViewLoadFailed,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
                               color: Default_Theme.primaryColor1
-                                  .withValues(alpha: 0.5))
-                          .merge(Default_Theme.secondoryTextStyle),
+                                  .withValues(alpha: 0.7),
+                            ).merge(Default_Theme.secondoryTextStyle),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _contentBloc.add(LoadAlbumDetails(
+                                  pluginId: widget.pluginId,
+                                  albumId: widget.album.id));
+                            },
+                            icon: const Icon(MingCute.refresh_3_line, size: 18),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Default_Theme.accentColor2,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 )

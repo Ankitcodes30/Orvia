@@ -143,6 +143,8 @@ class _SongInfoScreenState extends State<SongInfoScreen> {
             child: LoadImageCached(
               imageUrl: imageUrl,
               fallbackUrl: song.thumbnail.urlLow ?? song.thumbnail.url,
+              mediaId: song.id,
+              placeholderUrl: resolveSongPlaceholder(mediaId: song.id),
               fit: BoxFit.cover,
             ),
           ),
@@ -283,6 +285,8 @@ class _SongInfoScreenState extends State<SongInfoScreen> {
             child: LoadImageCached(
               imageUrl: imageUrl,
               fallbackUrl: song.thumbnail.urlHigh ?? song.thumbnail.url,
+              mediaId: song.id,
+              placeholderUrl: resolveSongPlaceholder(mediaId: song.id),
               fit: BoxFit.fitWidth,
             ),
           ),

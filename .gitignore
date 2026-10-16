@@ -41,6 +41,8 @@ build_debug.log
 flutter_analyze.log
 flutter_test_all.log
 flutter_test.log
+scratch/
+
 
 # Flutter repo-specific
 /bin/cache/

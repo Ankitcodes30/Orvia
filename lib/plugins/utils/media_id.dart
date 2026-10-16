@@ -86,6 +86,11 @@ String? localIdOf(String id) => tryParseMediaId(id)?.localId;
 /// Check whether an ID is a properly stamped composite media ID.
 bool isStampedId(String id) => id.contains(kMediaIdSeparator);
 
+// ── Plugin IDs ─────────────────────────────────────────────────────────────
+
+/// The default content resolver plugin ID for JioSaavn content.
+const String kDefaultSaavnPluginId = 'content-resolver.bloomfactory.jisaavn';
+
 // ── Local music ─────────────────────────────────────────────────────────────
 
 /// The pseudo-plugin ID used for locally scanned audio files.
@@ -108,3 +113,13 @@ String buildLocalMediaId(String absoluteFilePath) {
 /// temporary cache path on Android 10).
 String buildMobileLocalMediaId(String assetId) =>
     buildMediaId(kLocalPluginId, assetId);
+
+/// Checks if two track IDs refer to the same media item, matching either
+/// exact composite IDs or matching their plugin-local ID components.
+bool isMatchingTrackId(String? id1, String? id2) {
+  if (id1 == null || id2 == null || id1.isEmpty || id2.isEmpty) return false;
+  if (id1 == id2) return true;
+  final local1 = localIdOf(id1) ?? id1;
+  final local2 = localIdOf(id2) ?? id2;
+  return local1 == local2;
+}

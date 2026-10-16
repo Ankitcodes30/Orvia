@@ -175,7 +175,10 @@ class _MiniPlayerCardState extends State<MiniPlayerCard>
               height: _cardHeight,
               child: Stack(
                 children: [
-                  _BlurredBackground(imageUrl: thumbUrl),
+                  _BlurredBackground(
+                    imageUrl: thumbUrl,
+                    mediaId: song.id,
+                  ),
                   _GlassOverlay(),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -184,6 +187,7 @@ class _MiniPlayerCardState extends State<MiniPlayerCard>
                         _Artwork(
                           imageUrl: thumbUrl,
                           fallbackUrl: song.thumbnail.url,
+                          mediaId: song.id,
                           size: _artworkSize,
                         ),
                         const SizedBox(width: 12),
@@ -259,7 +263,8 @@ class _MiniPlayerCardState extends State<MiniPlayerCard>
 
 class _BlurredBackground extends StatelessWidget {
   final String imageUrl;
-  const _BlurredBackground({required this.imageUrl});
+  final String? mediaId;
+  const _BlurredBackground({required this.imageUrl, this.mediaId});
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +277,12 @@ class _BlurredBackground extends StatelessWidget {
             sigmaY: 40,
             tileMode: TileMode.clamp,
           ),
-          child: LoadImageCached(imageUrl: imageUrl, fit: BoxFit.cover),
+          child: LoadImageCached(
+            imageUrl: imageUrl,
+            mediaId: mediaId,
+            placeholderUrl: resolveSongPlaceholder(mediaId: mediaId),
+            fit: BoxFit.cover,
+          ),
         ),
       ),
     );
@@ -308,10 +318,12 @@ class _Artwork extends StatelessWidget {
   final String imageUrl;
   final String fallbackUrl;
   final double size;
+  final String? mediaId;
 
   const _Artwork({
     required this.imageUrl,
     required this.fallbackUrl,
+    this.mediaId,
     required this.size,
   });
 
@@ -335,6 +347,8 @@ class _Artwork extends StatelessWidget {
         child: LoadImageCached(
           imageUrl: imageUrl,
           fallbackUrl: fallbackUrl,
+          mediaId: mediaId,
+          placeholderUrl: resolveSongPlaceholder(mediaId: mediaId),
           fit: BoxFit.cover,
         ),
       ),
@@ -463,15 +477,32 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoading || state.isResolving) {
-      return const Padding(
-        padding: EdgeInsets.all(12),
-        child: SizedBox.square(
-          dimension: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: Colors.white,
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.read<OrviaPlayerCubit>().orviaPlayer.pause();
+        },
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white,
+            ),
           ),
         ),
+      );
+    }
+
+    if (state.hasError) {
+      return _ControlButton(
+        icon: MingCute.refresh_3_line,
+        size: 22,
+        onPressed: () {
+          HapticFeedback.mediumImpact();
+          context.read<OrviaPlayerCubit>().orviaPlayer.play();
+        },
       );
     }
 

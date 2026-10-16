@@ -286,6 +286,7 @@ class PlayerEngine {
   }
 
   EngineState get state => _stateSubject.value;
+  bool get hasMedia => _hasMedia;
   bool get playing => _playingSubject.value;
   Duration get position => _positionSubject.value;
   Duration get duration => _durationSubject.value;
@@ -523,7 +524,10 @@ class PlayerEngine {
     });
   }
 
-  Future<void> stop({bool keepLoadingState = false}) async {
+  Future<void> stop({
+    bool keepLoadingState = false,
+    bool resetPosition = true,
+  }) async {
     if (_disposed) return;
     ++_generation;
 
@@ -543,9 +547,11 @@ class PlayerEngine {
 
     if (!keepLoadingState) _suppressIdleUntilMediaLoads = false;
 
-    _positionSubject.add(Duration.zero);
-    _durationSubject.add(Duration.zero);
-    _bufferedSubject.add(Duration.zero);
+    if (resetPosition) {
+      _positionSubject.add(Duration.zero);
+      _durationSubject.add(Duration.zero);
+      _bufferedSubject.add(Duration.zero);
+    }
     _playingSubject.add(false);
 
     try {

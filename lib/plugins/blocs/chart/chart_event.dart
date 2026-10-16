@@ -6,7 +6,8 @@ sealed class ChartEvent {
 /// Load chart listings from a chart provider plugin.
 class LoadCharts extends ChartEvent {
   final String pluginId;
-  const LoadCharts({required this.pluginId});
+  final bool bypassCache;
+  const LoadCharts({required this.pluginId, this.bypassCache = false});
 }
 
 /// Load details (items) for a specific chart.
@@ -28,13 +29,15 @@ class ForceRefreshChartDetails extends ChartEvent {
 
 /// Silently prefetch chart details for a set of visible charts.
 ///
-/// Runs in the background — no state emissions. Only fills the cache.
+/// Fills the cache and enriches chart summaries with top-item artwork.
 class PrefetchAllChartDetails extends ChartEvent {
   final String pluginId;
   final Set<String> chartIds;
+  final bool forceRefresh;
   const PrefetchAllChartDetails({
     required this.pluginId,
     required this.chartIds,
+    this.forceRefresh = false,
   });
 }
 

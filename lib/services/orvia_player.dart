@@ -89,6 +89,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
   StreamSubscription? _positionSuccessSub;
   StreamSubscription<AudioInterruptionEvent>? _audioInterruptionSub;
   StreamSubscription<void>? _audioNoisySub;
+  List<StreamSubscription> _engineForwardingSubs = [];
   Timer? _relatedSongTimer;
 
   // ── Audio session state ────────────────────────────────────────────────────
@@ -99,8 +100,25 @@ class OrviaMusicPlayer extends BaseAudioHandler
   // Per audio_session docs: only resume automatically on 'pause' end, never on 'unknown'.
   bool _shouldResumeAfterInterruption = false;
 
-  // ── M-12 ──────────────────────────────────────────────────────────────────
+  // ── Position & Facade Streams ─────────────────────────────────────────────
   Duration _savedPositionForRevive = Duration.zero;
+  Duration _lastKnownPosition = Duration.zero;
+
+  final BehaviorSubject<Duration> _facadePosition =
+      BehaviorSubject.seeded(Duration.zero);
+  final BehaviorSubject<Duration> _facadeDuration =
+      BehaviorSubject.seeded(Duration.zero);
+  final BehaviorSubject<Duration> _facadeBuffered =
+      BehaviorSubject.seeded(Duration.zero);
+  final BehaviorSubject<bool> _facadePlaying = BehaviorSubject.seeded(false);
+  final BehaviorSubject<EngineState> _facadeState =
+      BehaviorSubject.seeded(EngineState.idle);
+
+  Stream<Duration> get positionStream => _facadePosition.stream;
+  Stream<Duration> get durationStream => _facadeDuration.stream;
+  Stream<Duration> get bufferedStream => _facadeBuffered.stream;
+  Stream<bool> get playingStream => _facadePlaying.stream;
+  Stream<EngineState> get engineStateStream => _facadeState.stream;
 
   // ── Modular component accessors ───────────────────────────────────────────
   BehaviorSubject<bool> get shuffleMode => _queueManager.shuffleMode;
@@ -134,6 +152,13 @@ class OrviaMusicPlayer extends BaseAudioHandler
   /// Restores the last queue from SettingsDAO so the user sees it on relaunch.
   ///
   /// Intentionally does NOT auto-play — the user must tap play to resume.
+  Duration _trackDuration(Track? track) {
+    if (track?.durationMs != null) {
+      return Duration(milliseconds: track!.durationMs!.toInt());
+    }
+    return Duration.zero;
+  }
+
   /// Guarded by [_isDisposed] so a rapid dispose() during cold start is safe.
   Future<void> _restoreLastSession() async {
     if (_isDisposed) return;
@@ -144,6 +169,11 @@ class OrviaMusicPlayer extends BaseAudioHandler
         final track = _queueManager.currentTrack;
         if (track != null) {
           _updateCurrentTrack(track);
+          final d = _trackDuration(track);
+          if (d > Duration.zero) {
+            _facadeDuration.add(d);
+          }
+          syncPublicState();
         }
       }
     } catch (e) {
@@ -325,11 +355,13 @@ class OrviaMusicPlayer extends BaseAudioHandler
       _playCompleter = null;
       _currentResolveOp?.cancel();
       _preResolveOp?.cancel();
+      isResolving.add(false);
       playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.error,
+        processingState: AudioProcessingState.idle,
         playing: false,
       ));
-      await engine.stop();
+      await engine.stop(resetPosition: false);
+      _facadePlaying.add(false);
       DiscordService.clearPresence();
     };
 
@@ -345,6 +377,22 @@ class OrviaMusicPlayer extends BaseAudioHandler
   // ─── Subscriptions ─────────────────────────────────────────────────────────
 
   void _initSubscriptions() {
+    for (final sub in _engineForwardingSubs) {
+      sub.cancel();
+    }
+    _engineForwardingSubs = [
+      engine.positionStream.listen((pos) {
+        if (pos > Duration.zero) _lastKnownPosition = pos;
+        _facadePosition.add(pos);
+      }),
+      engine.durationStream.listen((d) {
+        if (d > Duration.zero) _facadeDuration.add(d);
+      }),
+      engine.bufferedStream.listen(_facadeBuffered.add),
+      engine.playingStream.listen(_facadePlaying.add),
+      engine.stateStream.listen(_facadeState.add),
+    ];
+
     // Combine engine state signals into a single broadcast.
     _engineStateSub = Rx.combineLatest4(
       engine.stateStream,
@@ -374,7 +422,12 @@ class OrviaMusicPlayer extends BaseAudioHandler
       log('Engine error: $error', name: 'OrviaMusicPlayer');
       final track = _queueManager.currentTrack;
       if (track != null) {
-        _errorHandler.handleError(PlayerErrorType.playbackError, error, track);
+        _errorHandler.handleError(
+          _errorHandler.categorizeError(error),
+          error,
+          track,
+          error,
+        );
       }
     });
 
@@ -461,12 +514,18 @@ class OrviaMusicPlayer extends BaseAudioHandler
       SnackbarService.showMessage('Audio focus denied. Cannot start playback.');
       return;
     }
-    // Cold resume: engine has nothing loaded, but queue has a track
-    // (happens after session restore). Resolve and play the current track.
-    if (engine.state == EngineState.idle) {
+    // Cold resume / error recovery: engine has nothing loaded, or is in an error/completed state,
+    // but queue has a track. Resolve and play the current track.
+    if (engine.state == EngineState.idle ||
+        engine.state == EngineState.error ||
+        engine.state == EngineState.completed ||
+        !engine.hasMedia) {
       final track = _queueManager.currentTrack;
       if (track != null) {
-        await _enqueuePlayTrack(track, doPlay: true);
+        final resumePos = _lastKnownPosition > Duration.zero
+            ? _lastKnownPosition
+            : _savedPositionForRevive;
+        await _enqueuePlayTrack(track, doPlay: true, initialPosition: resumePos);
         return;
       }
     }
@@ -637,6 +696,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
 
       if (result is EngineFailure) {
         isResolving.add(false);
+        await engine.stop(keepLoadingState: false);
         _errorHandler.handleError(
           _errorHandler.categorizeError(result.error),
           result.error.toString(),
@@ -657,12 +717,14 @@ class OrviaMusicPlayer extends BaseAudioHandler
       complete();
     } on TimeoutException catch (e) {
       isResolving.add(false);
+      await engine.stop(keepLoadingState: false);
       if (!alive()) return;
       _errorHandler.handleError(
           PlayerErrorType.networkDropped, 'Network timeout', track, e);
       complete();
     } catch (e, stack) {
       isResolving.add(false);
+      await engine.stop(keepLoadingState: false);
       if (!alive()) return;
       log('Play failed: ${track.title}: $e',
           name: 'OrviaMusicPlayer', stackTrace: stack);
@@ -866,10 +928,20 @@ class OrviaMusicPlayer extends BaseAudioHandler
     queue.add(_queueManager.tracks.map(trackToMediaItem).toList());
     final current = _queueManager.currentTrack;
     if (current != null) _updateCurrentTrack(current);
+    final pos = engine.position > Duration.zero ? engine.position : _lastKnownPosition;
+    _facadePosition.add(pos);
+    if (engine.duration > Duration.zero) {
+      _facadeDuration.add(engine.duration);
+    } else if (current != null && _trackDuration(current) > Duration.zero) {
+      _facadeDuration.add(_trackDuration(current));
+    }
+    _facadeBuffered.add(engine.buffered);
+    _facadePlaying.add(engine.playing);
+    _facadeState.add(engine.state);
     _broadcastPlaybackState(
       engine.state,
       engine.playing,
-      engine.position,
+      pos,
       engine.buffered,
       engine.speed,
     );
@@ -1108,7 +1180,9 @@ class OrviaMusicPlayer extends BaseAudioHandler
       _positionSuccessSub?.cancel() ?? Future.value(),
       _audioInterruptionSub?.cancel() ?? Future.value(),
       _audioNoisySub?.cancel() ?? Future.value(),
+      ..._engineForwardingSubs.map((s) => s.cancel()),
     ]);
+    _engineForwardingSubs.clear();
 
     _errorHandler.dispose();
     _queueManager.dispose();

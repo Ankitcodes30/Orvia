@@ -95,7 +95,7 @@ BEGIN
             VALUE "InternalName", "orvia" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 Orvia. All rights reserved." "\0"
             VALUE "OriginalFilename", "orvia.exe" "\0"
-            VALUE "ProductName", "orvia" "\0"
+            VALUE "ProductName", "Orvia" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -19,6 +19,7 @@ import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
+import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
@@ -30,6 +31,50 @@ class ArtistView extends StatefulWidget {
 
   const ArtistView({super.key, required this.artist, required this.pluginId});
 
+  static String _normalizeArtistString(String str) {
+    return str.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  static bool isTrackRelatedToArtist(Track track, String artistName, {String? artistId}) {
+    final cleanTarget = _normalizeArtistString(artistName);
+    if (cleanTarget.isEmpty) return true;
+
+    // 1. Direct ID match if available
+    if (artistId != null && artistId.isNotEmpty) {
+      final cleanTargetId = artistId.contains('::') ? artistId.split('::').last : artistId;
+      for (final a in track.artists) {
+        final aId = a.id.contains('::') ? a.id.split('::').last : a.id;
+        if (aId.isNotEmpty && aId == cleanTargetId) return true;
+      }
+    }
+
+    // 2. Track artists (vocals, featured, composer, producer, collaborations)
+    for (final a in track.artists) {
+      final cleanA = _normalizeArtistString(a.name);
+      if (cleanA.isEmpty) continue;
+      if (cleanA == cleanTarget ||
+          cleanA.contains(cleanTarget) ||
+          cleanTarget.contains(cleanA)) {
+        return true;
+      }
+    }
+
+    // 3. Album artists match if available
+    if (track.album?.artists != null) {
+      for (final a in track.album!.artists) {
+        final cleanA = _normalizeArtistString(a.name);
+        if (cleanA.isEmpty) continue;
+        if (cleanA == cleanTarget ||
+            cleanA.contains(cleanTarget) ||
+            cleanTarget.contains(cleanA)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   @override
   State<ArtistView> createState() => _ArtistViewState();
 }
@@ -38,9 +83,19 @@ class _ArtistViewState extends State<ArtistView> {
   late final ContentBloc _contentBloc;
   bool _isSaved = false;
 
+  final List<Track> _catalogueTracks = [];
+  String? _nextPageToken;
+  bool _isLoadingCatalogue = false;
+  bool _isLoadingMoreTracks = false;
+  String? _catalogueError;
+  bool _isSearching = false;
+  late final TextEditingController _searchController;
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _contentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,14 +110,169 @@ class _ArtistViewState extends State<ArtistView> {
         pluginId: widget.pluginId,
         artistId: widget.artist.id,
       ));
+      _fetchInitialCatalogue();
       _checkSavedState();
     });
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _contentBloc.close();
     super.dispose();
+  }
+
+  Future<void> _fetchInitialCatalogue() async {
+    if (_isLoadingCatalogue) return;
+    setState(() {
+      _isLoadingCatalogue = true;
+      _catalogueError = null;
+    });
+
+    try {
+      final response = await ServiceLocator.pluginService.execute(
+        pluginId: widget.pluginId,
+        request: PluginRequest.contentResolver(
+          ContentResolverCommand.search(
+            query: widget.artist.name,
+            filter: ContentSearchFilter.track,
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+
+      response.when(
+        search: (results) {
+          final tracks = <Track>[];
+          for (final item in results.items) {
+            item.when(
+              track: (t) {
+                if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name, artistId: widget.artist.id)) {
+                  tracks.add(t);
+                }
+              },
+              album: (_) {},
+              artist: (_) {},
+              playlist: (_) {},
+            );
+          }
+          final seenIds = <String>{};
+          final deduplicated = <Track>[];
+          for (final t in tracks) {
+            if (t.id.isNotEmpty && seenIds.add(t.id)) {
+              deduplicated.add(t);
+            }
+          }
+          setState(() {
+            _catalogueTracks
+              ..clear()
+              ..addAll(deduplicated);
+            _nextPageToken = results.nextPageToken;
+            _isLoadingCatalogue = false;
+          });
+        },
+        trackDetails: (_) {},
+        albumDetails: (_) {},
+        artistDetails: (_) {},
+        playlistDetails: (_) {},
+        streams: (_) {},
+        moreTracks: (_) {},
+        moreAlbums: (_) {},
+        homeSections: (_) {},
+        loadMoreItems: (_) {},
+        charts: (_) {},
+        chartDetails: (_) {},
+        segments: (_) {},
+        lyricsResult: (_) {},
+        lyricsSearchResults: (_) {},
+        lyricsById: (_, __) {},
+        suggestions: (_) {},
+        canHandle: (_) {},
+        collectionInfo: (_) {},
+        importTracks: (_) {},
+        ack: () {},
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingCatalogue = false;
+          _catalogueError = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreCatalogue() async {
+    if (_isLoadingMoreTracks || _nextPageToken == null || _searchQuery.isNotEmpty) return;
+    setState(() => _isLoadingMoreTracks = true);
+
+    try {
+      final response = await ServiceLocator.pluginService.execute(
+        pluginId: widget.pluginId,
+        request: PluginRequest.contentResolver(
+          ContentResolverCommand.search(
+            query: widget.artist.name,
+            filter: ContentSearchFilter.track,
+            pageToken: _nextPageToken,
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+
+      response.when(
+        search: (results) {
+          final newTracks = <Track>[];
+          for (final item in results.items) {
+            item.when(
+              track: (t) {
+                if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name, artistId: widget.artist.id)) {
+                  newTracks.add(t);
+                }
+              },
+              album: (_) {},
+              artist: (_) {},
+              playlist: (_) {},
+            );
+          }
+          final existingIds = _catalogueTracks.map((t) => t.id).toSet();
+          final deduplicated = newTracks
+              .where((t) => t.id.isNotEmpty && !existingIds.contains(t.id))
+              .toList();
+
+          setState(() {
+            _catalogueTracks.addAll(deduplicated);
+            _nextPageToken = results.nextPageToken;
+            _isLoadingMoreTracks = false;
+          });
+        },
+        trackDetails: (_) {},
+        albumDetails: (_) {},
+        artistDetails: (_) {},
+        playlistDetails: (_) {},
+        streams: (_) {},
+        moreTracks: (_) {},
+        moreAlbums: (_) {},
+        homeSections: (_) {},
+        loadMoreItems: (_) {},
+        charts: (_) {},
+        chartDetails: (_) {},
+        segments: (_) {},
+        lyricsResult: (_) {},
+        lyricsSearchResults: (_) {},
+        lyricsById: (_, __) {},
+        suggestions: (_) {},
+        canHandle: (_) {},
+        collectionInfo: (_) {},
+        importTracks: (_) {},
+        ack: () {},
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingMoreTracks = false);
+      }
+    }
   }
 
   String _sourceName(BuildContext context) {
@@ -161,6 +371,78 @@ class _ArtistViewState extends State<ArtistView> {
           ),
         ),
       ),
+      title: _isSearching
+          ? Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: Default_Theme.themeColor.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.2),
+                ),
+              ),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search in ${widget.artist.name}...',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 14,
+                  ),
+                  prefixIcon: const Icon(MingCute.search_line,
+                      size: 18, color: Default_Theme.accentColor2),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear,
+                              size: 16, color: Colors.white70),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (val) {
+                  setState(() => _searchQuery = val.trim());
+                },
+              ),
+            )
+          : null,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0),
+          child: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Default_Theme.themeColor.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Icon(
+                _isSearching ? Icons.close_rounded : MingCute.search_line,
+                color: Default_Theme.primaryColor1,
+                size: 20,
+              ),
+            ),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -250,7 +532,7 @@ class _ArtistViewState extends State<ArtistView> {
                       unselectedLabelStyle: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600)
                           .merge(Default_Theme.secondoryTextStyle),
-                      tabs: const [Tab(text: 'Top Songs'), Tab(text: 'Albums')],
+                      tabs: const [Tab(text: 'Popular Songs'), Tab(text: 'Albums')],
                     ),
                   ),
                 ),
@@ -280,9 +562,11 @@ class _ArtistViewState extends State<ArtistView> {
                 widget.artist.thumbnail?.url ??
                 '';
 
+            final allTracks =
+                _catalogueTracks.isNotEmpty ? _catalogueTracks : topTracks;
             final artistMeta = <String>[
-              if (topTracks.isNotEmpty)
-                '${topTracks.length} Top Track${topTracks.length == 1 ? '' : 's'}',
+              if (allTracks.isNotEmpty)
+                '${allTracks.length} Song${allTracks.length == 1 ? '' : 's'}',
               if (albums.isNotEmpty)
                 '${albums.length} Album${albums.length == 1 ? '' : 's'}',
             ];
@@ -299,7 +583,7 @@ class _ArtistViewState extends State<ArtistView> {
                   description: _cleanText(details?.description),
                   pluginId: widget.pluginId,
                   artistId: artistSummary.id,
-                  topTracks: topTracks,
+                  topTracks: allTracks,
                   isSaved: _isSaved,
                   url: artistSummary.url,
                   onToggleSave: _toggleSaveState,
@@ -318,9 +602,46 @@ class _ArtistViewState extends State<ArtistView> {
       builder: (context, state) {
         if (state.artistDetailStatus == DetailStatus.error) {
           return Center(
-            child: Text(
-              state.error ?? 'Failed to load artist',
-              style: const TextStyle(color: Default_Theme.primaryColor1),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    (state.error?.contains('offline') ?? false)
+                        ? MingCute.wifi_off_line
+                        : MingCute.warning_line,
+                    size: 44,
+                    color: Default_Theme.primaryColor1.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    state.error ?? 'Failed to load artist',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                    ).merge(Default_Theme.secondoryTextStyle),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      _contentBloc.add(LoadArtistDetails(
+                          pluginId: widget.pluginId,
+                          artistId: widget.artist.id));
+                      _fetchInitialCatalogue();
+                    },
+                    icon: const Icon(MingCute.refresh_3_line, size: 18),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Default_Theme.accentColor2,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -348,53 +669,117 @@ class _ArtistViewState extends State<ArtistView> {
   }
 
   Widget _buildTopTracksTab(List<Track> topTracks, String artistName) {
-    if (topTracks.isEmpty) {
+    if (_isLoadingCatalogue && _catalogueTracks.isEmpty) {
       return const Center(
+        child: CircularProgressIndicator(color: Default_Theme.accentColor2),
+      );
+    }
+
+    final seenIds = <String>{};
+    final combined = <Track>[];
+    for (final t in topTracks) {
+      if (t.id.isNotEmpty && seenIds.add(t.id)) {
+        combined.add(t);
+      }
+    }
+    for (final t in _catalogueTracks) {
+      if (t.id.isNotEmpty && seenIds.add(t.id)) {
+        combined.add(t);
+      }
+    }
+
+    final displayedTracks = _searchQuery.isEmpty
+        ? combined
+        : combined.where((t) {
+            final q = _searchQuery.toLowerCase();
+            return t.title.toLowerCase().contains(q) ||
+                (t.album?.title.toLowerCase().contains(q) ?? false);
+          }).toList();
+
+    if (displayedTracks.isEmpty) {
+      if (_searchQuery.isNotEmpty) {
+        return Center(
           child: SignBoardWidget(
-              message: 'No top songs available', icon: MingCute.music_2_line));
+            message: 'No songs matching "$_searchQuery"',
+            icon: MingCute.search_line,
+          ),
+        );
+      }
+      return const Center(
+        child: SignBoardWidget(
+          message: 'No songs available',
+          icon: MingCute.music_2_line,
+        ),
+      );
     }
 
     return Builder(
       builder: (context) {
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          key: const PageStorageKey('artist_songs'),
-          slivers: [
-            SliverOverlapInjector(
-                handle:
-                    NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
-            SliverPadding(
-              padding: const EdgeInsets.only(top: 12, bottom: 100),
-              sliver: SliverList.builder(
-                itemCount: topTracks.length,
-                addRepaintBoundaries: true, // Crucial for AnimatedListItems
-                itemBuilder: (context, index) {
-                  return AnimatedListItem(
-                    index: index,
-                    child: SongCardWidget(
-                      song: topTracks[index],
-                      onOptionsTap: () => showMoreBottomSheet(
-                        context,
-                        topTracks[index],
-                        showDelete: false,
-                        showSinglePlay: true,
+        return NotificationListener<ScrollNotification>(
+          onNotification: (scrollInfo) {
+            if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 240) {
+              _loadMoreCatalogue();
+            }
+            return false;
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            key: const PageStorageKey('artist_songs'),
+            slivers: [
+              SliverOverlapInjector(
+                  handle:
+                      NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
+              SliverPadding(
+                padding: const EdgeInsets.only(top: 12, bottom: 100),
+                sliver: SliverList.builder(
+                  itemCount:
+                      displayedTracks.length + (_isLoadingMoreTracks ? 1 : 0),
+                  addRepaintBoundaries: true,
+                  itemBuilder: (context, index) {
+                    if (index >= displayedTracks.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Default_Theme.accentColor2,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return AnimatedListItem(
+                      index: index,
+                      child: SongCardWidget(
+                        song: displayedTracks[index],
+                        onOptionsTap: () => showMoreBottomSheet(
+                          context,
+                          displayedTracks[index],
+                          showDelete: false,
+                          showSinglePlay: true,
+                        ),
+                        onTap: () {
+                          context
+                              .read<OrviaPlayerCubit>()
+                              .orviaPlayer
+                              .loadPlaylist(
+                                Playlist(
+                                    tracks: displayedTracks, title: artistName),
+                                doPlay: true,
+                                idx: index,
+                              );
+                        },
                       ),
-                      onTap: () {
-                        context
-                            .read<OrviaPlayerCubit>()
-                            .orviaPlayer
-                            .loadPlaylist(
-                              Playlist(tracks: topTracks, title: artistName),
-                              doPlay: true,
-                              idx: index,
-                            );
-                      },
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -622,75 +1007,141 @@ class _ArtistHeaderContent extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context, {required bool isCentered}) {
-    return Wrap(
-      alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        SizedBox(
-          height: 44,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: topTracks.isEmpty
-                  ? null
-                  : () => context
-                      .read<OrviaPlayerCubit>()
-                      .orviaPlayer
-                      .loadPlaylist(
-                        Playlist(tracks: topTracks, title: title),
-                        doPlay: true,
-                        idx: 0,
+    final player = context.read<OrviaPlayerCubit>().orviaPlayer;
+    return StreamBuilder<bool>(
+      stream: player.playingStream,
+      builder: (context, playSnap) {
+        return StreamBuilder<String>(
+          stream: player.queueTitle,
+          builder: (context, titleSnap) {
+            final isPlaying = playSnap.data ?? false;
+            final currentQueue = titleSnap.data ?? '';
+            final isThisQueue = currentQueue.trim().toLowerCase() ==
+                title.trim().toLowerCase();
+
+            return Wrap(
+              alignment:
+                  isCentered ? WrapAlignment.center : WrapAlignment.start,
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  height: 44,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: topTracks.isEmpty
+                          ? null
+                          : () {
+                              if (isThisQueue) {
+                                if (isPlaying) {
+                                  player.pause();
+                                } else {
+                                  player.play();
+                                }
+                              } else {
+                                player.loadPlaylist(
+                                  Playlist(tracks: topTracks, title: title),
+                                  doPlay: true,
+                                  idx: 0,
+                                );
+                              }
+                            },
+                      borderRadius: BorderRadius.circular(30),
+                      splashColor:
+                          Default_Theme.accentColor2.withValues(alpha: 0.2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(30),
+                          color: Default_Theme.accentColor2
+                              .withValues(alpha: 0.15),
+                          border: Border.all(
+                              color: Default_Theme.accentColor2, width: 1.5),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              (isThisQueue && isPlaying)
+                                  ? MingCute.pause_fill
+                                  : MingCute.play_fill,
+                              size: 20,
+                              color: Default_Theme.accentColor2,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              (isThisQueue && isPlaying) ? 'Pause' : 'Play',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Default_Theme.accentColor2,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-              borderRadius: BorderRadius.circular(30),
-              splashColor: Default_Theme.accentColor2.withValues(alpha: 0.2),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  color: Default_Theme.accentColor2.withValues(alpha: 0.1),
-                  border:
-                      Border.all(color: Default_Theme.accentColor2, width: 1.5),
+                    ),
+                  ),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(MingCute.play_fill,
-                        size: 20, color: Default_Theme.accentColor2),
-                    SizedBox(width: 8),
-                    Text('Play',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Default_Theme.accentColor2)),
-                  ],
+                _PremiumCircularButton(
+                  icon: MingCute.shuffle_line,
+                  color: Default_Theme.primaryColor1,
+                  isActive: false,
+                  tooltip: 'Shuffle Play',
+                  onTap: topTracks.isEmpty
+                      ? () {}
+                      : () {
+                          player.loadPlaylist(
+                            Playlist(tracks: topTracks, title: title),
+                            doPlay: true,
+                            shuffling: true,
+                          );
+                        },
                 ),
-              ),
-            ),
-          ),
-        ),
-        _PremiumCircularButton(
-          icon:
-              isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          color: isSaved
-              ? Default_Theme.accentColor2
-              : Default_Theme.primaryColor1,
-          isActive: isSaved,
-          tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
-          onTap: onToggleSave,
-        ),
-        if (url != null)
-          _PremiumCircularButton(
-            icon: MingCute.external_link_line,
-            color: Default_Theme.primaryColor1,
-            isActive: false,
-            tooltip: 'Open Original Link',
-            onTap: () {
-              SnackbarService.showMessage('Opening original artist page.');
-              launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication);
-            },
-          ),
-      ],
+                _PremiumCircularButton(
+                  icon: MingCute.playlist_2_line,
+                  color: Default_Theme.primaryColor1,
+                  isActive: false,
+                  tooltip: 'Add to Up Next',
+                  onTap: topTracks.isEmpty
+                      ? () {}
+                      : () {
+                          player.addQueueTracks(topTracks, atLast: false);
+                          SnackbarService.showMessage(
+                              'Added ${topTracks.length} track${topTracks.length == 1 ? '' : 's'} to Up Next');
+                        },
+                ),
+                _PremiumCircularButton(
+                  icon: isSaved
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: isSaved
+                      ? Default_Theme.accentColor2
+                      : Default_Theme.primaryColor1,
+                  isActive: isSaved,
+                  tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
+                  onTap: onToggleSave,
+                ),
+                if (url != null)
+                  _PremiumCircularButton(
+                    icon: MingCute.external_link_line,
+                    color: Default_Theme.primaryColor1,
+                    isActive: false,
+                    tooltip: 'Open Original Link',
+                    onTap: () {
+                      SnackbarService.showMessage(
+                          'Opening original artist page.');
+                      launchUrl(Uri.parse(url!),
+                          mode: LaunchMode.externalApplication);
+                    },
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

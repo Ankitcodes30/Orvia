@@ -21,6 +21,7 @@ import 'package:Orvia/services/meta_resolver/chart_item_resolver.dart';
 import 'package:Orvia/services/meta_resolver/cross_plugin_resolver.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -381,10 +382,49 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
 
             if (state.chartDetailStatus == ChartStatus.error) {
               return Center(
-                child: SignBoardWidget(
-                  message: state.error ??
-                      AppLocalizations.of(context)!.chartLoadFailed,
-                  icon: MingCute.warning_line,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        (state.error?.contains('offline') ?? false)
+                            ? MingCute.wifi_off_line
+                            : MingCute.warning_line,
+                        size: 44,
+                        color: Default_Theme.primaryColor1
+                            .withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        state.error ??
+                            AppLocalizations.of(context)!.chartLoadFailed,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Default_Theme.primaryColor1
+                              .withValues(alpha: 0.7),
+                        ).merge(Default_Theme.secondoryTextStyle),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          context.read<ChartBloc>().add(LoadChartDetails(
+                            pluginId: widget.pluginId,
+                            chartId: widget.chartId,
+                          ));
+                        },
+                        icon: const Icon(MingCute.refresh_3_line, size: 18),
+                        label: const Text('Retry'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Default_Theme.accentColor2,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }
@@ -488,7 +528,11 @@ class _EditorialHeroMasthead extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final isMobile = constraints.maxWidth < 700;
-      final (title, subtitle, imgUrl) = extractItemInfo(topItem);
+      final (topTitle, topArtist, imgUrl) = extractItemInfo(topItem);
+
+      // Determine accurate chart description
+      final effectiveTitle = resolveEffectiveChartTitle(chartTitle);
+      final effectiveDescription = resolveEffectiveChartDescription(effectiveTitle);
 
       return SizedBox(
         width: double.infinity,
@@ -551,8 +595,22 @@ class _EditorialHeroMasthead extends StatelessWidget {
                 isMobile ? 28.0 : 44.0,
               ),
               child: isMobile
-                  ? _buildMobileLayout(context, title, subtitle, imgUrl)
-                  : _buildDesktopLayout(context, title, subtitle, imgUrl),
+                  ? _buildMobileLayout(
+                      context,
+                      effectiveTitle,
+                      effectiveDescription,
+                      topTitle,
+                      topArtist,
+                      imgUrl,
+                    )
+                  : _buildDesktopLayout(
+                      context,
+                      effectiveTitle,
+                      effectiveDescription,
+                      topTitle,
+                      topArtist,
+                      imgUrl,
+                    ),
             ),
           ],
         ),
@@ -561,7 +619,13 @@ class _EditorialHeroMasthead extends StatelessWidget {
   }
 
   Widget _buildDesktopLayout(
-      BuildContext context, String title, String subtitle, String imgUrl) {
+    BuildContext context,
+    String title,
+    String description,
+    String topTitle,
+    String topArtist,
+    String imgUrl,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -572,12 +636,12 @@ class _EditorialHeroMasthead extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _buildRankLabel(context),
+              _buildRankLabel(context, topTitle, topArtist),
               const SizedBox(height: 12),
               _buildTitle(title, 48),
-              if (subtitle.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                _buildSubtitle(subtitle, 20),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildSubtitle(description, 18),
               ],
               const SizedBox(height: 20),
               _buildStatRow(context, topItem),
@@ -591,19 +655,25 @@ class _EditorialHeroMasthead extends StatelessWidget {
   }
 
   Widget _buildMobileLayout(
-      BuildContext context, String title, String subtitle, String imgUrl) {
+    BuildContext context,
+    String title,
+    String description,
+    String topTitle,
+    String topArtist,
+    String imgUrl,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const SizedBox(height: 8),
         Center(child: _buildArtwork(imgUrl, imgUrl, 220)),
         const SizedBox(height: 24),
-        _buildRankLabel(context),
+        _buildRankLabel(context, topTitle, topArtist),
         const SizedBox(height: 10),
         _buildTitle(title, 32),
-        if (subtitle.isNotEmpty) ...[
+        if (description.isNotEmpty) ...[
           const SizedBox(height: 6),
-          _buildSubtitle(subtitle, 16),
+          _buildSubtitle(description, 14),
         ],
         const SizedBox(height: 18),
         _buildStatRow(context, topItem),
@@ -613,15 +683,35 @@ class _EditorialHeroMasthead extends StatelessWidget {
     );
   }
 
-  Widget _buildRankLabel(BuildContext context) {
-    return Text(
-      '#1 ON CHART',
-      style: Default_Theme.secondoryTextStyleMedium.merge(
-        TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 2.0,
-          color: Default_Theme.accentColor2.withValues(alpha: 0.9),
+  Widget _buildRankLabel(
+    BuildContext context,
+    String topTitle,
+    String topArtist,
+  ) {
+    final trackInfo = topArtist.isNotEmpty
+        ? '$topTitle • $topArtist'
+        : topTitle;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Default_Theme.accentColor2.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Default_Theme.accentColor2.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Text(
+        '#1 ON CHART: $trackInfo'.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Default_Theme.secondoryTextStyleMedium.merge(
+          TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Default_Theme.accentColor2.withValues(alpha: 0.95),
+          ),
         ),
       ),
     );
@@ -652,30 +742,86 @@ class _EditorialHeroMasthead extends StatelessWidget {
   }
 
   Widget _buildArtwork(String url, String fallbackUrl, double size) {
+    final bool hasUrl = url.trim().isNotEmpty && !isGenericProviderIcon(url);
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.10),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 40,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 36,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: Default_Theme.accentColor2.withValues(alpha: 0.12),
+            blurRadius: 48,
+            spreadRadius: -4,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: url.isNotEmpty
-          ? LoadImageCached(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Polished premium brand gradient fallback
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF141C38),
+                  Color(0xFF090E21),
+                  Color(0xFF191026),
+                ],
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 0.65,
+                        colors: [
+                          Default_Theme.accentColor2.withValues(alpha: 0.20),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Opacity(
+                  opacity: 0.35,
+                  child: Image.asset(
+                    'assets/icons/OrviaLogo_System.png',
+                    width: size * 0.35,
+                    height: size * 0.35,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Real genuine artwork when available
+          if (hasUrl)
+            LoadImageCached(
               imageUrl: url,
               fallbackUrl: fallbackUrl,
               fit: BoxFit.cover,
-            )
-          : const Center(
-              child:
-                  Icon(MingCute.music_2_line, color: Colors.white24, size: 60)),
+            ),
+        ],
+      ),
     );
   }
 
@@ -784,7 +930,7 @@ class _ChartControlBarDelegate extends SliverPersistentHeaderDelegate {
         padding: const EdgeInsets.only(bottom: 16.0),
         child: Center(
           child: Text(
-            chartTitle,
+            resolveEffectiveChartTitle(chartTitle),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -809,29 +955,65 @@ class _ChartControlBarDelegate extends SliverPersistentHeaderDelegate {
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
+/// Resolves a standardized, clearly identifiable chart title.
+String resolveEffectiveChartTitle(String? rawTitle) {
+  final trimmed = rawTitle?.trim() ?? '';
+  final lower = trimmed.toLowerCase();
+  if (lower.isEmpty || lower == 'chart' || lower == 'india-songs-hotw') {
+    return 'Indian Songs';
+  }
+  return trimmed;
+}
+
+/// Resolves an accurate, genre-appropriate chart description.
+String resolveEffectiveChartDescription(String title) {
+  final lowerTitle = title.toLowerCase();
+  if (lowerTitle.contains('indian') || lowerTitle.contains('india')) {
+    return 'Popular and trending Indian music across genres.';
+  } else if (lowerTitle.contains('hot 100')) {
+    return 'Top songs in the US across streaming, sales, and radio play.';
+  } else if (lowerTitle.contains('global')) {
+    return 'Top songs globally across streaming and digital sales.';
+  } else {
+    return 'Popular and trending music on the charts.';
+  }
+}
+
 /// Extracts (title, subtitle, imageUrl) from a [ChartItem].
 (String, String, String) extractItemInfo(ChartItem chartItem) {
   return chartItem.item.when(
-    track: (track) => (
-      track.title,
-      track.artists.map((a) => a.name).join(', '),
-      track.thumbnail.urlHigh ?? track.thumbnail.url,
-    ),
-    album: (album) => (
-      album.title,
-      album.artists.map((a) => a.name).join(', '),
-      album.thumbnail?.urlHigh ?? album.thumbnail?.url ?? '',
-    ),
-    artist: (artist) => (
-      artist.name,
-      artist.subtitle ?? '',
-      artist.thumbnail?.urlHigh ?? artist.thumbnail?.url ?? '',
-    ),
-    playlist: (playlist) => (
-      playlist.title,
-      playlist.owner ?? '',
-      playlist.thumbnail.urlHigh ?? playlist.thumbnail.url,
-    ),
+    track: (track) {
+      final url = track.thumbnail.urlHigh ?? track.thumbnail.url;
+      return (
+        track.title,
+        track.artists.map((a) => a.name).join(', '),
+        isGenericProviderIcon(url) ? '' : url,
+      );
+    },
+    album: (album) {
+      final url = album.thumbnail?.urlHigh ?? album.thumbnail?.url ?? '';
+      return (
+        album.title,
+        album.artists.map((a) => a.name).join(', '),
+        isGenericProviderIcon(url) ? '' : url,
+      );
+    },
+    artist: (artist) {
+      final url = artist.thumbnail?.urlHigh ?? artist.thumbnail?.url ?? '';
+      return (
+        artist.name,
+        artist.subtitle ?? '',
+        isGenericProviderIcon(url) ? '' : url,
+      );
+    },
+    playlist: (playlist) {
+      final url = playlist.thumbnail.urlHigh ?? playlist.thumbnail.url;
+      return (
+        playlist.title,
+        playlist.owner ?? '',
+        isGenericProviderIcon(url) ? '' : url,
+      );
+    },
   );
 }
 

@@ -86,9 +86,15 @@ class LibItemCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                     child: switch (type) {
                       LibItemTypes.userPlaylist => LoadImageCached(
-                          imageUrl: coverArt, fallbackUrl: coverArt.toString()),
+                          imageUrl: coverArt,
+                          fallbackUrl: coverArt.toString(),
+                          placeholderUrl: kDefaultLocalPlaceholder,
+                        ),
                       LibItemTypes.onlPlaylist => LoadImageCached(
-                          imageUrl: coverArt, fallbackUrl: coverArt.toString()),
+                          imageUrl: coverArt,
+                          fallbackUrl: coverArt.toString(),
+                          placeholderUrl: kDefaultLocalPlaceholder,
+                        ),
                       LibItemTypes.artist => ClipOval(
                           child: LoadImageCached(
                               imageUrl: coverArt,

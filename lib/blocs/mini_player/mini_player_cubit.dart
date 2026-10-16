@@ -100,14 +100,27 @@ class MiniPlayerCubit extends Cubit<MiniPlayerState> {
   }
 
   void _listen() {
+    final player = _playerCubit.orviaPlayer;
+    if (player.mediaItem.hasValue &&
+        player.mediaItem.value != null &&
+        player.mediaItem.value!.id != 'Null') {
+      emit(MiniPlayerState(
+        track: mediaItemToTrack(player.mediaItem.value!),
+        isPlaying: player.engine.playing,
+        isLoading: player.engine.state == EngineState.loading ||
+            player.engine.state == EngineState.buffering,
+        isResolving: player.isResolving.value,
+        isCompleted: player.engine.state == EngineState.completed,
+        hasError: player.engine.state == EngineState.error,
+      ));
+    }
+
     _sub = Rx.combineLatest4<MediaItem?, EngineState, bool, bool,
         (MediaItem?, EngineState, bool, bool)>(
-      _playerCubit.orviaPlayer.mediaItem,
-      Rx.defer(() => _playerCubit.orviaPlayer.engine.stateStream,
-          reusable: true),
-      Rx.defer(() => _playerCubit.orviaPlayer.engine.playingStream,
-          reusable: true),
-      _playerCubit.orviaPlayer.isResolving,
+      player.mediaItem,
+      player.engineStateStream,
+      player.playingStream,
+      player.isResolving,
       (media, engineState, playing, resolving) =>
           (media, engineState, playing, resolving),
     ).listen((record) {

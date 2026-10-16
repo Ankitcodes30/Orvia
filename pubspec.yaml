@@ -128,6 +128,9 @@ flutter:
     - assets/icons/orvia_logo.png
     - assets/icons/lazy_loading.png
     - assets/icons/OrviaLogoFG.png
+    - assets/icons/OrviaLogo_System.png
+    - assets/icons/OrviaLogo_Master.png
+    - assets/icons/AnkitLogo.png
     
   fonts:
     - family: Unageo

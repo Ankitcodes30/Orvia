@@ -14,6 +14,7 @@ import 'package:Orvia/services/cache/plugin_cache_repository.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/services/plugin_cache_codec.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 
 /// Handles content resolution: search, album/artist/playlist details,
@@ -289,7 +290,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
           error: e, stackTrace: stack, name: 'ContentBloc');
       emit(state.copyWith(
         albumDetailStatus: DetailStatus.error,
-        error: 'Failed to load album: $e',
+        error: formatUserFriendlyPluginError(e,
+            fallback: 'Failed to load album.'),
       ));
     }
   }
@@ -415,7 +417,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
           error: e, stackTrace: stack, name: 'ContentBloc');
       emit(state.copyWith(
         artistDetailStatus: DetailStatus.error,
-        error: 'Failed to load artist: $e',
+        error: formatUserFriendlyPluginError(e,
+            fallback: 'Failed to load artist.'),
       ));
     }
   }
@@ -547,7 +550,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
           error: e, stackTrace: stack, name: 'ContentBloc');
       emit(state.copyWith(
         playlistDetailStatus: DetailStatus.error,
-        error: 'Failed to load playlist: $e',
+        error: formatUserFriendlyPluginError(e,
+            fallback: 'Failed to load playlist.'),
       ));
     }
   }
@@ -676,7 +680,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
       log('GetStreams error', error: e, stackTrace: stack, name: 'ContentBloc');
       emit(state.copyWith(
         streamStatus: DetailStatus.error,
-        error: 'Failed to get streams: $e',
+        error: formatUserFriendlyPluginError(e,
+            fallback: 'Failed to get streams.'),
       ));
     }
   }
@@ -738,16 +743,28 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
 
       response.when(
         homeSections: (sections) {
+          // Deduplicate sections by normalized title and ID so duplicate provider entries (e.g. Trending Now) only appear once.
+          final seenTitles = <String>{};
+          final deduplicated = <Section>[];
+          for (final s in sections) {
+            final normTitle = s.title.trim().toLowerCase();
+            if (normTitle.isNotEmpty && seenTitles.add(normTitle)) {
+              deduplicated.add(s);
+            } else if (normTitle.isEmpty) {
+              deduplicated.add(s);
+            }
+          }
+
           emit(state.copyWith(
             homeSectionsStatus: DetailStatus.loaded,
-            homeSections: sections,
+            homeSections: deduplicated,
             activePluginId: pluginId,
           ));
           _cache.put(
             key: cacheKey,
-            value: sections,
+            value: deduplicated,
             type: CacheType.sections,
-            blob: encodeSectionsCache(sections),
+            blob: encodeSectionsCache(deduplicated),
           );
         },
         trackDetails: (_) => unexpectedFn(),
@@ -784,7 +801,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
       if (!hasCache) {
         emit(state.copyWith(
           homeSectionsStatus: DetailStatus.error,
-          error: 'Failed to load home sections: $e',
+          error: formatUserFriendlyPluginError(e,
+              fallback: 'Failed to load home sections.'),
         ));
       }
     }
@@ -1038,7 +1056,7 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
       playlistDetailStatus: playlistDetailStatus,
       streamStatus: streamStatus,
       homeSectionsStatus: homeSectionsStatus,
-      error: e.message,
+      error: formatUserFriendlyPluginError(e.message),
     ));
   }
 }

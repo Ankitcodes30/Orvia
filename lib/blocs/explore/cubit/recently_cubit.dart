@@ -40,4 +40,9 @@ class RecentlyCubit extends Cubit<RecentlyCubitState> {
     final tracks = await _historyDao.getHistory(limit: 15);
     emit(state.copyWith(tracks: tracks));
   }
+
+  Future<void> removeTrack(String mediaId) async {
+    await _historyDao.removeTrackHistory(mediaId);
+    await _fetchHistory();
+  }
 }

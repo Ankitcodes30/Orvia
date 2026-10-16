@@ -280,8 +280,11 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
                       child: Container(
                         decoration: BoxDecoration(
                           image: DecorationImage(
-                            image: getImageProviderSync(artworkUrl,
-                                fallbackUrl: currentTrack.thumbnail.url),
+                            image: getImageProviderSync(
+                              artworkUrl,
+                              fallbackUrl: currentTrack.thumbnail.url,
+                              mediaId: currentTrack.id,
+                            ),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -662,7 +665,7 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
 
   void _setupPositionListener() {
     final orviaPlayerCubit = context.read<OrviaPlayerCubit>();
-    final posStream = orviaPlayerCubit.orviaPlayer.engine.positionStream;
+    final posStream = orviaPlayerCubit.orviaPlayer.positionStream;
 
     _positionSubscription = posStream.listen((rawPosition) {
       if (!mounted) return;
@@ -700,8 +703,9 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
     for (int i = 0; i < lyrics.length; i++) {
       final nextStart =
           i + 1 < lyrics.length ? lyrics[i + 1].start : const Duration(days: 1);
-      if (currentPosition >= lyrics[i].start && currentPosition < nextStart)
+      if (currentPosition >= lyrics[i].start && currentPosition < nextStart) {
         return i;
+      }
     }
     return lyrics.length - 1;
   }
@@ -734,7 +738,9 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollStartNotification &&
-            notification.dragDetails != null) _onUserScroll();
+            notification.dragDetails != null) {
+          _onUserScroll();
+        }
         return false;
       },
       child: ShaderMask(
