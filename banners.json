@@ -1,0 +1,388 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-18T00:00:00Z",
+  "banners": [
+    {
+      "id": "night_calm",
+      "title": "Night Calm",
+      "subtitle": "Peaceful Indian Melodies & Lo-Fi",
+      "badge": "SLEEP & RELAX",
+      "imageUrl": "https://c.saavncdn.com/223/Jab-We-Met-Hindi-2007-20231016162009-500x500.jpg",
+      "gradientColors": ["#1E1035", "#0F1E36"],
+      "activeHours": [21, 22, 23, 0, 1, 2, 3, 4, 5],
+      "priority": 90,
+      "tracks": [
+        {
+          "rawId": "zIPKC8PK",
+          "title": "Tum Se Hi",
+          "artist": "Pritam, Mohit Chauhan",
+          "album": "Jab We Met",
+          "durationSec": 321,
+          "imageUrl": "https://c.saavncdn.com/223/Jab-We-Met-Hindi-2007-20231016162009-500x500.jpg"
+        },
+        {
+          "rawId": "J82LrEcw",
+          "title": "Phir Le Aya Dil (Reprise)",
+          "artist": "Arijit Singh",
+          "album": "Barfi!",
+          "durationSec": 305,
+          "imageUrl": "https://c.saavncdn.com/678/Barfi-2012-500x500.jpg"
+        },
+        {
+          "rawId": "3x-IwBwd",
+          "title": "Soch Na Sake",
+          "artist": "Arijit Singh, Tulsi Kumar",
+          "album": "Airlift",
+          "durationSec": 287,
+          "imageUrl": "https://c.saavncdn.com/451/Airlift-Hindi-2015-500x500.jpg"
+        },
+        {
+          "rawId": "GQlvs79S",
+          "title": "Naino Ne Baandhi",
+          "artist": "Yasser Desai, Arko",
+          "album": "Gold",
+          "durationSec": 241,
+          "imageUrl": "https://c.saavncdn.com/971/Gold-Hindi-2018-20250617065303-500x500.webp"
+        },
+        {
+          "rawId": "fme85vQj",
+          "title": "Sab Tera",
+          "artist": "Armaan Malik, Shraddha Kapoor",
+          "album": "Baaghi",
+          "durationSec": 228,
+          "imageUrl": "https://c.saavncdn.com/944/Baaghi-Hindi-2016-20220420171003-500x500.webp"
+        },
+        {
+          "rawId": "9oSuBfuW",
+          "title": "Baatein Kuch Ankahee",
+          "artist": "Pritam, Adnan Sami",
+          "album": "Life In A Metro",
+          "durationSec": 277,
+          "imageUrl": "https://c.saavncdn.com/457/Life-In-A-Metro-Hindi-2007-20220321185258-500x500.webp"
+        },
+        {
+          "rawId": "U_-LFOuj",
+          "title": "Jaadui",
+          "artist": "Pritam, Jubin Nautiyal",
+          "album": "Tu Jhoothi Main Makkaar",
+          "durationSec": 222,
+          "imageUrl": "https://c.saavncdn.com/903/Tu-Jhoothi-Main-Makkaar-Hindi-2023-20230316165419-500x500.webp"
+        },
+        {
+          "rawId": "MpNsN4UT",
+          "title": "Tu Jaane Na (Reprise)",
+          "artist": "Pritam, Soham",
+          "album": "Ajab Prem Ki Ghazab Kahani",
+          "durationSec": 333,
+          "imageUrl": "https://c.saavncdn.com/792/Ajab-Prem-Ki-Ghazab-Kahani-Hindi-2009-20260907165855-500x500.webp"
+        },
+        {
+          "rawId": "9_-n9cPL",
+          "title": "Main Rang Sharbaton Ka (Reprise)",
+          "artist": "Arijit Singh, Pritam",
+          "album": "Phata Poster Nikhla Hero",
+          "durationSec": 277,
+          "imageUrl": "https://c.saavncdn.com/330/Phata-Poster-Nikhla-Hero-Hindi-2013-20260907165855-500x500.webp"
+        },
+        {
+          "rawId": "qZtKBMZ_",
+          "title": "Apna Bana Le",
+          "artist": "Sachin-Jigar, Arijit Singh",
+          "album": "Bhediya",
+          "durationSec": 261,
+          "imageUrl": "https://c.saavncdn.com/815/Bhediya-Hindi-2023-20230927155213-500x500.webp"
+        },
+        {
+          "rawId": "10rKWWH_",
+          "title": "Saanware",
+          "artist": "Akhil Sachdeva, Kartik Dev",
+          "album": "Saanware",
+          "durationSec": 195,
+          "imageUrl": "https://c.saavncdn.com/447/Saanware-Hindi-2024-20240209043139-500x500.webp"
+        },
+        {
+          "rawId": "dCEi2g4f",
+          "title": "Dil Kya Kare (Instrumental)",
+          "artist": "Instrumental Tribute Ensemble",
+          "album": "The Hits Of Kishore Kumar",
+          "durationSec": 290,
+          "imageUrl": "https://c.saavncdn.com/651/The-Hits-Of-Kishore-Kumar-An-Instrumental-Tribute-English-2011-20190924060933-500x500.jpg"
+        },
+        {
+          "rawId": "eJ7kmCp2",
+          "title": "Ae Mere Humsafar (Instrumental)",
+          "artist": "Anu Malik",
+          "album": "Romantic Soft Instrumental",
+          "durationSec": 396,
+          "imageUrl": "https://c.saavncdn.com/003/Romantic-Soft-Instrumental-Instrumental-2016-500x500.jpg"
+        },
+        {
+          "rawId": "_aUkHC6m",
+          "title": "Tum Dil Ki Dhadkan Mein (Instrumental)",
+          "artist": "Nadeem-Shravan",
+          "album": "Dhadkan",
+          "durationSec": 254,
+          "imageUrl": "https://c.saavncdn.com/454/Dhadkan-Hindi-2000-20210226131403-500x500.jpg"
+        },
+        {
+          "videoId": "OoOpaG0aoVM",
+          "title": "Lut Gaye (Piano Instrumental)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 176,
+          "imageUrl": "https://i.ytimg.com/vi/OoOpaG0aoVM/hqdefault.jpg"
+        },
+        {
+          "videoId": "MNhJ6obZvh8",
+          "title": "Raataan Lambiyan (Piano Instrumental)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 125,
+          "imageUrl": "https://i.ytimg.com/vi/MNhJ6obZvh8/hqdefault.jpg"
+        },
+        {
+          "videoId": "Ha5QlyycMhM",
+          "title": "Har Shambhu (Piano Instrumental)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 114,
+          "imageUrl": "https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg"
+        },
+        {
+          "rawId": "KvSHdENF",
+          "title": "Aankhon Se Batana",
+          "artist": "Dikshant",
+          "album": "Indie Campus Chill Hits",
+          "durationSec": 221,
+          "imageUrl": "https://c.saavncdn.com/084/Indie-Campus-Chill-Hits-Hindi-2024-20240627120630-500x500.webp"
+        },
+        {
+          "rawId": "UleloXwf",
+          "title": "Channa Ve",
+          "artist": "Akhil Sachdeva, Mansheel Gujral",
+          "album": "Bhoot - Part One",
+          "durationSec": 211,
+          "imageUrl": "https://c.saavncdn.com/006/Bhoot-Part-One-The-Haunted-Ship-Hindi-2020-20200212161346-500x500.webp"
+        },
+        {
+          "rawId": "1EvZOLZA",
+          "title": "Tera Zikr",
+          "artist": "Darshan Raval",
+          "album": "Tera Zikr",
+          "durationSec": 210,
+          "imageUrl": "https://c.saavncdn.com/820/Tera-Zikr-Hindi-2017-20171108125619-500x500.webp"
+        }
+      ]
+    },
+    {
+      "id": "morning_bhakti",
+      "title": "Morning Bhakti",
+      "subtitle": "Sacred Chants & A.K. Music World Piano",
+      "badge": "DEVOTIONAL",
+      "imageUrl": "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg",
+      "gradientColors": ["#3E1F00", "#1C0A00"],
+      "activeHours": [5, 6, 7, 8, 9, 10],
+      "priority": 85,
+      "tracks": [
+        {
+          "rawId": "034_Beta_HC",
+          "title": "Shree Hanuman Chalisa",
+          "artist": "Hariharan, Gulshan Kumar",
+          "album": "Shree Hanuman Chalisa",
+          "durationSec": 582,
+          "imageUrl": "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg"
+        },
+        {
+          "rawId": "Br3sv0l4",
+          "title": "Dulhaniya Re",
+          "artist": "Shahnaaz Akhtar",
+          "album": "Dulhaniya Re",
+          "durationSec": 858,
+          "imageUrl": "https://c.saavncdn.com/580/Dulhaniya-Re-Hindi-2023-20250511164359-500x500.jpg"
+        },
+        {
+          "rawId": "__MfaQW6",
+          "title": "Aalha Ki Dhwaja Nahin Aayi",
+          "artist": "Shahnaz Akhtar",
+          "album": "Maiyya Pav Paijaniya",
+          "durationSec": 787,
+          "imageUrl": "https://c.saavncdn.com/066/Maiya-Paav-Paijaniya-Vol-1-Hindi-2009-20260608212622-500x500.jpg"
+        },
+        {
+          "rawId": "r5yioR-M",
+          "title": "Bigdi Meri Bana De Oo Sherawali Maiya",
+          "artist": "Lakhbir Singh Lakkha",
+          "album": "Bigdi Meri Bana De",
+          "durationSec": 417,
+          "imageUrl": "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg"
+        },
+        {
+          "rawId": "6o2XH_yQ",
+          "title": "Nach Rahi Hai Kali Angana Mein",
+          "artist": "Sandeep Karosiya",
+          "album": "Nach Rahi Hai Kali Angana Mein",
+          "durationSec": 391,
+          "imageUrl": "https://c.saavncdn.com/311/Nach-Rahi-Hai-Kali-Angana-Mein-Hindi-2025-20251007144002-500x500.jpg"
+        },
+        {
+          "rawId": "Ft5IeMlT",
+          "title": "Angna Padharo Maharani",
+          "artist": "Manish Agrawal",
+          "album": "Angna Padharo Maharani",
+          "durationSec": 568,
+          "imageUrl": "https://c.saavncdn.com/734/Angna-Padharo-Maharani-Hindi-2023-20260420210240-500x500.jpg"
+        },
+        {
+          "videoId": "Ha5QlyycMhM",
+          "title": "Har Shambhu (Piano Devotional)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 114,
+          "imageUrl": "https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "gym_energy",
+      "title": "Gym Energy & Cardio",
+      "subtitle": "High BPM Beats & Powerful Themes",
+      "badge": "WORKOUT",
+      "imageUrl": "https://i.ytimg.com/vi/N5PRDOKqSUs/hqdefault.jpg",
+      "gradientColors": ["#3B0D11", "#140406"],
+      "activeHours": [5, 6, 7, 8, 9, 10, 16, 17, 18, 19, 20, 21],
+      "priority": 80,
+      "tracks": [
+        {
+          "videoId": "N5PRDOKqSUs",
+          "title": "KGF Theme Music (High Energy Piano)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 94,
+          "imageUrl": "https://i.ytimg.com/vi/N5PRDOKqSUs/hqdefault.jpg"
+        },
+        {
+          "videoId": "gWb64Q6HX40",
+          "title": "Pirates Of The Caribbean Theme",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 80,
+          "imageUrl": "https://i.ytimg.com/vi/gWb64Q6HX40/hqdefault.jpg"
+        },
+        {
+          "rawId": "B-Zsr1IJ",
+          "title": "Suniyan Suniyan",
+          "artist": "Juss, Mixsingh",
+          "album": "Suniyan Suniyan",
+          "durationSec": 198,
+          "imageUrl": "https://c.saavncdn.com/121/Suniyan-Suniyan-Punjabi-2024-20240415211002-500x500.webp"
+        },
+        {
+          "rawId": "pdAQnMhS",
+          "title": "Soulmate",
+          "artist": "Badshah, Arijit Singh",
+          "album": "Arijit Singh X Badshah",
+          "durationSec": 214,
+          "imageUrl": "https://c.saavncdn.com/638/Arijit-Singh-X-Badshah-The-Biggest-Songs-2024-Hindi-2024-20240410215733-500x500.webp"
+        },
+        {
+          "rawId": "AZpBDVpd",
+          "title": "Sohnea",
+          "artist": "Miss Pooja, Millind Gaba",
+          "album": "Sohnea",
+          "durationSec": 269,
+          "imageUrl": "https://c.saavncdn.com/269/Sohnea-Punjabi-2017-500x500.jpg"
+        },
+        {
+          "rawId": "rVYG1boa",
+          "title": "Chogada (High BPM Mix)",
+          "artist": "Darshan Raval, Asees Kaur",
+          "album": "Loveyatri",
+          "durationSec": 249,
+          "imageUrl": "https://c.saavncdn.com/179/World-Music-Day-Best-Of-Bollywood-Hits-Hindi-2026-20260622111029-500x500.webp"
+        },
+        {
+          "rawId": "UXmSGgYg",
+          "title": "Dholida",
+          "artist": "Udit Narayan, Neha Kakkar",
+          "album": "Loveyatri",
+          "durationSec": 216,
+          "imageUrl": "https://c.saavncdn.com/401/Loveyatri-A-Journey-Of-Love-Hindi-2018-20181003-500x500.jpg"
+        }
+      ]
+    },
+    {
+      "id": "whats_hot",
+      "title": "What's Hot Near You",
+      "subtitle": "Trending Indian Hits & Regional Top 20",
+      "badge": "TRENDING NOW",
+      "imageUrl": "https://c.saavncdn.com/179/World-Music-Day-Best-Of-Bollywood-Hits-Hindi-2026-20260622111029-500x500.webp",
+      "gradientColors": ["#003322", "#00140D"],
+      "activeHours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+      "priority": 50,
+      "tracks": [
+        {
+          "rawId": "zIPKC8PK",
+          "title": "Tum Se Hi",
+          "artist": "Pritam, Mohit Chauhan",
+          "album": "Jab We Met",
+          "durationSec": 321,
+          "imageUrl": "https://c.saavncdn.com/223/Jab-We-Met-Hindi-2007-20231016162009-500x500.jpg"
+        },
+        {
+          "rawId": "rVYG1boa",
+          "title": "Chogada",
+          "artist": "Darshan Raval, Asees Kaur",
+          "album": "Loveyatri",
+          "durationSec": 249,
+          "imageUrl": "https://c.saavncdn.com/179/World-Music-Day-Best-Of-Bollywood-Hits-Hindi-2026-20260622111029-500x500.webp"
+        },
+        {
+          "videoId": "N5PRDOKqSUs",
+          "title": "KGF Theme Music",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 94,
+          "imageUrl": "https://i.ytimg.com/vi/N5PRDOKqSUs/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "navratri_special_2026",
+      "title": "Navratri Special 2026",
+      "subtitle": "Dandiya Raas, Garba & Maa Durga Bhakti",
+      "badge": "FESTIVE EDITION",
+      "imageUrl": "https://c.saavncdn.com/401/Loveyatri-A-Journey-Of-Love-Hindi-2018-20181003-500x500.jpg",
+      "gradientColors": ["#420025", "#1F0011"],
+      "activeHours": [18, 19, 20, 21, 22, 23, 0, 1],
+      "startDate": "2026-09-25T00:00:00Z",
+      "endDate": "2026-10-06T23:59:59Z",
+      "priority": 95,
+      "tracks": [
+        {
+          "rawId": "0qcITrST",
+          "title": "Tari Madh Mithi Madh Mithi Vaate",
+          "artist": "Jigardan Gadhavi",
+          "album": "Tari Madh Mithi Madh Mithi Vaate",
+          "durationSec": 124,
+          "imageUrl": "https://c.saavncdn.com/418/Tari-Madh-Mithi-Madh-Mithi-Vaate-Gujarati-2021-20211128113113-500x500.webp"
+        },
+        {
+          "rawId": "UXmSGgYg",
+          "title": "Dholida",
+          "artist": "Udit Narayan, Neha Kakkar",
+          "album": "Loveyatri",
+          "durationSec": 216,
+          "imageUrl": "https://c.saavncdn.com/401/Loveyatri-A-Journey-Of-Love-Hindi-2018-20181003-500x500.jpg"
+        },
+        {
+          "rawId": "Br3sv0l4",
+          "title": "Dulhaniya Re",
+          "artist": "Shahnaaz Akhtar",
+          "album": "Dulhaniya Re",
+          "durationSec": 858,
+          "imageUrl": "https://c.saavncdn.com/580/Dulhaniya-Re-Hindi-2023-20250511164359-500x500.jpg"
+        }
+      ]
+    }
+  ]
+}

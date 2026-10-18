@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "app_name": "Orvia",
+  "min_supported_version": "3.0.0",
+  "channels": {
+    "stable": {
+      "version": "3.0.4",
+      "build_number": 1,
+      "release_notes": "Phase 1 Playback State & Volume Safety. Smart Sliding Music Banners, A.K. Music World piano integration, Navratri Special 2026 fixes, guest cloud sync & updater.",
+      "published_at": "2026-10-17T22:00:00Z",
+      "platforms": {
+        "android": {
+          "download_url": "https://github.com/Ankitcodes30/Orvia/releases/download/v3.0.4/app-release.apk",
+          "sha256": "e9e603696394e082e9123c6ec6681b109cf9e6028880531b5a7b70c00c38dad6",
+          "file_size": 61356780
+        },
+        "windows": {
+          "download_url": "https://github.com/Ankitcodes30/Orvia/releases/download/v3.0.4/Orvia-Windows.zip",
+          "sha256": "c74a55b9b5586096a143ce4c7dc287ccb3731a5452e4dc511c08d89aacd47d90",
+          "file_size": 35335119
+        }
+      }
+    }
+  }
+}
