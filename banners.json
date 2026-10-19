@@ -294,7 +294,7 @@
         },
         {
           "rawId": "rVYG1boa",
-          "title": "Chogada (High BPM Mix)",
+          "title": "Chogada",
           "artist": "Darshan Raval, Asees Kaur",
           "album": "Loveyatri",
           "durationSec": 249,
@@ -313,8 +313,8 @@
     {
       "id": "whats_hot",
       "title": "What's Hot Near You",
-      "subtitle": "Trending Indian Hits & Regional Top 20",
-      "badge": "TRENDING NOW",
+      "subtitle": "A curated selection of Indian songs",
+      "badge": "FEATURED INDIA",
       "imageUrl": "https://c.saavncdn.com/179/World-Music-Day-Best-Of-Bollywood-Hits-Hindi-2026-20260622111029-500x500.webp",
       "gradientColors": ["#003322", "#00140D"],
       "activeHours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
@@ -355,7 +355,7 @@
       "gradientColors": ["#420025", "#1F0011"],
       "activeHours": [18, 19, 20, 21, 22, 23, 0, 1],
       "startDate": "2026-09-25T00:00:00Z",
-      "endDate": "2026-10-06T23:59:59Z",
+      "endDate": "2026-10-21T00:00:00+05:30",
       "priority": 95,
       "tracks": [
         {
@@ -383,6 +383,20 @@
           "imageUrl": "https://c.saavncdn.com/580/Dulhaniya-Re-Hindi-2023-20250511164359-500x500.jpg"
         }
       ]
+    },
+    {
+      "id": "diwali_festive_2026",
+      "title": "Diwali Festive Special",
+      "subtitle": "A festival of lights, devotion & celebration",
+      "badge": "DIWALI • 2026",
+      "imageUrl": "",
+      "gradientColors": ["#6D1B00", "#B84A00", "#3B123B"],
+      "activeHours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+      "startDate": "2026-11-05T00:00:00+05:30",
+      "endDate": "2026-11-12T00:00:00+05:30",
+      "priority": 100,
+      "destination": "festival_special",
+      "tracks": []
     }
   ]
 }
