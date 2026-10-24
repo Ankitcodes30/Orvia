@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "timezone": "Asia/Kolkata",
+  "festivals": [
+    {
+      "id": "navratri_2026",
+      "name": "Navratri & Garba Special",
+      "greeting": "Shubh Navratri!",
+      "region": "Gujarat / All-India",
+      "startDate": "2026-10-10T00:00:00+05:30",
+      "endDate": "2026-10-21T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/124/Gori-Radha-Ne-Kalo-Kaan-Gujarati-2026-20261006132514-500x500.webp",
+      "bannerTitle": "Navratri Festive Special 2026",
+      "bannerSubtitle": "Non-Stop Garba, Dandiya & Raas Hits",
+      "categories": ["All", "Garba Hits", "Dandiya", "Bollywood Garba", "Aarti"]
+    },
+    {
+      "id": "diwali_2026",
+      "name": "Diwali Dhamaka",
+      "greeting": "Happy Diwali!",
+      "region": "All-India",
+      "startDate": "2026-11-05T00:00:00+05:30",
+      "endDate": "2026-11-12T00:00:00+05:30",
+      "promotionDays": 0,
+      "bannerUrl": "",
+      "bannerTitle": "Diwali Festive Special",
+      "bannerSubtitle": "A festival of lights, devotion & celebration",
+      "categories": ["Diwali", "Lakshmi Puja", "Ganesh Puja", "Ram-bhakti", "Bhai Dooj"],
+      "tracks": [
+        {"rawId":"6EIDGV-w","title":"Sukhkarta Dukhharta","artist":"Amitabh Bachchan","album":"Sukhkarta Dukhharta","durationSec":128,"imageUrl":"https://c.saavncdn.com/349/Sukhkarta-Dukhharta-Marathi-2021-20210618223706-150x150.jpg"},
+        {"rawId":"_8OlmfDF","title":"Om Jai Lakshmi Mata (Aarti)","artist":"Anuradha Paudwal, Bela Sulakhe","album":"Shri Mahalaxmi Kamalwasini Sarv Mangla Saukhya Dayini","durationSec":333,"imageUrl":"https://c.saavncdn.com/004/Shri-Mahalaxmi-Kamalwasini-Sarv-Mangla-Saukhya-Dayini-Hindi-2007-20221205151513-150x150.jpg"},
+        {"rawId":"q3ElTqvW","title":"Mere Ghar Ram Aaye Hain","artist":"Jubin Nautiyal","album":"Mere Ghar Ram Aaye Hain","durationSec":234,"imageUrl":"https://c.saavncdn.com/946/Mere-Ghar-Ram-Aaye-Hain-Hindi-2022-20221019191009-150x150.jpg"},
+        {"rawId":"dBM1AsPC","title":"Ram Siya Ram","artist":"Sachet-Parampara, Sachet Tandon, Parampara Tandon","album":"Adipurush","durationSec":230,"imageUrl":"https://c.saavncdn.com/972/Adipurush-Hindi-2023-20230607184755-150x150.jpg"},
+        {"rawId":"8YZi9g27","title":"Laxmi Kuber Mantra - Om yakshaya kuberaya vaishravanaya dhana dhan pataye dhanadhanya samridhi me dehi dapaya svaha","artist":"Shubhangi Joshi","album":"Laxmi Kuber Mantra - Om yakshaya kuberaya vaishravanaya dhana dhan pataye dhanadhanya samridhi me dehi dapaya svaha","durationSec":337,"imageUrl":"https://c.saavncdn.com/057/Laxmi-Kuber-Mantra-Om-yakshaya-kuberaya-vaishravanaya-dhana-dhan-pataye-dhanadhanya-samridhi-me-dehi-dapaya-svaha-Hindi-2024-20240118152427-150x150.jpg"},
+        {"rawId":"KvvRcXsn","title":"Aarti Kunj Bihari Ki","artist":"Anuradha Paudwal","album":"Aarti Kunj Bihari Ki","durationSec":297,"imageUrl":"https://c.saavncdn.com/824/Aarti-Kunj-Bihari-Ki-Hindi-2017-150x150.jpg"},
+        {"rawId":"3PVqxbZf","title":"Bhai Dooj Vrat Katha","artist":"Diksha Rawat","album":"Bhai Dooj Vrat Katha","durationSec":161,"imageUrl":"https://c.saavncdn.com/972/Bhai-Dooj-Vrat-Katha-Hindi-2022-20260607124540-150x150.jpg"},
+        {"rawId":"94sdDisK","title":"Shree Ganeshay Dheemahi","artist":"Shankar Mahadevan","album":"Viruddh... Family Comes First","durationSec":407,"imageUrl":"https://c.saavncdn.com/592/Viruddh-Family-Comes-First-Hindi-2005-150x150.jpg"},
+        {"rawId":"ALDWwuwj","title":"Jai Ganesh Deva","artist":"Anuradha Paudwal","album":"Aarti Vol-3","durationSec":270,"imageUrl":"https://c.saavncdn.com/065/Aarti-Vol-3-Hindi-1989-20211102161000-150x150.jpg"},
+        {"rawId":"Pl851a1Z","title":"Vakratunda Mahakaya (Ganesh Mantra)","artist":"Anuradha Paudwal","album":"Durga Saptashati","durationSec":143,"imageUrl":"https://c.saavncdn.com/304/Durga-Saptashati-Hindi-2015-20250812103817-150x150.jpg"},
+        {"rawId":"GQOZ52ac","title":"Raghupati Raghav Raja Ram","artist":"Sachet Tandon","album":"Raghupati Raghav Raja Ram","durationSec":196,"imageUrl":"https://c.saavncdn.com/642/Raghupati-Raghav-Raja-Ram-Hindi-2020-20200630234001-150x150.jpg"},
+        {"rawId":"In-xltz_","title":"Hanuman Chalisa","artist":"Hariharan, shivam samrat","album":"Hanuman Chalisa","durationSec":347,"imageUrl":"https://c.saavncdn.com/741/Hanuman-Chalisa-Sanskrit-2026-20260720104804-150x150.jpg"},
+        {"rawId":"RciMpqOj","title":"Om Namah Shivaya Har Har By Anuradha Paudwal","artist":"Anuradha Paudwal","album":"Om Namah Shivaya By Anuradha Paudwal","durationSec":1416,"imageUrl":"https://c.saavncdn.com/601/Om-Namah-Shivaya-By-Anuradha-Paudwal-Hindi-2021-20210426234746-150x150.jpg"},
+        {"rawId":"vWVUI-eT","title":"Lakshmi Chalisa","artist":"Ds Pal","album":"Mata Rani Bhajan","durationSec":657,"imageUrl":"https://c.saavncdn.com/247/Mata-Rani-Bhajan-Hindi-2022-20221017170015-150x150.jpg"},
+        {"rawId":"AEHmmhTb","title":"Aarti Shri Ramayan Ji Ki","artist":"Parul Mishra, Jai Kesarwani","album":"Sampurna Aarti Sangrah","durationSec":350,"imageUrl":"https://c.saavncdn.com/625/Sampurna-Aarti-Sangrah-Hindi-2018-20180903-150x150.jpg"}
+      ]
+    },
+    {
+      "id": "sankranti_2027",
+      "name": "Makar Sankranti & Pongal",
+      "greeting": "Happy Makar Sankranti & Pongal!",
+      "region": "All-India",
+      "startDate": "2027-01-14T00:00:00+05:30",
+      "endDate": "2027-01-16T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/837/Raees-Hindi-2017-500x500.jpg",
+      "bannerTitle": "Kai Po Che — Kite Flying Beats",
+      "bannerSubtitle": "Celebrate Uttarayan with vibrant folk & festive tunes",
+      "categories": ["All", "Folk Tunes", "Kite Beats", "Celebration"]
+    },
+    {
+      "id": "holi_2027",
+      "name": "Holi Colors of Joy",
+      "greeting": "Bura Na Mano Holi Hai!",
+      "region": "All-India",
+      "startDate": "2027-03-22T00:00:00+05:30",
+      "endDate": "2027-03-24T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/712/Goliyon-Ki-Raasleela-Ram-Leela-Hindi-2013-20230607144131-500x500.jpg",
+      "bannerTitle": "Holi Party Non-Stop Hits",
+      "bannerSubtitle": "Rang Barse, energetic beats & vibrant party mixes",
+      "categories": ["All", "Holi Anthems", "Dance Beats", "Bhakti"]
+    }
+  ]
+}
