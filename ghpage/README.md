@@ -38,6 +38,9 @@ npm run build    # produces ghpage/build
 
 * Add `ghpage/build/.nojekyll` before pushing if you have files starting with `_`.
 * Prefer `deploy_page.py` on Windows, `subtree` on Linux/macOS for simplicity.
+* `deploy_page.py` copies `ghpage/repositories.json` into the build when present.
+  That file is not currently checked in, so the hosted
+  `/Orvia/repositories.json` catalogue returns 404 until it is added.
 
 ---
 
