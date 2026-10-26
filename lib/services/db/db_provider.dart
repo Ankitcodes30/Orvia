@@ -38,6 +38,8 @@ class DBProvider {
     DownloadDBSchema,
     CacheEntryDBSchema,
     PluginStorageEntitySchema,
+    SyncStateDBSchema,
+    SyncAdoptionDBSchema,
   ];
 
   /// Initialise path state and open the database.
@@ -151,6 +153,8 @@ class DBProvider {
       await isarDB.searchHistoryDBs.clear();
       await isarDB.cacheEntryDBs.clear();
       await isarDB.notificationsDBs.clear();
+      await isarDB.syncStateDBs.clear();
+      await isarDB.syncAdoptionDBs.clear();
       log("DB reset successfully", name: "DBProvider");
     });
   }
