@@ -5,7 +5,7 @@
 		{ platform: 'linux', icon: 'fa-brands fa-linux', name: 'Linux',}
 	];
 
-	const githubReleaseLink = "https://github.com/HemantKArya/Orvia/releases";
+	const githubReleaseLink = "https://github.com/Ankitcodes30/Orvia/releases";
 	const sourceforgeLink = "https://orvia.sourceforge.io/";
 
 	function openSourceForge() {

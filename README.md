@@ -7,9 +7,9 @@
 **A unified local and plugin-first streaming music player built with Flutter & Rust.**
 
 <p align="center"><img src=https://img.shields.io/sourceforge/dt/orvia?style=for-the-badge&logoSize=auto&label=DOWNLOADS(SF)
- /> <a href="https://github.com/HemantKArya/Orvia/releases/latest"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/HemantKArya/Orvia/total?style=for-the-badge&label=DOWNLOADS(GH)" >
-<img alt="GitHub Release" src="https://img.shields.io/github/v/release/HemantKArya/Orvia?display_name=release&style=for-the-badge&color=f01d7c" ></a>
-<img alt="GitHub License" src="https://img.shields.io/github/license/HemantKArya/Orvia?style=for-the-badge&color=1881cc" > <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/HemantKArya/Orvia/checkout.yml?style=for-the-badge" > <br><img src=https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white > <img src=https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white /> <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"/>
+ /> <a href="https://github.com/Ankitcodes30/Orvia/releases/latest"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/Ankitcodes30/Orvia/total?style=for-the-badge&label=DOWNLOADS(GH)" >
+<img alt="GitHub Release" src="https://img.shields.io/github/v/release/Ankitcodes30/Orvia?display_name=release&style=for-the-badge&color=f01d7c" ></a>
+<img alt="GitHub License" src="https://img.shields.io/github/license/Ankitcodes30/Orvia?style=for-the-badge&color=1881cc" > <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/Ankitcodes30/Orvia/checkout.yml?style=for-the-badge" > <br><img src=https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white > <img src=https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white /> <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"/>
 </p>
 
 
@@ -36,7 +36,7 @@
 > Due to the app's popularity, several unofficial websites claim to be the "official" Orvia site. The ONLY official websites maintained by me are:
 > 
 > - https://orvia.app
-> - https://hemantkarya.github.io/Orvia/
+> - https://ankitcodes30.github.io/Orvia/
 >
 > These two URLs are the only official and safe sites for Orvia. Do not trust other websites claiming to be official — unofficial sites may distribute modified APKs or malware. I am **not responsible** for any damage, privacy loss, or issues caused by downloading the app from third-party sources.
 ---
@@ -77,7 +77,7 @@
 <h4 align="center">Available for Android, Windows & Linux (Dev) 😍</h4>
 
 <p align="center">
-  <a href="https://github.com/HemantKArya/Orvia/releases/latest">
+  <a href="https://github.com/Ankitcodes30/Orvia/releases/latest">
     <img src="https://img.shields.io/badge/GitHub_Releases-100000?style=for-the-badge&logo=github&logoColor=white" height="40"/>
   </a>
   &nbsp;

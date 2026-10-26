@@ -167,7 +167,7 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
 Future<Map<String, dynamic>> githubUpdate(
     {Duration timeout = const Duration(seconds: 6)}) async {
   const url =
-      'https://api.github.com/repos/HemantKArya/Orvia/releases/latest';
+      'https://api.github.com/repos/Ankitcodes30/Orvia/releases/latest';
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   try {
     final response = await http.get(Uri.parse(url)).timeout(timeout);
@@ -277,7 +277,7 @@ Future<Map<String, dynamic>> getAppUpdates() async {
 Future<String?> fetchChangelog(
     {Duration timeout = const Duration(seconds: 6)}) async {
   const changelogUrl =
-      'https://hemantkarya.github.io/Orvia/CHANGELOG.md';
+      'https://ankitcodes30.github.io/Orvia/CHANGELOG.md';
   try {
     final response = await http.get(Uri.parse(changelogUrl)).timeout(timeout);
     if (response.statusCode == 200) {

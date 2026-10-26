@@ -8,7 +8,7 @@
 	}
 	
 	function handleGithubClick() {
-		window.open('https://github.com/HemantKArya/Orvia', '_blank');
+		window.open('https://github.com/Ankitcodes30/Orvia', '_blank');
 	}
 </script>
 

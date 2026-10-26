@@ -58,10 +58,10 @@ class PluginBootstrapProgress {
 
 class PluginBootstrapService {
   static const String hostedRepositoriesUrl =
-      'https://hemantkarya.github.io/Orvia/repositories.json';
+      'https://ankitcodes30.github.io/Orvia/repositories.json';
 
   static const List<String> hostedRepositoriesUrls = [
-    'https://hemantkarya.github.io/Orvia/repositories.json',
+    'https://ankitcodes30.github.io/Orvia/repositories.json',
     'https://hemantkarya.github.io/BloomeeTunes/repositories.json',
   ];
 

@@ -3,29 +3,22 @@
 <section class="about-developer">
   <h2>Who Am I?</h2>
   <p class="about-subtitle">
-    Hi, I'm Hemant—a developer who codes for fun and shares open-source projects to learn, grow, and help others discover new possibilities.
+    Hi, I'm Ankit Kumbhare—a developer who builds and maintains Orvia, an open-source music player for everyone.
   </p>
   <div class="contact-buttons">
-  <a href="https://x.com/iamhemantindia" class="contact-btn x" target="_blank" rel="noopener noreferrer" aria-label="Hemant on X" title="X - iamhemantindia">
-      <i class="fa-brands fa-x-twitter"></i>
-      X
-    </a>
-  <a href="https://linkedin.com/in/iamhemantindia" class="contact-btn linkedin" target="_blank" rel="noopener noreferrer" aria-label="Hemant on LinkedIn" title="LinkedIn - iamhemantindia">
-      <i class="fa-brands fa-linkedin"></i>
-      LinkedIn
-    </a>
-  <a href="https://github.com/HemantKArya" class="contact-btn github" target="_blank" rel="noopener noreferrer" aria-label="Hemant on GitHub" title="GitHub - HemantKArya">
+  <a href="https://github.com/Ankitcodes30" class="contact-btn github" target="_blank" rel="noopener noreferrer" aria-label="Ankit Kumbhare on GitHub" title="GitHub - Ankitcodes30">
       <i class="fa-brands fa-github"></i>
       GitHub
     </a>
-  <a href="https://instagram.com/iamhemantindia" class="contact-btn instagram" target="_blank" rel="noopener noreferrer" aria-label="Hemant on Instagram" title="Instagram - iamhemantindia">
-      <i class="fa-brands fa-instagram"></i>
-      Instagram
+  <a href="https://www.linkedin.com/in/ankit-kumbhare-024465366/" class="contact-btn linkedin" target="_blank" rel="noopener noreferrer" aria-label="Ankit Kumbhare on LinkedIn" title="LinkedIn - Ankit Kumbhare">
+      <i class="fa-brands fa-linkedin"></i>
+      LinkedIn
     </a>
-  <a href="mailto:iamhemantindia@protonmail.com" class="contact-btn email" aria-label="Email Hemant" title="Email Hemant">
+  <a href="mailto:ankitkumbhare301@gmail.com" class="contact-btn email" aria-label="Email Ankit Kumbhare" title="Email Ankit Kumbhare">
       <i class="fa-solid fa-envelope"></i>
       Email Me
     </a>
+  </div>
 </section>
 
 <style>
@@ -112,11 +105,6 @@
     border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
-  .contact-btn.instagram {
-    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
-
   .contact-btn.linkedin {
     background: #0077b5;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -124,11 +112,6 @@
 
   .contact-btn.github {
     background: #333;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
-
-  .contact-btn.x {
-    background: #000;
     border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
