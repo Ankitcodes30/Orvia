@@ -44,7 +44,7 @@ class CheckUpdateView extends StatelessWidget {
                       child: FilledButton(
                         onPressed: () {
                           launchUrl(Uri.parse(
-                              "https://github.com/HemantKArya/Orvia/releases"));
+                              "https://github.com/Ankitcodes30/Orvia/releases"));
                         },
                         child: SizedBox(
                           // width: 150,
