@@ -193,8 +193,7 @@ to report them privately.
 Orvia is licensed under the **GNU General Public License v2.0 (GPL-2.0)**. See
 [LICENSE](LICENSE).
 
-Orvia is created and maintained by **Ankit Kumbhare**. It builds on the
-open-source foundation originally created by **Hemant Karya**.
+Orvia is created and maintained by **Ankit Kumbhare**.
 
 ## Get in touch
 
