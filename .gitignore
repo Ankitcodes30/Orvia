@@ -35,6 +35,7 @@ merge_rust.py
 # Windows host test helper — copied from pub cache to run Isar tests locally.
 # Must NOT be committed; regenerate from pub cache when needed.
 libisar.dll
+libisar.dylib
 
 # Build/analyze logs generated during local CI runs
 build_debug.log

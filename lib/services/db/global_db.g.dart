@@ -1775,25 +1775,30 @@ const PlaylistDBSchema = CollectionSchema(
       name: r'subtitle',
       type: IsarType.string,
     ),
-    r'thumbnail': PropertySchema(
+    r'syncId': PropertySchema(
       id: 9,
+      name: r'syncId',
+      type: IsarType.string,
+    ),
+    r'thumbnail': PropertySchema(
+      id: 10,
       name: r'thumbnail',
       type: IsarType.object,
       target: r'ArtworkDB',
     ),
     r'type': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'type',
       type: IsarType.byte,
       enumMap: _PlaylistDBtypeEnumValueMap,
     ),
     r'typeIndex': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'typeIndex',
       type: IsarType.long,
     ),
     r'updatedAt': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -1827,6 +1832,19 @@ const PlaylistDBSchema = CollectionSchema(
           name: r'sortOrder',
           type: IndexType.value,
           caseSensitive: false,
+        )
+      ],
+    ),
+    r'syncId': IndexSchema(
+      id: 7538593479801827566,
+      name: r'syncId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'syncId',
+          type: IndexType.value,
+          caseSensitive: true,
         )
       ],
     ),
@@ -1915,6 +1933,12 @@ int _playlistDBEstimateSize(
     }
   }
   {
+    final value = object.syncId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.thumbnail;
     if (value != null) {
       bytesCount += 3 +
@@ -1955,15 +1979,16 @@ void _playlistDBSerialize(
   );
   writer.writeLong(offsets[7], object.sortOrder);
   writer.writeString(offsets[8], object.subtitle);
+  writer.writeString(offsets[9], object.syncId);
   writer.writeObject<ArtworkDB>(
-    offsets[9],
+    offsets[10],
     allOffsets,
     ArtworkDBSchema.serialize,
     object.thumbnail,
   );
-  writer.writeByte(offsets[10], object.type.index);
-  writer.writeLong(offsets[11], object.typeIndex);
-  writer.writeDateTime(offsets[12], object.updatedAt);
+  writer.writeByte(offsets[11], object.type.index);
+  writer.writeLong(offsets[12], object.typeIndex);
+  writer.writeDateTime(offsets[13], object.updatedAt);
 }
 
 PlaylistDB _playlistDBDeserialize(
@@ -1994,17 +2019,18 @@ PlaylistDB _playlistDBDeserialize(
     ),
     sortOrder: reader.readLongOrNull(offsets[7]) ?? 0,
     subtitle: reader.readStringOrNull(offsets[8]),
+    syncId: reader.readStringOrNull(offsets[9]),
     thumbnail: reader.readObjectOrNull<ArtworkDB>(
-      offsets[9],
+      offsets[10],
       ArtworkDBSchema.deserialize,
       allOffsets,
     ),
-    type: _PlaylistDBtypeValueEnumMap[reader.readByteOrNull(offsets[10])] ??
+    type: _PlaylistDBtypeValueEnumMap[reader.readByteOrNull(offsets[11])] ??
         PlaylistTypeDB.userPlaylist,
   );
   object.createdAt = reader.readDateTime(offsets[2]);
   object.id = id;
-  object.updatedAt = reader.readDateTime(offsets[12]);
+  object.updatedAt = reader.readDateTime(offsets[13]);
   return object;
 }
 
@@ -2047,17 +2073,19 @@ P _playlistDBDeserializeProp<P>(
     case 8:
       return (reader.readStringOrNull(offset)) as P;
     case 9:
+      return (reader.readStringOrNull(offset)) as P;
+    case 10:
       return (reader.readObjectOrNull<ArtworkDB>(
         offset,
         ArtworkDBSchema.deserialize,
         allOffsets,
       )) as P;
-    case 10:
+    case 11:
       return (_PlaylistDBtypeValueEnumMap[reader.readByteOrNull(offset)] ??
           PlaylistTypeDB.userPlaylist) as P;
-    case 11:
-      return (reader.readLong(offset)) as P;
     case 12:
+      return (reader.readLong(offset)) as P;
+    case 13:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -2165,6 +2193,14 @@ extension PlaylistDBQueryWhereSort
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         const IndexWhereClause.any(indexName: r'sortOrder'),
+      );
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhere> anySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'syncId'),
       );
     });
   }
@@ -2468,6 +2504,162 @@ extension PlaylistDBQueryWhere
         upper: [upperSortOrder],
         includeUpper: includeUpper,
       ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdEqualTo(
+      String? syncId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [syncId],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdNotEqualTo(
+      String? syncId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [],
+              upper: [syncId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [syncId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [syncId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [],
+              upper: [syncId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdGreaterThan(
+    String? syncId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [syncId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdLessThan(
+    String? syncId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [],
+        upper: [syncId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdBetween(
+    String? lowerSyncId,
+    String? upperSyncId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [lowerSyncId],
+        includeLower: includeLower,
+        upper: [upperSyncId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdStartsWith(
+      String SyncIdPrefix) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [SyncIdPrefix],
+        upper: ['$SyncIdPrefix\u{FFFFF}'],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [''],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterWhereClause> syncIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.lessThan(
+              indexName: r'syncId',
+              upper: [''],
+            ))
+            .addWhereClause(IndexWhereClause.greaterThan(
+              indexName: r'syncId',
+              lower: [''],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.greaterThan(
+              indexName: r'syncId',
+              lower: [''],
+            ))
+            .addWhereClause(IndexWhereClause.lessThan(
+              indexName: r'syncId',
+              upper: [''],
+            ));
+      }
     });
   }
 
@@ -3309,6 +3501,154 @@ extension PlaylistDBQueryFilter
     });
   }
 
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'syncId',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition>
+      syncIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'syncId',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'syncId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'syncId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition> syncIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition>
+      syncIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'syncId',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<PlaylistDB, PlaylistDB, QAfterFilterCondition>
       thumbnailIsNull() {
     return QueryBuilder.apply(this, (query) {
@@ -3657,6 +3997,18 @@ extension PlaylistDBQuerySortBy
     });
   }
 
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> sortBySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> sortBySyncIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.desc);
+    });
+  }
+
   QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> sortByType() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.asc);
@@ -3780,6 +4132,18 @@ extension PlaylistDBQuerySortThenBy
     });
   }
 
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> thenBySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> thenBySyncIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.desc);
+    });
+  }
+
   QueryBuilder<PlaylistDB, PlaylistDB, QAfterSortBy> thenByType() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.asc);
@@ -3855,6 +4219,13 @@ extension PlaylistDBQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'subtitle', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<PlaylistDB, PlaylistDB, QDistinct> distinctBySyncId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'syncId', caseSensitive: caseSensitive);
     });
   }
 
@@ -3941,6 +4312,12 @@ extension PlaylistDBQueryProperty
     });
   }
 
+  QueryBuilder<PlaylistDB, String?, QQueryOperations> syncIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'syncId');
+    });
+  }
+
   QueryBuilder<PlaylistDB, ArtworkDB?, QQueryOperations> thumbnailProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'thumbnail');
@@ -3991,6 +4368,11 @@ const PlaylistEntryDBSchema = CollectionSchema(
       id: 2,
       name: r'position',
       type: IsarType.long,
+    ),
+    r'syncId': PropertySchema(
+      id: 3,
+      name: r'syncId',
+      type: IsarType.string,
     )
   },
   estimateSize: _playlistEntryDBEstimateSize,
@@ -4014,6 +4396,19 @@ const PlaylistEntryDBSchema = CollectionSchema(
           name: r'position',
           type: IndexType.value,
           caseSensitive: false,
+        )
+      ],
+    ),
+    r'syncId': IndexSchema(
+      id: 7538593479801827566,
+      name: r'syncId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'syncId',
+          type: IndexType.value,
+          caseSensitive: true,
         )
       ],
     )
@@ -4045,6 +4440,12 @@ int _playlistEntryDBEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  {
+    final value = object.syncId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -4057,6 +4458,7 @@ void _playlistEntryDBSerialize(
   writer.writeDateTime(offsets[0], object.addedAt);
   writer.writeLong(offsets[1], object.playlistId);
   writer.writeLong(offsets[2], object.position);
+  writer.writeString(offsets[3], object.syncId);
 }
 
 PlaylistEntryDB _playlistEntryDBDeserialize(
@@ -4068,6 +4470,7 @@ PlaylistEntryDB _playlistEntryDBDeserialize(
   final object = PlaylistEntryDB(
     playlistId: reader.readLongOrNull(offsets[1]),
     position: reader.readLongOrNull(offsets[2]) ?? 0,
+    syncId: reader.readStringOrNull(offsets[3]),
   );
   object.addedAt = reader.readDateTime(offsets[0]);
   object.id = id;
@@ -4087,6 +4490,8 @@ P _playlistEntryDBDeserializeProp<P>(
       return (reader.readLongOrNull(offset)) as P;
     case 2:
       return (reader.readLongOrNull(offset) ?? 0) as P;
+    case 3:
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -4121,6 +4526,14 @@ extension PlaylistEntryDBQueryWhereSort
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         const IndexWhereClause.any(indexName: r'playlistId_position'),
+      );
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhere> anySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'syncId'),
       );
     });
   }
@@ -4406,6 +4819,169 @@ extension PlaylistEntryDBQueryWhere
       ));
     });
   }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdEqualTo(String? syncId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [syncId],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdNotEqualTo(String? syncId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [],
+              upper: [syncId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [syncId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [syncId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'syncId',
+              lower: [],
+              upper: [syncId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdGreaterThan(
+    String? syncId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [syncId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdLessThan(
+    String? syncId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [],
+        upper: [syncId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdBetween(
+    String? lowerSyncId,
+    String? upperSyncId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [lowerSyncId],
+        includeLower: includeLower,
+        upper: [upperSyncId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdStartsWith(String SyncIdPrefix) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'syncId',
+        lower: [SyncIdPrefix],
+        upper: ['$SyncIdPrefix\u{FFFFF}'],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'syncId',
+        value: [''],
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterWhereClause>
+      syncIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.lessThan(
+              indexName: r'syncId',
+              upper: [''],
+            ))
+            .addWhereClause(IndexWhereClause.greaterThan(
+              indexName: r'syncId',
+              lower: [''],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.greaterThan(
+              indexName: r'syncId',
+              lower: [''],
+            ))
+            .addWhereClause(IndexWhereClause.lessThan(
+              indexName: r'syncId',
+              upper: [''],
+            ));
+      }
+    });
+  }
 }
 
 extension PlaylistEntryDBQueryFilter
@@ -4651,6 +5227,160 @@ extension PlaylistEntryDBQueryFilter
       ));
     });
   }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'syncId',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'syncId',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'syncId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'syncId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'syncId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterFilterCondition>
+      syncIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'syncId',
+        value: '',
+      ));
+    });
+  }
 }
 
 extension PlaylistEntryDBQueryObject
@@ -4729,6 +5459,19 @@ extension PlaylistEntryDBQuerySortBy
       return query.addSortBy(r'position', Sort.desc);
     });
   }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterSortBy> sortBySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterSortBy>
+      sortBySyncIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.desc);
+    });
+  }
 }
 
 extension PlaylistEntryDBQuerySortThenBy
@@ -4785,6 +5528,19 @@ extension PlaylistEntryDBQuerySortThenBy
       return query.addSortBy(r'position', Sort.desc);
     });
   }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterSortBy> thenBySyncId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QAfterSortBy>
+      thenBySyncIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncId', Sort.desc);
+    });
+  }
 }
 
 extension PlaylistEntryDBQueryWhereDistinct
@@ -4807,6 +5563,13 @@ extension PlaylistEntryDBQueryWhereDistinct
       distinctByPosition() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'position');
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, PlaylistEntryDB, QDistinct> distinctBySyncId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'syncId', caseSensitive: caseSensitive);
     });
   }
 }
@@ -4834,6 +5597,12 @@ extension PlaylistEntryDBQueryProperty
   QueryBuilder<PlaylistEntryDB, int, QQueryOperations> positionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'position');
+    });
+  }
+
+  QueryBuilder<PlaylistEntryDB, String?, QQueryOperations> syncIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'syncId');
     });
   }
 }
@@ -15570,6 +16339,2562 @@ extension PluginStorageEntityQueryProperty
   QueryBuilder<PluginStorageEntity, String, QQueryOperations> valueProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'value');
+    });
+  }
+}
+
+// coverage:ignore-file
+// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
+
+extension GetSyncStateDBCollection on Isar {
+  IsarCollection<SyncStateDB> get syncStateDBs => this.collection();
+}
+
+const SyncStateDBSchema = CollectionSchema(
+  name: r'SyncStateDB',
+  id: 1899848662471350044,
+  properties: {
+    r'cloudId': PropertySchema(
+      id: 0,
+      name: r'cloudId',
+      type: IsarType.string,
+    ),
+    r'kind': PropertySchema(
+      id: 1,
+      name: r'kind',
+      type: IsarType.byte,
+      enumMap: _SyncStateDBkindEnumValueMap,
+    ),
+    r'lastAppliedAt': PropertySchema(
+      id: 2,
+      name: r'lastAppliedAt',
+      type: IsarType.dateTime,
+    ),
+    r'lastPushedAt': PropertySchema(
+      id: 3,
+      name: r'lastPushedAt',
+      type: IsarType.dateTime,
+    ),
+    r'lastPushedHash': PropertySchema(
+      id: 4,
+      name: r'lastPushedHash',
+      type: IsarType.string,
+    ),
+    r'localKey': PropertySchema(
+      id: 5,
+      name: r'localKey',
+      type: IsarType.string,
+    )
+  },
+  estimateSize: _syncStateDBEstimateSize,
+  serialize: _syncStateDBSerialize,
+  deserialize: _syncStateDBDeserialize,
+  deserializeProp: _syncStateDBDeserializeProp,
+  idName: r'id',
+  indexes: {
+    r'localKey_kind': IndexSchema(
+      id: 7830244684577183400,
+      name: r'localKey_kind',
+      unique: true,
+      replace: true,
+      properties: [
+        IndexPropertySchema(
+          name: r'localKey',
+          type: IndexType.hash,
+          caseSensitive: true,
+        ),
+        IndexPropertySchema(
+          name: r'kind',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
+  links: {},
+  embeddedSchemas: {},
+  getId: _syncStateDBGetId,
+  getLinks: _syncStateDBGetLinks,
+  attach: _syncStateDBAttach,
+  version: '3.3.0-dev.3',
+);
+
+int _syncStateDBEstimateSize(
+  SyncStateDB object,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  var bytesCount = offsets.last;
+  bytesCount += 3 + object.cloudId.length * 3;
+  bytesCount += 3 + object.lastPushedHash.length * 3;
+  bytesCount += 3 + object.localKey.length * 3;
+  return bytesCount;
+}
+
+void _syncStateDBSerialize(
+  SyncStateDB object,
+  IsarWriter writer,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  writer.writeString(offsets[0], object.cloudId);
+  writer.writeByte(offsets[1], object.kind.index);
+  writer.writeDateTime(offsets[2], object.lastAppliedAt);
+  writer.writeDateTime(offsets[3], object.lastPushedAt);
+  writer.writeString(offsets[4], object.lastPushedHash);
+  writer.writeString(offsets[5], object.localKey);
+}
+
+SyncStateDB _syncStateDBDeserialize(
+  Id id,
+  IsarReader reader,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  final object = SyncStateDB(
+    cloudId: reader.readString(offsets[0]),
+    kind: _SyncStateDBkindValueEnumMap[reader.readByteOrNull(offsets[1])] ??
+        SyncRecordKind.playlist,
+    lastAppliedAt: reader.readDateTimeOrNull(offsets[2]),
+    lastPushedAt: reader.readDateTimeOrNull(offsets[3]),
+    lastPushedHash: reader.readString(offsets[4]),
+    localKey: reader.readString(offsets[5]),
+  );
+  object.id = id;
+  return object;
+}
+
+P _syncStateDBDeserializeProp<P>(
+  IsarReader reader,
+  int propertyId,
+  int offset,
+  Map<Type, List<int>> allOffsets,
+) {
+  switch (propertyId) {
+    case 0:
+      return (reader.readString(offset)) as P;
+    case 1:
+      return (_SyncStateDBkindValueEnumMap[reader.readByteOrNull(offset)] ??
+          SyncRecordKind.playlist) as P;
+    case 2:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 3:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 4:
+      return (reader.readString(offset)) as P;
+    case 5:
+      return (reader.readString(offset)) as P;
+    default:
+      throw IsarError('Unknown property with id $propertyId');
+  }
+}
+
+const _SyncStateDBkindEnumValueMap = {
+  'playlist': 0,
+  'entry': 1,
+  'favourite': 2,
+  'setting': 3,
+};
+const _SyncStateDBkindValueEnumMap = {
+  0: SyncRecordKind.playlist,
+  1: SyncRecordKind.entry,
+  2: SyncRecordKind.favourite,
+  3: SyncRecordKind.setting,
+};
+
+Id _syncStateDBGetId(SyncStateDB object) {
+  return object.id;
+}
+
+List<IsarLinkBase<dynamic>> _syncStateDBGetLinks(SyncStateDB object) {
+  return [];
+}
+
+void _syncStateDBAttach(
+    IsarCollection<dynamic> col, Id id, SyncStateDB object) {
+  object.id = id;
+}
+
+extension SyncStateDBByIndex on IsarCollection<SyncStateDB> {
+  Future<SyncStateDB?> getByLocalKeyKind(String localKey, SyncRecordKind kind) {
+    return getByIndex(r'localKey_kind', [localKey, kind]);
+  }
+
+  SyncStateDB? getByLocalKeyKindSync(String localKey, SyncRecordKind kind) {
+    return getByIndexSync(r'localKey_kind', [localKey, kind]);
+  }
+
+  Future<bool> deleteByLocalKeyKind(String localKey, SyncRecordKind kind) {
+    return deleteByIndex(r'localKey_kind', [localKey, kind]);
+  }
+
+  bool deleteByLocalKeyKindSync(String localKey, SyncRecordKind kind) {
+    return deleteByIndexSync(r'localKey_kind', [localKey, kind]);
+  }
+
+  Future<List<SyncStateDB?>> getAllByLocalKeyKind(
+      List<String> localKeyValues, List<SyncRecordKind> kindValues) {
+    final len = localKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([localKeyValues[i], kindValues[i]]);
+    }
+
+    return getAllByIndex(r'localKey_kind', values);
+  }
+
+  List<SyncStateDB?> getAllByLocalKeyKindSync(
+      List<String> localKeyValues, List<SyncRecordKind> kindValues) {
+    final len = localKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([localKeyValues[i], kindValues[i]]);
+    }
+
+    return getAllByIndexSync(r'localKey_kind', values);
+  }
+
+  Future<int> deleteAllByLocalKeyKind(
+      List<String> localKeyValues, List<SyncRecordKind> kindValues) {
+    final len = localKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([localKeyValues[i], kindValues[i]]);
+    }
+
+    return deleteAllByIndex(r'localKey_kind', values);
+  }
+
+  int deleteAllByLocalKeyKindSync(
+      List<String> localKeyValues, List<SyncRecordKind> kindValues) {
+    final len = localKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([localKeyValues[i], kindValues[i]]);
+    }
+
+    return deleteAllByIndexSync(r'localKey_kind', values);
+  }
+
+  Future<Id> putByLocalKeyKind(SyncStateDB object) {
+    return putByIndex(r'localKey_kind', object);
+  }
+
+  Id putByLocalKeyKindSync(SyncStateDB object, {bool saveLinks = true}) {
+    return putByIndexSync(r'localKey_kind', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByLocalKeyKind(List<SyncStateDB> objects) {
+    return putAllByIndex(r'localKey_kind', objects);
+  }
+
+  List<Id> putAllByLocalKeyKindSync(List<SyncStateDB> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'localKey_kind', objects, saveLinks: saveLinks);
+  }
+}
+
+extension SyncStateDBQueryWhereSort
+    on QueryBuilder<SyncStateDB, SyncStateDB, QWhere> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhere> anyId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+}
+
+extension SyncStateDBQueryWhere
+    on QueryBuilder<SyncStateDB, SyncStateDB, QWhereClause> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> idEqualTo(Id id) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IdWhereClause.between(
+        lower: id,
+        upper: id,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> idNotEqualTo(
+      Id id) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
+            )
+            .addWhereClause(
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
+            )
+            .addWhereClause(
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
+            );
+      }
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> idGreaterThan(Id id,
+      {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IdWhereClause.greaterThan(lower: id, includeLower: include),
+      );
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> idLessThan(Id id,
+      {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IdWhereClause.lessThan(upper: id, includeUpper: include),
+      );
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> idBetween(
+    Id lowerId,
+    Id upperId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IdWhereClause.between(
+        lower: lowerId,
+        includeLower: includeLower,
+        upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyEqualToAnyKind(String localKey) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'localKey_kind',
+        value: [localKey],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyNotEqualToAnyKind(String localKey) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [],
+              upper: [localKey],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [],
+              upper: [localKey],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause> localKeyKindEqualTo(
+      String localKey, SyncRecordKind kind) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'localKey_kind',
+        value: [localKey, kind],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyEqualToKindNotEqualTo(String localKey, SyncRecordKind kind) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey],
+              upper: [localKey, kind],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey, kind],
+              includeLower: false,
+              upper: [localKey],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey, kind],
+              includeLower: false,
+              upper: [localKey],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localKey_kind',
+              lower: [localKey],
+              upper: [localKey, kind],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyEqualToKindGreaterThan(
+    String localKey,
+    SyncRecordKind kind, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localKey_kind',
+        lower: [localKey, kind],
+        includeLower: include,
+        upper: [localKey],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyEqualToKindLessThan(
+    String localKey,
+    SyncRecordKind kind, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localKey_kind',
+        lower: [localKey],
+        upper: [localKey, kind],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterWhereClause>
+      localKeyEqualToKindBetween(
+    String localKey,
+    SyncRecordKind lowerKind,
+    SyncRecordKind upperKind, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localKey_kind',
+        lower: [localKey, lowerKind],
+        includeLower: includeLower,
+        upper: [localKey, upperKind],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+}
+
+extension SyncStateDBQueryFilter
+    on QueryBuilder<SyncStateDB, SyncStateDB, QFilterCondition> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      cloudIdGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cloudId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      cloudIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'cloudId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> cloudIdMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'cloudId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      cloudIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cloudId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      cloudIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'cloudId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> idEqualTo(
+      Id value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> idGreaterThan(
+    Id value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> idLessThan(
+    Id value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> idBetween(
+    Id lower,
+    Id upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'id',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> kindEqualTo(
+      SyncRecordKind value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> kindGreaterThan(
+    SyncRecordKind value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> kindLessThan(
+    SyncRecordKind value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> kindBetween(
+    SyncRecordKind lower,
+    SyncRecordKind upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'kind',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lastAppliedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lastAppliedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lastAppliedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lastAppliedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lastAppliedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastAppliedAtBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lastAppliedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'lastPushedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'lastPushedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lastPushedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lastPushedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lastPushedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedAtBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lastPushedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'lastPushedHash',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'lastPushedHash',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'lastPushedHash',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'lastPushedHash',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      lastPushedHashIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'lastPushedHash',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> localKeyEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> localKeyBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'localKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'localKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition> localKeyMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'localKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'localKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterFilterCondition>
+      localKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'localKey',
+        value: '',
+      ));
+    });
+  }
+}
+
+extension SyncStateDBQueryObject
+    on QueryBuilder<SyncStateDB, SyncStateDB, QFilterCondition> {}
+
+extension SyncStateDBQueryLinks
+    on QueryBuilder<SyncStateDB, SyncStateDB, QFilterCondition> {}
+
+extension SyncStateDBQuerySortBy
+    on QueryBuilder<SyncStateDB, SyncStateDB, QSortBy> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByCloudId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByCloudIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByKindDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByLastAppliedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastAppliedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      sortByLastAppliedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastAppliedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByLastPushedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      sortByLastPushedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByLastPushedHash() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedHash', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      sortByLastPushedHashDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedHash', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByLocalKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> sortByLocalKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localKey', Sort.desc);
+    });
+  }
+}
+
+extension SyncStateDBQuerySortThenBy
+    on QueryBuilder<SyncStateDB, SyncStateDB, QSortThenBy> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByCloudId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByCloudIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cloudId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenById() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'id', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByKindDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByLastAppliedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastAppliedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      thenByLastAppliedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastAppliedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByLastPushedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      thenByLastPushedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByLastPushedHash() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedHash', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy>
+      thenByLastPushedHashDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastPushedHash', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByLocalKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QAfterSortBy> thenByLocalKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localKey', Sort.desc);
+    });
+  }
+}
+
+extension SyncStateDBQueryWhereDistinct
+    on QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> {
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByCloudId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cloudId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'kind');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByLastAppliedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lastAppliedAt');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByLastPushedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lastPushedAt');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByLastPushedHash(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lastPushedHash',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncStateDB, QDistinct> distinctByLocalKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'localKey', caseSensitive: caseSensitive);
+    });
+  }
+}
+
+extension SyncStateDBQueryProperty
+    on QueryBuilder<SyncStateDB, SyncStateDB, QQueryProperty> {
+  QueryBuilder<SyncStateDB, int, QQueryOperations> idProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, String, QQueryOperations> cloudIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cloudId');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, SyncRecordKind, QQueryOperations> kindProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'kind');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, DateTime?, QQueryOperations>
+      lastAppliedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastAppliedAt');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, DateTime?, QQueryOperations>
+      lastPushedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastPushedAt');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, String, QQueryOperations> lastPushedHashProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastPushedHash');
+    });
+  }
+
+  QueryBuilder<SyncStateDB, String, QQueryOperations> localKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'localKey');
+    });
+  }
+}
+
+// coverage:ignore-file
+// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
+
+extension GetSyncAdoptionDBCollection on Isar {
+  IsarCollection<SyncAdoptionDB> get syncAdoptionDBs => this.collection();
+}
+
+const SyncAdoptionDBSchema = CollectionSchema(
+  name: r'SyncAdoptionDB',
+  id: 4441545086300738420,
+  properties: {
+    r'adoptedAt': PropertySchema(
+      id: 0,
+      name: r'adoptedAt',
+      type: IsarType.dateTime,
+    ),
+    r'kind': PropertySchema(
+      id: 1,
+      name: r'kind',
+      type: IsarType.byte,
+      enumMap: _SyncAdoptionDBkindEnumValueMap,
+    ),
+    r'recordKey': PropertySchema(
+      id: 2,
+      name: r'recordKey',
+      type: IsarType.string,
+    ),
+    r'uid': PropertySchema(
+      id: 3,
+      name: r'uid',
+      type: IsarType.string,
+    )
+  },
+  estimateSize: _syncAdoptionDBEstimateSize,
+  serialize: _syncAdoptionDBSerialize,
+  deserialize: _syncAdoptionDBDeserialize,
+  deserializeProp: _syncAdoptionDBDeserializeProp,
+  idName: r'id',
+  indexes: {
+    r'recordKey_kind': IndexSchema(
+      id: 3133888163076711160,
+      name: r'recordKey_kind',
+      unique: true,
+      replace: true,
+      properties: [
+        IndexPropertySchema(
+          name: r'recordKey',
+          type: IndexType.hash,
+          caseSensitive: true,
+        ),
+        IndexPropertySchema(
+          name: r'kind',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    ),
+    r'uid': IndexSchema(
+      id: 8193695471701937315,
+      name: r'uid',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'uid',
+          type: IndexType.hash,
+          caseSensitive: true,
+        )
+      ],
+    )
+  },
+  links: {},
+  embeddedSchemas: {},
+  getId: _syncAdoptionDBGetId,
+  getLinks: _syncAdoptionDBGetLinks,
+  attach: _syncAdoptionDBAttach,
+  version: '3.3.0-dev.3',
+);
+
+int _syncAdoptionDBEstimateSize(
+  SyncAdoptionDB object,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  var bytesCount = offsets.last;
+  bytesCount += 3 + object.recordKey.length * 3;
+  bytesCount += 3 + object.uid.length * 3;
+  return bytesCount;
+}
+
+void _syncAdoptionDBSerialize(
+  SyncAdoptionDB object,
+  IsarWriter writer,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  writer.writeDateTime(offsets[0], object.adoptedAt);
+  writer.writeByte(offsets[1], object.kind.index);
+  writer.writeString(offsets[2], object.recordKey);
+  writer.writeString(offsets[3], object.uid);
+}
+
+SyncAdoptionDB _syncAdoptionDBDeserialize(
+  Id id,
+  IsarReader reader,
+  List<int> offsets,
+  Map<Type, List<int>> allOffsets,
+) {
+  final object = SyncAdoptionDB(
+    adoptedAt: reader.readDateTime(offsets[0]),
+    kind: _SyncAdoptionDBkindValueEnumMap[reader.readByteOrNull(offsets[1])] ??
+        SyncRecordKind.playlist,
+    recordKey: reader.readString(offsets[2]),
+    uid: reader.readString(offsets[3]),
+  );
+  object.id = id;
+  return object;
+}
+
+P _syncAdoptionDBDeserializeProp<P>(
+  IsarReader reader,
+  int propertyId,
+  int offset,
+  Map<Type, List<int>> allOffsets,
+) {
+  switch (propertyId) {
+    case 0:
+      return (reader.readDateTime(offset)) as P;
+    case 1:
+      return (_SyncAdoptionDBkindValueEnumMap[reader.readByteOrNull(offset)] ??
+          SyncRecordKind.playlist) as P;
+    case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
+    default:
+      throw IsarError('Unknown property with id $propertyId');
+  }
+}
+
+const _SyncAdoptionDBkindEnumValueMap = {
+  'playlist': 0,
+  'entry': 1,
+  'favourite': 2,
+  'setting': 3,
+};
+const _SyncAdoptionDBkindValueEnumMap = {
+  0: SyncRecordKind.playlist,
+  1: SyncRecordKind.entry,
+  2: SyncRecordKind.favourite,
+  3: SyncRecordKind.setting,
+};
+
+Id _syncAdoptionDBGetId(SyncAdoptionDB object) {
+  return object.id;
+}
+
+List<IsarLinkBase<dynamic>> _syncAdoptionDBGetLinks(SyncAdoptionDB object) {
+  return [];
+}
+
+void _syncAdoptionDBAttach(
+    IsarCollection<dynamic> col, Id id, SyncAdoptionDB object) {
+  object.id = id;
+}
+
+extension SyncAdoptionDBByIndex on IsarCollection<SyncAdoptionDB> {
+  Future<SyncAdoptionDB?> getByRecordKeyKind(
+      String recordKey, SyncRecordKind kind) {
+    return getByIndex(r'recordKey_kind', [recordKey, kind]);
+  }
+
+  SyncAdoptionDB? getByRecordKeyKindSync(
+      String recordKey, SyncRecordKind kind) {
+    return getByIndexSync(r'recordKey_kind', [recordKey, kind]);
+  }
+
+  Future<bool> deleteByRecordKeyKind(String recordKey, SyncRecordKind kind) {
+    return deleteByIndex(r'recordKey_kind', [recordKey, kind]);
+  }
+
+  bool deleteByRecordKeyKindSync(String recordKey, SyncRecordKind kind) {
+    return deleteByIndexSync(r'recordKey_kind', [recordKey, kind]);
+  }
+
+  Future<List<SyncAdoptionDB?>> getAllByRecordKeyKind(
+      List<String> recordKeyValues, List<SyncRecordKind> kindValues) {
+    final len = recordKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([recordKeyValues[i], kindValues[i]]);
+    }
+
+    return getAllByIndex(r'recordKey_kind', values);
+  }
+
+  List<SyncAdoptionDB?> getAllByRecordKeyKindSync(
+      List<String> recordKeyValues, List<SyncRecordKind> kindValues) {
+    final len = recordKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([recordKeyValues[i], kindValues[i]]);
+    }
+
+    return getAllByIndexSync(r'recordKey_kind', values);
+  }
+
+  Future<int> deleteAllByRecordKeyKind(
+      List<String> recordKeyValues, List<SyncRecordKind> kindValues) {
+    final len = recordKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([recordKeyValues[i], kindValues[i]]);
+    }
+
+    return deleteAllByIndex(r'recordKey_kind', values);
+  }
+
+  int deleteAllByRecordKeyKindSync(
+      List<String> recordKeyValues, List<SyncRecordKind> kindValues) {
+    final len = recordKeyValues.length;
+    assert(
+        kindValues.length == len, 'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([recordKeyValues[i], kindValues[i]]);
+    }
+
+    return deleteAllByIndexSync(r'recordKey_kind', values);
+  }
+
+  Future<Id> putByRecordKeyKind(SyncAdoptionDB object) {
+    return putByIndex(r'recordKey_kind', object);
+  }
+
+  Id putByRecordKeyKindSync(SyncAdoptionDB object, {bool saveLinks = true}) {
+    return putByIndexSync(r'recordKey_kind', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByRecordKeyKind(List<SyncAdoptionDB> objects) {
+    return putAllByIndex(r'recordKey_kind', objects);
+  }
+
+  List<Id> putAllByRecordKeyKindSync(List<SyncAdoptionDB> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'recordKey_kind', objects, saveLinks: saveLinks);
+  }
+}
+
+extension SyncAdoptionDBQueryWhereSort
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QWhere> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhere> anyId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+}
+
+extension SyncAdoptionDBQueryWhere
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QWhereClause> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> idEqualTo(
+      Id id) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IdWhereClause.between(
+        lower: id,
+        upper: id,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> idNotEqualTo(
+      Id id) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
+            )
+            .addWhereClause(
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
+            )
+            .addWhereClause(
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
+            );
+      }
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> idGreaterThan(
+      Id id,
+      {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IdWhereClause.greaterThan(lower: id, includeLower: include),
+      );
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> idLessThan(
+      Id id,
+      {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IdWhereClause.lessThan(upper: id, includeUpper: include),
+      );
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> idBetween(
+    Id lowerId,
+    Id upperId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IdWhereClause.between(
+        lower: lowerId,
+        includeLower: includeLower,
+        upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyEqualToAnyKind(String recordKey) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'recordKey_kind',
+        value: [recordKey],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyNotEqualToAnyKind(String recordKey) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [],
+              upper: [recordKey],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [],
+              upper: [recordKey],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyKindEqualTo(String recordKey, SyncRecordKind kind) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'recordKey_kind',
+        value: [recordKey, kind],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyEqualToKindNotEqualTo(String recordKey, SyncRecordKind kind) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey],
+              upper: [recordKey, kind],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey, kind],
+              includeLower: false,
+              upper: [recordKey],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey, kind],
+              includeLower: false,
+              upper: [recordKey],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'recordKey_kind',
+              lower: [recordKey],
+              upper: [recordKey, kind],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyEqualToKindGreaterThan(
+    String recordKey,
+    SyncRecordKind kind, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'recordKey_kind',
+        lower: [recordKey, kind],
+        includeLower: include,
+        upper: [recordKey],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyEqualToKindLessThan(
+    String recordKey,
+    SyncRecordKind kind, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'recordKey_kind',
+        lower: [recordKey],
+        upper: [recordKey, kind],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause>
+      recordKeyEqualToKindBetween(
+    String recordKey,
+    SyncRecordKind lowerKind,
+    SyncRecordKind upperKind, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'recordKey_kind',
+        lower: [recordKey, lowerKind],
+        includeLower: includeLower,
+        upper: [recordKey, upperKind],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> uidEqualTo(
+      String uid) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'uid',
+        value: [uid],
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterWhereClause> uidNotEqualTo(
+      String uid) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'uid',
+              lower: [],
+              upper: [uid],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'uid',
+              lower: [uid],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'uid',
+              lower: [uid],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'uid',
+              lower: [],
+              upper: [uid],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+}
+
+extension SyncAdoptionDBQueryFilter
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QFilterCondition> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      adoptedAtEqualTo(DateTime value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'adoptedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      adoptedAtGreaterThan(
+    DateTime value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'adoptedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      adoptedAtLessThan(
+    DateTime value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'adoptedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      adoptedAtBetween(
+    DateTime lower,
+    DateTime upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'adoptedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition> idEqualTo(
+      Id value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      idGreaterThan(
+    Id value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      idLessThan(
+    Id value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'id',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition> idBetween(
+    Id lower,
+    Id upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'id',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      kindEqualTo(SyncRecordKind value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      kindGreaterThan(
+    SyncRecordKind value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      kindLessThan(
+    SyncRecordKind value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'kind',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      kindBetween(
+    SyncRecordKind lower,
+    SyncRecordKind upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'kind',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'recordKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'recordKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'recordKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'recordKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      recordKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'recordKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'uid',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'uid',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'uid',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'uid',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterFilterCondition>
+      uidIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'uid',
+        value: '',
+      ));
+    });
+  }
+}
+
+extension SyncAdoptionDBQueryObject
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QFilterCondition> {}
+
+extension SyncAdoptionDBQueryLinks
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QFilterCondition> {}
+
+extension SyncAdoptionDBQuerySortBy
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QSortBy> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByAdoptedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'adoptedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy>
+      sortByAdoptedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'adoptedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByKindDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByRecordKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'recordKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy>
+      sortByRecordKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'recordKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByUid() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'uid', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> sortByUidDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'uid', Sort.desc);
+    });
+  }
+}
+
+extension SyncAdoptionDBQuerySortThenBy
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QSortThenBy> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByAdoptedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'adoptedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy>
+      thenByAdoptedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'adoptedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenById() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'id', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByKindDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'kind', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByRecordKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'recordKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy>
+      thenByRecordKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'recordKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByUid() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'uid', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QAfterSortBy> thenByUidDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'uid', Sort.desc);
+    });
+  }
+}
+
+extension SyncAdoptionDBQueryWhereDistinct
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QDistinct> {
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QDistinct>
+      distinctByAdoptedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'adoptedAt');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QDistinct> distinctByKind() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'kind');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QDistinct> distinctByRecordKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'recordKey', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QDistinct> distinctByUid(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'uid', caseSensitive: caseSensitive);
+    });
+  }
+}
+
+extension SyncAdoptionDBQueryProperty
+    on QueryBuilder<SyncAdoptionDB, SyncAdoptionDB, QQueryProperty> {
+  QueryBuilder<SyncAdoptionDB, int, QQueryOperations> idProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, DateTime, QQueryOperations> adoptedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'adoptedAt');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, SyncRecordKind, QQueryOperations>
+      kindProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'kind');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, String, QQueryOperations> recordKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'recordKey');
+    });
+  }
+
+  QueryBuilder<SyncAdoptionDB, String, QQueryOperations> uidProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'uid');
     });
   }
 }

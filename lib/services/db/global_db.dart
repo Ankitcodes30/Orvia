@@ -1,6 +1,9 @@
 //DB version 3
 import 'dart:convert';
 import 'package:isar_community/isar.dart';
+import 'package:Orvia/services/cloud_sync/sync_record_kind.dart';
+export 'package:Orvia/services/cloud_sync/sync_record_kind.dart'
+    show SyncRecordKind;
 part 'global_db.g.dart';
 
 enum ImageLayoutDB {
@@ -133,6 +136,13 @@ class PlaylistDB {
   int sortOrder;
   bool isPinned;
 
+  /// Stable cross-device identifier (UUID v4) assigned lazily by the cloud
+  /// sync layer. Null for records that have never been synchronized.
+  /// Never use the Isar auto-increment [id] for cloud identity — it is
+  /// device-local and unstable across restores.
+  @Index(type: IndexType.value)
+  String? syncId;
+
   @Backlink(to: 'playlist')
   final entries = IsarLinks<PlaylistEntryDB>();
 
@@ -149,6 +159,7 @@ class PlaylistDB {
     this.isPinned = false,
     DateTime? createdat,
     DateTime? updatedat,
+    this.syncId,
   })  : createdAt = createdat ?? DateTime.now(),
         updatedAt = updatedat ?? DateTime.now();
 }
@@ -166,10 +177,16 @@ class PlaylistEntryDB {
   int position;
   DateTime addedAt;
 
+  /// Stable cross-device identifier (UUID v4) assigned lazily by the cloud
+  /// sync layer. Null for entries created before sync was enabled.
+  @Index(type: IndexType.value)
+  String? syncId;
+
   PlaylistEntryDB({
     this.playlistId,
     this.position = 0,
     DateTime? addedAtOverride,
+    this.syncId,
   }) : addedAt = addedAtOverride ?? DateTime.now();
 
   void syncPlaylistId() {
@@ -463,4 +480,83 @@ class PluginStorageEntity {
     required this.value,
     required this.updatedAt,
   }) : compositeKey = '$pluginId/$key';
+}
+
+// ── Cloud sync bookkeeping ────────────────────────────────────────────────────
+// These collections record sync metadata ONLY. They never contain user media
+// or credentials. Local playlist/entry/favourite/settings data stays in the
+// original collections; here we track what has been pushed/applied per record.
+// [SyncRecordKind] lives in `lib/services/cloud_sync/sync_record_kind.dart`
+// and is re-exported from here for convenience.
+
+/// Per-record synchronization state for the local store.
+///
+/// - [lastPushedHash] detects local edits (content changed since last push).
+/// - [lastAppliedAt] suppresses echoes of our own cloud writes coming back
+///   through Firestore listeners.
+/// - A row's existence means "this record has been synced at least once";
+///   deletion of a row (after pushing a cloud tombstone) is how local
+///   deletions are detected.
+@collection
+class SyncStateDB {
+  Id id = Isar.autoIncrement;
+
+  /// Composite-unique key of the record: Isar id for playlists/entries (as
+  /// string), mediaId for favourites, settings key for settings.
+  @Index(unique: true, replace: true, composite: [CompositeIndex('kind')])
+  late String localKey;
+
+  @enumerated
+  late SyncRecordKind kind;
+
+  /// Cloud document id (playlist/entry syncId, mediaId, or settings key).
+  late String cloudId;
+
+  /// SHA-256 of the record content at the last successful push.
+  late String lastPushedHash;
+
+  DateTime? lastPushedAt;
+
+  /// Cloud `updatedAt` of the last record applied FROM the cloud.
+  DateTime? lastAppliedAt;
+
+  SyncStateDB({
+    required this.localKey,
+    required this.kind,
+    required this.cloudId,
+    required this.lastPushedHash,
+    this.lastPushedAt,
+    this.lastAppliedAt,
+  });
+}
+
+/// Ledger of records adopted (downloaded) from a specific account's cloud.
+///
+/// Used to prevent cross-account contamination on account switching: records
+/// adopted from account A are held back from being pushed into account B's
+/// cloud if B's cloud does not already contain them. Guest-native records
+/// (created locally before any sign-in) have no adoption rows and are always
+/// eligible for migration upload.
+@collection
+class SyncAdoptionDB {
+  Id id = Isar.autoIncrement;
+
+  /// Cloud record key (playlist/entry syncId, mediaId, or settings key).
+  @Index(unique: true, replace: true, composite: [CompositeIndex('kind')])
+  late String recordKey;
+
+  @enumerated
+  late SyncRecordKind kind;
+
+  @Index()
+  late String uid;
+
+  late DateTime adoptedAt;
+
+  SyncAdoptionDB({
+    required this.recordKey,
+    required this.kind,
+    required this.uid,
+    required this.adoptedAt,
+  });
 }
