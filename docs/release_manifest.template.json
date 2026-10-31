@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "app_name": "Orvia",
+  "comment": "Template manifest for Orvia releases. Update fields with real build artifacts before publishing.",
+  "min_supported_version": "3.0.0",
+  "channels": {
+    "stable": {
+      "version": "3.0.4",
+      "build_number": 0,
+      "release_notes": "Official release notes for Orvia.",
+      "published_at": "2026-10-17T00:00:00Z",
+      "platforms": {
+        "android": {
+          "download_url": "https://example.com/downloads/orvia-v3.0.4.apk",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "file_size": 25000000
+        },
+        "windows": {
+          "download_url": "https://example.com/downloads/orvia-v3.0.4-windows.zip",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "file_size": 35000000
+        }
+      }
+    },
+    "preview": {
+      "version": "3.1.0-preview.1",
+      "build_number": 1,
+      "release_notes": "Preview build with experimental features and performance improvements.",
+      "published_at": "2026-10-17T00:00:00Z",
+      "platforms": {
+        "android": {
+          "download_url": "https://example.com/downloads/orvia-v3.1.0-preview.1.apk",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    }
+  }
+}

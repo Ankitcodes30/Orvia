@@ -1,0 +1,1396 @@
+import 'dart:async';
+import 'dart:developer';
+import 'dart:ui';
+
+import 'package:Orvia/blocs/add_to_playlist/cubit/add_to_playlist_cubit.dart';
+import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
+import 'package:Orvia/core/constants/route_paths.dart';
+import 'package:Orvia/core/models/exported.dart';
+import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/blocs/settings_cubit/cubit/settings_cubit.dart';
+import 'package:Orvia/l10n/app_localizations.dart';
+import 'package:Orvia/plugins/blocs/chart/chart_bloc.dart';
+import 'package:Orvia/plugins/blocs/chart/chart_event.dart';
+import 'package:Orvia/plugins/blocs/chart/chart_state.dart';
+import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
+import 'package:Orvia/plugins/blocs/plugin/plugin_state.dart';
+import 'package:Orvia/core/di/service_locator.dart';
+import 'package:Orvia/screens/widgets/chart_list_tile.dart';
+import 'package:Orvia/screens/widgets/sign_board_widget.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/services/meta_resolver/chart_item_resolver.dart';
+import 'package:Orvia/utils/load_image.dart';
+import 'package:Orvia/core/theme/app_theme.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:iconsx_plus/iconsx_plus.dart';
+
+/// Displays the details (items) of a specific chart.
+///
+/// Takes [pluginId] and [chartId] from the route, creates its own
+/// [ChartBloc], and dispatches [LoadChartDetails].
+class ChartScreen extends StatelessWidget {
+  final String pluginId;
+  final String chartId;
+  final String chartTitle;
+
+  const ChartScreen({
+    super.key,
+    required this.pluginId,
+    required this.chartId,
+    required this.chartTitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => ChartBloc(pluginService: ServiceLocator.pluginService)
+        ..add(LoadChartDetails(pluginId: pluginId, chartId: chartId)),
+      child: _ChartScreenBody(
+        chartTitle: chartTitle,
+        pluginId: pluginId,
+        chartId: chartId,
+      ),
+    );
+  }
+}
+
+enum ChartResolveActionStatus { idle, resolving, success }
+
+String chartItemActionIdentity(ChartItem chartItem) {
+  final itemKey = chartItem.item.when(
+    track: (track) => 'track:${track.id}',
+    album: (album) => 'album:${album.id}',
+    artist: (artist) => 'artist:${artist.id}',
+    playlist: (playlist) => 'playlist:${playlist.id}',
+  );
+  return '$itemKey:${chartItem.rank}';
+}
+
+class _ChartScreenBody extends StatefulWidget {
+  final String chartTitle;
+  final String pluginId;
+  final String chartId;
+
+  const _ChartScreenBody({
+    required this.chartTitle,
+    required this.pluginId,
+    required this.chartId,
+  });
+
+  @override
+  State<_ChartScreenBody> createState() => _ChartScreenBodyState();
+}
+
+class _ChartScreenBodyState extends State<_ChartScreenBody> {
+  final ChartItemResolver _resolver = ChartItemResolver.create(
+    ServiceLocator.pluginService,
+  );
+  static const double _kResolverConfidenceThreshold = 65.0;
+  final Map<String, ChartResolveActionStatus> _actionStatuses = {};
+  final Map<String, int> _actionTokens = {};
+
+  ChartResolveActionStatus _statusFor(String actionKey) {
+    return _actionStatuses[actionKey] ?? ChartResolveActionStatus.idle;
+  }
+
+  String _playActionKey(ChartItem chartItem) {
+    return '${chartItemActionIdentity(chartItem)}:play';
+  }
+
+  String _addActionKey(ChartItem chartItem) {
+    return '${chartItemActionIdentity(chartItem)}:add';
+  }
+
+  int? _beginResolveAction(String actionKey) {
+    if (_statusFor(actionKey) == ChartResolveActionStatus.resolving) {
+      return null;
+    }
+
+    final nextToken = (_actionTokens[actionKey] ?? 0) + 1;
+    setState(() {
+      _actionTokens[actionKey] = nextToken;
+      _actionStatuses[actionKey] = ChartResolveActionStatus.resolving;
+    });
+    return nextToken;
+  }
+
+  void _resetResolveAction(String actionKey, int token) {
+    if (!mounted || _actionTokens[actionKey] != token) {
+      return;
+    }
+
+    setState(() {
+      _actionStatuses.remove(actionKey);
+    });
+  }
+
+  Future<void> _completeResolveAction(
+    String actionKey,
+    int token, {
+    Duration hold = const Duration(milliseconds: 1400),
+  }) async {
+    if (!mounted || _actionTokens[actionKey] != token) {
+      return;
+    }
+
+    setState(() {
+      _actionStatuses[actionKey] = ChartResolveActionStatus.success;
+    });
+
+    await Future.delayed(hold);
+    if (!mounted || _actionTokens[actionKey] != token) {
+      return;
+    }
+
+    setState(() {
+      _actionStatuses.remove(actionKey);
+    });
+  }
+
+  /// Resolves a chart item. Returns the resolved result, or null on failure.
+  Future<ChartResolveResult?> _resolveChartItem(
+    BuildContext context,
+    ChartItem chartItem, {
+    required String noResolverMessage,
+    required String failureMessage,
+    bool fallbackOnNoResolver = false,
+    bool fallbackOnFailure = true,
+  }) async {
+    final pluginState = context.read<PluginBloc>().state;
+    final priority = context.read<SettingsCubit>().state.resolverPriority;
+    final allIds =
+        pluginState.loadedContentResolvers.map((p) => p.manifest.id).toList();
+    // Priority-listed IDs come first (in user-defined order);
+    // any loaded resolver not in the list is appended at the end.
+    final resolverIds = [
+      ...priority.where(allIds.contains),
+      ...allIds.where((id) => !priority.contains(id)),
+    ];
+
+    if (resolverIds.isEmpty) {
+      SnackbarService.showMessage(
+        noResolverMessage,
+        action: fallbackOnNoResolver
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+      );
+      return null;
+    }
+
+    final result = await _resolver.resolve(
+      chartItem: chartItem,
+      resolverPluginIds: resolverIds,
+    );
+
+    if (!context.mounted) return null;
+
+    if (result == null) {
+      SnackbarService.showMessage(
+        failureMessage,
+        action: fallbackOnFailure
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+        duration: const Duration(seconds: 4),
+      );
+      return null;
+    }
+
+    final passByScore = result.confidence >= _kResolverConfidenceThreshold;
+    final passByStrongTrackMatch = _resolver.isStrongTrackMatch(
+      chartItem: chartItem,
+      resolvedTrack: result.resolvedTrack,
+    );
+
+    if (!passByScore && !passByStrongTrackMatch) {
+      SnackbarService.showMessage(
+        failureMessage,
+        action: fallbackOnFailure
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+        duration: const Duration(seconds: 4),
+      );
+      return null;
+    }
+
+    return result;
+  }
+
+  /// Resolves a chart item and starts playback. Loads all album tracks if available.
+  Future<void> _resolveAndPlay(
+      BuildContext context, ChartItem chartItem, String actionKey) async {
+    final token = _beginResolveAction(actionKey);
+    if (token == null) {
+      return;
+    }
+    bool completed = false;
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final result = await _resolveChartItem(
+        context,
+        chartItem,
+        noResolverMessage: l10n.chartNoResolver,
+        failureMessage: l10n.chartResolveFailed,
+        fallbackOnNoResolver: true,
+      );
+      if (result == null || !context.mounted) {
+        return;
+      }
+
+      if (chartItem.item is MediaItem_Album &&
+          (result.albumTracks == null || result.albumTracks!.isEmpty)) {
+        SnackbarService.showMessage('Unable to load album tracks');
+        return;
+      }
+
+      final playlistTracks =
+          (result.albumTracks != null && result.albumTracks!.isNotEmpty)
+              ? result.albumTracks!
+              : [result.resolvedTrack];
+
+      final playlistTitle = chartItem.item.whenOrNull(
+            album: (a) => a.title,
+            playlist: (p) => p.title,
+          ) ??
+          result.albumTracks?.firstOrNull?.album?.title ??
+          widget.chartTitle;
+
+      if (chartItem.item is MediaItem_Track) {
+        final chartItems = context.read<ChartBloc>().state.chartItems;
+        final chartTracks = <Track>[];
+        int startIdx = 0;
+        final targetKey = chartItemActionIdentity(chartItem);
+        for (final item in chartItems) {
+          final t = item.item.whenOrNull(track: (t) => t);
+          if (t != null) {
+            if (chartItemActionIdentity(item) == targetKey ||
+                t.id == result.resolvedTrack.id ||
+                isMatchingTrackId(t.id, result.resolvedTrack.id) ||
+                t.title.trim().toLowerCase() ==
+                    result.resolvedTrack.title.trim().toLowerCase()) {
+              startIdx = chartTracks.length;
+              chartTracks.add(result.resolvedTrack);
+            } else {
+              chartTracks.add(t);
+            }
+          }
+        }
+
+        if (chartTracks.length > 1) {
+          context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
+                Playlist(tracks: chartTracks, title: widget.chartTitle),
+                idx: startIdx,
+                doPlay: true,
+                isFromPlaylist: false,
+              );
+        } else {
+          context.read<OrviaPlayerCubit>().orviaPlayer.updateQueueTracks(
+                [result.resolvedTrack],
+                doPlay: true,
+                queueTitle: widget.chartTitle,
+              );
+        }
+      } else {
+        context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
+              Playlist(tracks: playlistTracks, title: playlistTitle),
+              idx: 0,
+              doPlay: true,
+              isFromPlaylist: true,
+            );
+      }
+
+      completed = true;
+      await _completeResolveAction(actionKey, token);
+    } catch (e, stack) {
+      log('Error during chart item playback resolution: $e',
+          name: 'ChartScreen', stackTrace: stack);
+    } finally {
+      if (!completed) {
+        _resetResolveAction(actionKey, token);
+      }
+    }
+  }
+
+  /// Resolves and shows add-to-playlist if confident.
+  Future<void> _resolveAndAdd(
+      BuildContext context, ChartItem chartItem, String actionKey) async {
+    final token = _beginResolveAction(actionKey);
+    if (token == null) {
+      return;
+    }
+    bool completed = false;
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final result = await _resolveChartItem(
+        context,
+        chartItem,
+        noResolverMessage: l10n.chartNoResolverAdd,
+        failureMessage: l10n.chartNoMatch,
+      );
+      if (result == null || !context.mounted) {
+        return;
+      }
+
+      setState(() {
+        _actionStatuses[actionKey] = ChartResolveActionStatus.success;
+      });
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!context.mounted || _actionTokens[actionKey] != token) {
+        return;
+      }
+
+      context.read<AddToPlaylistCubit>().setTrack(result.resolvedTrack);
+      context.pushNamed(RoutePaths.addToPlaylistScreen);
+      completed = true;
+      unawaited(_completeResolveAction(
+        actionKey,
+        token,
+        hold: const Duration(milliseconds: 1200),
+      ));
+    } catch (e, stack) {
+      log('Error during chart item add resolution: $e',
+          name: 'ChartScreen', stackTrace: stack);
+    } finally {
+      if (!completed) {
+        _resetResolveAction(actionKey, token);
+      }
+    }
+  }
+
+  void _fallbackSearch(BuildContext context, ChartItem chartItem) {
+    final query = _resolver.fallbackQuery(chartItem);
+    context.push('/${RoutePaths.searchScreen}?query=$query');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<PluginBloc, PluginState>(
+      listenWhen: (prev, curr) =>
+          prev.loadedPluginIds.contains(widget.pluginId) &&
+          !curr.loadedPluginIds.contains(widget.pluginId),
+      listener: (context, state) {
+        if (context.mounted) context.pop();
+      },
+      child: Scaffold(
+        backgroundColor: Default_Theme.themeColor,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leadingWidth: 70,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 16.0),
+            child: Center(
+              child: IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Default_Theme.themeColor.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color:
+                          Default_Theme.primaryColor1.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Default_Theme.primaryColor1,
+                    size: 20,
+                  ),
+                ),
+                onPressed: () => context.pop(),
+              ),
+            ),
+          ),
+          actions: [
+            BlocBuilder<ChartBloc, ChartState>(
+              builder: (context, chartState) {
+                final isLoading =
+                    chartState.chartDetailStatus == ChartStatus.loading;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Center(
+                    child: IconButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => context.read<ChartBloc>().add(
+                                ForceRefreshChartDetails(
+                                  pluginId: widget.pluginId,
+                                  chartId: widget.chartId,
+                                ),
+                              ),
+                      icon: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              Default_Theme.themeColor.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Default_Theme.primaryColor1
+                                .withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Default_Theme.primaryColor1,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.refresh_rounded,
+                                color: Default_Theme.primaryColor1,
+                                size: 20,
+                              ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: BlocBuilder<ChartBloc, ChartState>(
+          builder: (context, state) {
+            if (state.chartDetailStatus == ChartStatus.loading) {
+              return const Center(
+                child: CircularProgressIndicator(
+                    color: Default_Theme.accentColor2),
+              );
+            }
+
+            if (state.chartDetailStatus == ChartStatus.error) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        (state.error?.contains('offline') ?? false)
+                            ? MingCute.wifi_off_line
+                            : MingCute.warning_line,
+                        size: 44,
+                        color: Default_Theme.primaryColor1
+                            .withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        state.error ??
+                            AppLocalizations.of(context)!.chartLoadFailed,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Default_Theme.primaryColor1
+                              .withValues(alpha: 0.7),
+                        ).merge(Default_Theme.secondoryTextStyle),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          context.read<ChartBloc>().add(LoadChartDetails(
+                            pluginId: widget.pluginId,
+                            chartId: widget.chartId,
+                          ));
+                        },
+                        icon: const Icon(MingCute.refresh_3_line, size: 18),
+                        label: const Text('Retry'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Default_Theme.accentColor2,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (state.chartItems.isEmpty) {
+              return Center(
+                child: SignBoardWidget(
+                  message: AppLocalizations.of(context)!.chartNoItems,
+                  icon: MingCute.playlist_line,
+                ),
+              );
+            }
+
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _EditorialHeroMasthead(
+                    topItem: state.chartItems.first,
+                    chartTitle: widget.chartTitle,
+                    playStatus:
+                        _statusFor(_playActionKey(state.chartItems.first)),
+                    addStatus:
+                        _statusFor(_addActionKey(state.chartItems.first)),
+                    onPlayTap: () => _resolveAndPlay(
+                      context,
+                      state.chartItems.first,
+                      _playActionKey(state.chartItems.first),
+                    ),
+                    onAddTap: () => _resolveAndAdd(
+                      context,
+                      state.chartItems.first,
+                      _addActionKey(state.chartItems.first),
+                    ),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _ChartControlBarDelegate(
+                    chartTitle: widget.chartTitle,
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 100.0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        // Skip rank 1 item since it's in the hero
+                        final chartItem = state.chartItems[index + 1];
+                        final playActionKey = _playActionKey(chartItem);
+                        final addActionKey = _addActionKey(chartItem);
+                        return ChartListTile(
+                          chartItem: chartItem,
+                          playStatus: _statusFor(playActionKey),
+                          addStatus: _statusFor(addActionKey),
+                          onTap: _statusFor(playActionKey) ==
+                                  ChartResolveActionStatus.resolving
+                              ? null
+                              : () => _resolveAndPlay(
+                                  context, chartItem, playActionKey),
+                          onAddTap: _statusFor(addActionKey) ==
+                                  ChartResolveActionStatus.resolving
+                              ? null
+                              : () => _resolveAndAdd(
+                                  context, chartItem, addActionKey),
+                        );
+                      },
+                      childCount: state.chartItems.length - 1,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ── Editorial Hero Masthead ──────────────────────────────────────────────────
+
+class _EditorialHeroMasthead extends StatelessWidget {
+  final ChartItem topItem;
+  final String chartTitle;
+  final ChartResolveActionStatus playStatus;
+  final ChartResolveActionStatus addStatus;
+  final VoidCallback onPlayTap;
+  final VoidCallback onAddTap;
+
+  const _EditorialHeroMasthead({
+    required this.topItem,
+    required this.chartTitle,
+    required this.playStatus,
+    required this.addStatus,
+    required this.onPlayTap,
+    required this.onAddTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 700;
+      final (topTitle, topArtist, imgUrl) = extractItemInfo(topItem);
+
+      // Determine accurate chart description
+      final effectiveTitle = resolveEffectiveChartTitle(chartTitle);
+      final effectiveDescription = resolveEffectiveChartDescription(effectiveTitle);
+
+      return SizedBox(
+        width: double.infinity,
+        child: Stack(
+          children: [
+            // Background image
+            if (imgUrl.isNotEmpty)
+              Positioned.fill(
+                child: LoadImageCached(
+                  imageUrl: imgUrl,
+                  fallbackUrl: imgUrl,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            // Heavy blur overlay
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+                child: Container(color: Colors.black.withValues(alpha: 0.35)),
+              ),
+            ),
+            // Gradient fade to theme color
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Default_Theme.themeColor.withValues(alpha: 0.05),
+                      Default_Theme.themeColor.withValues(alpha: 0.85),
+                      Default_Theme.themeColor,
+                    ],
+                    stops: const [0.0, 0.65, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // Watermark rank number — bold, visible
+            Positioned(
+              right: isMobile ? -10 : 30,
+              bottom: isMobile ? 0 : -30,
+              child: Text(
+                '1',
+                style: TextStyle(
+                  fontFamily: 'Unageo',
+                  fontSize: isMobile ? 260 : 420,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 20.0 : 48.0,
+                isMobile ? 80.0 : 100.0,
+                isMobile ? 20.0 : 48.0,
+                isMobile ? 28.0 : 44.0,
+              ),
+              child: isMobile
+                  ? _buildMobileLayout(
+                      context,
+                      effectiveTitle,
+                      effectiveDescription,
+                      topTitle,
+                      topArtist,
+                      imgUrl,
+                    )
+                  : _buildDesktopLayout(
+                      context,
+                      effectiveTitle,
+                      effectiveDescription,
+                      topTitle,
+                      topArtist,
+                      imgUrl,
+                    ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    String title,
+    String description,
+    String topTitle,
+    String topArtist,
+    String imgUrl,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _buildArtwork(imgUrl, imgUrl, 240),
+        const SizedBox(width: 40),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _buildRankLabel(context, topTitle, topArtist),
+              const SizedBox(height: 12),
+              _buildTitle(title, 48),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildSubtitle(description, 18),
+              ],
+              const SizedBox(height: 20),
+              _buildStatRow(context, topItem),
+              const SizedBox(height: 20),
+              _buildActions(context),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileLayout(
+    BuildContext context,
+    String title,
+    String description,
+    String topTitle,
+    String topArtist,
+    String imgUrl,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 8),
+        Center(child: _buildArtwork(imgUrl, imgUrl, 220)),
+        const SizedBox(height: 24),
+        _buildRankLabel(context, topTitle, topArtist),
+        const SizedBox(height: 10),
+        _buildTitle(title, 32),
+        if (description.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _buildSubtitle(description, 14),
+        ],
+        const SizedBox(height: 18),
+        _buildStatRow(context, topItem),
+        const SizedBox(height: 18),
+        _buildActions(context),
+      ],
+    );
+  }
+
+  Widget _buildRankLabel(
+    BuildContext context,
+    String topTitle,
+    String topArtist,
+  ) {
+    final trackInfo = topArtist.isNotEmpty
+        ? '$topTitle • $topArtist'
+        : topTitle;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Default_Theme.accentColor2.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Default_Theme.accentColor2.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Text(
+        '#1 ON CHART: $trackInfo'.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Default_Theme.secondoryTextStyleMedium.merge(
+          TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Default_Theme.accentColor2.withValues(alpha: 0.95),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _HeroPlayButton(
+          onPressed: playStatus == ChartResolveActionStatus.resolving
+              ? null
+              : onPlayTap,
+          status: playStatus,
+          idleLabel: l10n.chartPlay,
+        ),
+        const SizedBox(width: 12),
+        _HeroIconButton(
+          onPressed:
+              addStatus == ChartResolveActionStatus.resolving ? null : onAddTap,
+          status: addStatus,
+          icon: MingCute.add_line,
+          tooltip: l10n.chartAddToPlaylist,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArtwork(String url, String fallbackUrl, double size) {
+    final bool hasUrl = url.trim().isNotEmpty && !isGenericProviderIcon(url);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.10),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 36,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: Default_Theme.accentColor2.withValues(alpha: 0.12),
+            blurRadius: 48,
+            spreadRadius: -4,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Polished premium brand gradient fallback
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF141C38),
+                  Color(0xFF090E21),
+                  Color(0xFF191026),
+                ],
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 0.65,
+                        colors: [
+                          Default_Theme.accentColor2.withValues(alpha: 0.20),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Opacity(
+                  opacity: 0.35,
+                  child: Image.asset(
+                    'assets/icons/OrviaLogo_System.png',
+                    width: size * 0.35,
+                    height: size * 0.35,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Real genuine artwork when available
+          if (hasUrl)
+            LoadImageCached(
+              imageUrl: url,
+              fallbackUrl: fallbackUrl,
+              fit: BoxFit.cover,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTitle(String title, double size) {
+    return Text(
+      title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: Default_Theme.secondoryTextStyleMedium.merge(
+        TextStyle(
+          fontSize: size,
+          fontWeight: FontWeight.w900,
+          letterSpacing: -0.8,
+          height: 1.15,
+          color: Colors.white.withValues(alpha: 0.95),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubtitle(String subtitle, double size) {
+    return Text(
+      subtitle,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Default_Theme.secondoryTextStyle.merge(
+        TextStyle(
+          fontSize: size,
+          fontWeight: FontWeight.w500,
+          color: Colors.white.withValues(alpha: 0.55),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(BuildContext context, ChartItem item) {
+    final l10n = AppLocalizations.of(context)!;
+    final stats = <Widget>[];
+    if (item.peakRank != null) {
+      stats.add(_statChip(l10n.chartStatPeak, '#${item.peakRank}'));
+    }
+    if (item.weeksOnChart != null) {
+      stats.add(_statChip(l10n.chartStatWeeks, '${item.weeksOnChart}'));
+    }
+    if (item.change != null) {
+      stats.add(_statChip(l10n.chartStatChange, '${item.change}'));
+    }
+    if (stats.isEmpty) return const SizedBox.shrink();
+    return Wrap(spacing: 8, runSpacing: 8, children: stats);
+  }
+
+  Widget _statChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: Colors.white.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Control bar (pinned header) ──────────────────────────────────────────────
+
+class _ChartControlBarDelegate extends SliverPersistentHeaderDelegate {
+  final String chartTitle;
+  const _ChartControlBarDelegate({required this.chartTitle});
+
+  @override
+  double get minExtent => 80.0;
+  @override
+  double get maxExtent => 80.0;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Default_Theme.themeColor,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: Center(
+          child: Text(
+            resolveEffectiveChartTitle(chartTitle),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Default_Theme.secondoryTextStyleMedium.merge(
+              const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                color: Default_Theme.primaryColor1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      false;
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+/// Resolves a standardized, clearly identifiable chart title.
+String resolveEffectiveChartTitle(String? rawTitle) {
+  final trimmed = rawTitle?.trim() ?? '';
+  final lower = trimmed.toLowerCase();
+  if (lower.isEmpty || lower == 'chart' || lower == 'india-songs-hotw') {
+    return 'Indian Songs';
+  }
+  return trimmed;
+}
+
+/// Resolves an accurate, genre-appropriate chart description.
+String resolveEffectiveChartDescription(String title) {
+  final lowerTitle = title.toLowerCase();
+  if (lowerTitle.contains('indian') || lowerTitle.contains('india')) {
+    return 'Popular and trending Indian music across genres.';
+  } else if (lowerTitle.contains('hot 100')) {
+    return 'Top songs in the US across streaming, sales, and radio play.';
+  } else if (lowerTitle.contains('global')) {
+    return 'Top songs globally across streaming and digital sales.';
+  } else {
+    return 'Popular and trending music on the charts.';
+  }
+}
+
+/// Extracts (title, subtitle, imageUrl) from a [ChartItem].
+(String, String, String) extractItemInfo(ChartItem chartItem) {
+  return chartItem.item.when(
+    track: (track) {
+      final candidates = [
+        track.thumbnail.urlHigh,
+        track.thumbnail.url,
+        track.thumbnail.urlLow,
+        track.album?.thumbnail?.urlHigh,
+        track.album?.thumbnail?.url,
+        track.album?.thumbnail?.urlLow,
+      ];
+      var url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) =>
+                u.isNotEmpty &&
+                !isGenericProviderIcon(u) &&
+                !isYoutubeAvatar(u),
+            orElse: () => '',
+          );
+
+      // If URL is empty or is a channel avatar, extract YouTube video thumbnail from track.id
+      if (url.isEmpty || isYoutubeAvatar(url)) {
+        final ytid = extractYoutubeVideoId(track.id, url);
+        if (ytid != null && ytid.isNotEmpty) {
+          url = 'https://i.ytimg.com/vi/$ytid/hqdefault.jpg';
+        }
+      }
+
+      // If still empty, check if any non-generic candidate was present
+      if (url.isEmpty) {
+        url = candidates
+            .whereType<String>()
+            .map((u) => u.trim())
+            .firstWhere(
+              (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+              orElse: () => '',
+            );
+      }
+
+      return (
+        track.title,
+        track.artists.map((a) => a.name).join(', '),
+        url,
+      );
+    },
+    album: (album) {
+      final candidates = [
+        album.thumbnail?.urlHigh,
+        album.thumbnail?.url,
+        album.thumbnail?.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
+      return (
+        album.title,
+        album.artists.map((a) => a.name).join(', '),
+        url,
+      );
+    },
+    artist: (artist) {
+      final candidates = [
+        artist.thumbnail?.urlHigh,
+        artist.thumbnail?.url,
+        artist.thumbnail?.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
+      return (
+        artist.name,
+        artist.subtitle ?? '',
+        url,
+      );
+    },
+    playlist: (playlist) {
+      final candidates = [
+        playlist.thumbnail.urlHigh,
+        playlist.thumbnail.url,
+        playlist.thumbnail.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
+      return (
+        playlist.title,
+        playlist.owner ?? '',
+        url,
+      );
+    },
+  );
+}
+
+/// Prominent play button for the chart hero.
+class _HeroPlayButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final ChartResolveActionStatus status;
+
+  final String idleLabel;
+
+  const _HeroPlayButton({
+    required this.onPressed,
+    required this.status,
+    required this.idleLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(30),
+        splashColor: Default_Theme.accentColor2.withValues(alpha: 0.15),
+        highlightColor: Default_Theme.accentColor2.withValues(alpha: 0.08),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: Default_Theme.accentColor2.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Default_Theme.accentColor2.withValues(alpha: 0.4),
+            ),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOutBack,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              );
+            },
+            child: _HeroActionContent(
+              key: ValueKey(status),
+              status: status,
+              icon: MingCute.play_fill,
+              idleLabel: idleLabel,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroActionContent extends StatelessWidget {
+  final ChartResolveActionStatus status;
+  final IconData icon;
+  final String idleLabel;
+
+  const _HeroActionContent({
+    super.key,
+    required this.status,
+    required this.icon,
+    required this.idleLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    late final Widget leading;
+    late final String label;
+
+    switch (status) {
+      case ChartResolveActionStatus.resolving:
+        leading = const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            color: Default_Theme.accentColor2,
+          ),
+        );
+        label = AppLocalizations.of(context)!.chartResolving;
+        break;
+      case ChartResolveActionStatus.success:
+        leading = const Icon(
+          Icons.check_rounded,
+          size: 18,
+          color: Default_Theme.accentColor2,
+        );
+        label = AppLocalizations.of(context)!.chartReady;
+        break;
+      case ChartResolveActionStatus.idle:
+        leading = Icon(icon, size: 18, color: Default_Theme.accentColor2);
+        label = idleLabel;
+        break;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        leading,
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: Default_Theme.secondoryTextStyleMedium.merge(
+            const TextStyle(
+              color: Default_Theme.accentColor2,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroIconButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final ChartResolveActionStatus status;
+  final IconData icon;
+  final String tooltip;
+  const _HeroIconButton({
+    required this.onPressed,
+    required this.status,
+    required this.icon,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(22),
+          splashColor: Colors.white.withValues(alpha: 0.08),
+          highlightColor: Colors.white.withValues(alpha: 0.04),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: RotationTransition(
+                    turns:
+                        Tween<double>(begin: 0.9, end: 1.0).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: _HeroIconVisual(
+                key: ValueKey(status),
+                status: status,
+                icon: icon,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroIconVisual extends StatelessWidget {
+  final ChartResolveActionStatus status;
+  final IconData icon;
+  const _HeroIconVisual({
+    super.key,
+    required this.status,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (status) {
+      ChartResolveActionStatus.resolving => const Padding(
+          padding: EdgeInsets.all(12),
+          child: CircularProgressIndicator(
+            strokeWidth: 2.1,
+            color: Colors.white,
+          ),
+        ),
+      ChartResolveActionStatus.success => Icon(
+          Icons.check_rounded,
+          size: 20,
+          color: Colors.white.withValues(alpha: 0.85),
+        ),
+      ChartResolveActionStatus.idle => Icon(
+          icon,
+          size: 20,
+          color: Colors.white.withValues(alpha: 0.75),
+        ),
+    };
+  }
+}
+

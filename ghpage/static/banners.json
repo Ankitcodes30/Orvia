@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-18T00:00:00Z",
+  "banners": [
+    {
+      "id": "morning_bhakti",
+      "title": "Morning Bhakti",
+      "subtitle": "Sacred Chants & A.K. Music World Piano",
+      "badge": "DEVOTIONAL",
+      "imageUrl": "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg",
+      "gradientColors": [
+        "#3E1F00",
+        "#1C0A00"
+      ],
+      "activeHours": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "startMinute": 360,
+      "endMinute": 630,
+      "priority": 85,
+      "tracks": [
+        {
+          "rawId": "7CwLvXc6",
+          "title": "Shree Hanuman Chalisa",
+          "artist": "Hariharan, Traditional",
+          "album": "Shree Hanuman Chalisa (Hanuman Ashtak)",
+          "durationSec": 582,
+          "imageUrl": "https://c.saavncdn.com/256/Shree-Hanuman-Chalisa-Hanuman-Ashtak-Hindi-1992-20260324161030-500x500.webp"
+        },
+        {
+          "rawId": "Br3sv0l4",
+          "title": "Dulhaniya Re",
+          "artist": "Shahnaaz Akhtar",
+          "album": "Dulhaniya Re",
+          "durationSec": 858,
+          "imageUrl": "https://c.saavncdn.com/580/Dulhaniya-Re-Hindi-2023-20250511164359-500x500.jpg"
+        },
+        {
+          "rawId": "__MfaQW6",
+          "title": "Aalha Ki Dhwaja Nahin Aayi",
+          "artist": "Shahnaz Akhtar",
+          "album": "Maiyya Pav Paijaniya",
+          "durationSec": 787,
+          "imageUrl": "https://c.saavncdn.com/066/Maiya-Paav-Paijaniya-Vol-1-Hindi-2009-20260608212622-500x500.jpg"
+        },
+        {
+          "rawId": "r5yioR-M",
+          "title": "Bigdi Meri Bana De Oo Sherawali Maiya",
+          "artist": "Lakhbir Singh Lakkha",
+          "album": "Bigdi Meri Bana De",
+          "durationSec": 417,
+          "imageUrl": "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg"
+        },
+        {
+          "rawId": "6o2XH_yQ",
+          "title": "Nach Rahi Hai Kali Angana Mein",
+          "artist": "Sandeep Karosiya",
+          "album": "Nach Rahi Hai Kali Angana Mein",
+          "durationSec": 391,
+          "imageUrl": "https://c.saavncdn.com/311/Nach-Rahi-Hai-Kali-Angana-Mein-Hindi-2025-20251007144002-500x500.jpg"
+        },
+        {
+          "rawId": "Ft5IeMlT",
+          "title": "Angna Padharo Maharani",
+          "artist": "Manish Agrawal",
+          "album": "Angna Padharo Maharani",
+          "durationSec": 568,
+          "imageUrl": "https://c.saavncdn.com/734/Angna-Padharo-Maharani-Hindi-2023-20260420210240-500x500.jpg"
+        },
+        {
+          "videoId": "Ha5QlyycMhM",
+          "title": "Har Shambhu (Piano Devotional)",
+          "artist": "A.K. MUSIC WORLD",
+          "album": "A.K. Music World Piano Covers",
+          "durationSec": 114,
+          "imageUrl": "https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "gym_energy",
+      "title": "Gym Energy & Cardio",
+      "subtitle": "High BPM Beats & Powerful Themes",
+      "badge": "WORKOUT",
+      "imageUrl": "https://i.ytimg.com/vi/iiBeBFRsCSQ/hqdefault.jpg",
+      "gradientColors": [
+        "#3B0D11",
+        "#140406"
+      ],
+      "activeHours": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "priority": 80,
+      "tracks": [
+        {
+          "videoId": "iiBeBFRsCSQ",
+          "title": "Bollywood Workout Mix",
+          "artist": "Various Artists",
+          "album": "Gym Songs Mashup",
+          "durationSec": 180,
+          "imageUrl": "https://i.ytimg.com/vi/iiBeBFRsCSQ/hqdefault.jpg"
+        },
+        {
+          "videoId": "dHsV56I1GwE",
+          "title": "Dope Shope",
+          "artist": "Yo Yo Honey Singh, Deep Money",
+          "album": "International Villager",
+          "durationSec": 192,
+          "imageUrl": "https://i.ytimg.com/vi/dHsV56I1GwE/hqdefault.jpg"
+        },
+        {
+          "videoId": "uFGreSkTMck",
+          "title": "Jaan Se Guzarte Hain",
+          "artist": "Shashwat Sachdev, Khan Saab",
+          "album": "Dhurandhar The Revenge",
+          "durationSec": 183,
+          "imageUrl": "https://i.ytimg.com/vi/uFGreSkTMck/hqdefault.jpg"
+        },
+        {
+          "videoId": "D2CKOIiabfg",
+          "title": "Gym Motivation Music",
+          "artist": "7 Power Fitness",
+          "album": "Best Gym Workout Songs",
+          "durationSec": 215,
+          "imageUrl": "https://i.ytimg.com/vi/D2CKOIiabfg/hqdefault.jpg"
+        },
+        {
+          "videoId": "ELrwFR4NkLk",
+          "title": "UNSUNG Fast Rap Workout Mix 2026",
+          "artist": "Motivational Gym Music",
+          "album": "Fast Rap Workout",
+          "durationSec": 195,
+          "imageUrl": "https://i.ytimg.com/vi/ELrwFR4NkLk/hqdefault.jpg"
+        },
+        {
+          "videoId": "6SFfS9QMloU",
+          "title": "Ultimate Workout Anthem Non-Stop Mashup",
+          "artist": "Kedrock, SD Style",
+          "album": "Bollywood Motivational Mashup",
+          "durationSec": 328,
+          "imageUrl": "https://i.ytimg.com/vi/6SFfS9QMloU/hqdefault.jpg"
+        },
+        {
+          "videoId": "skhUNWhX2UY",
+          "title": "BEST WORKOUT MUSIC 2026",
+          "artist": "Fitness Mix",
+          "album": "Gym Motivation Songs",
+          "durationSec": 210,
+          "imageUrl": "https://i.ytimg.com/vi/skhUNWhX2UY/hqdefault.jpg"
+        },
+        {
+          "videoId": "REaoaFTiMTs",
+          "title": "I like the way you kiss me",
+          "artist": "Dani Vidi, Yes Yes, Ezton",
+          "album": "Hyper Techno",
+          "durationSec": 141,
+          "imageUrl": "https://i.ytimg.com/vi/REaoaFTiMTs/hqdefault.jpg"
+        },
+        {
+          "videoId": "fQWNeIiFf_s",
+          "title": "Thank You (Not So Bad)",
+          "artist": "Dimitri Vegas & Like Mike, Tiësto, Dido, W&W",
+          "album": "Thank You (Not So Bad)",
+          "durationSec": 140,
+          "imageUrl": "https://i.ytimg.com/vi/fQWNeIiFf_s/hqdefault.jpg"
+        },
+        {
+          "videoId": "tKXp27BBz6U",
+          "title": "Freestyler (Rock The Microphone)",
+          "artist": "Lost Frequencies, Bomfunk MC's",
+          "album": "Freestyler",
+          "durationSec": 174,
+          "imageUrl": "https://i.ytimg.com/vi/tKXp27BBz6U/hqdefault.jpg"
+        },
+        {
+          "videoId": "wQ9ifRPfP8A",
+          "title": "Need Your Love",
+          "artist": "Ilkay Sencan, Kaluma, Adam Woods",
+          "album": "Need Your Love",
+          "durationSec": 134,
+          "imageUrl": "https://i.ytimg.com/vi/wQ9ifRPfP8A/hqdefault.jpg"
+        },
+        {
+          "videoId": "4HeMSUVpMFc",
+          "title": "Let It Happen (Techno)",
+          "artist": "Lucas Estrada, Clmd, Braaheim",
+          "album": "Let It Happen (Techno)",
+          "durationSec": 123,
+          "imageUrl": "https://i.ytimg.com/vi/4HeMSUVpMFc/hqdefault.jpg"
+        },
+        {
+          "videoId": "90h5GMM4iB8",
+          "title": "Be My Lover (2023 Mix)",
+          "artist": "Hypaton, David Guetta, La Bouche",
+          "album": "Be My Lover (2023 Mix)",
+          "durationSec": 170,
+          "imageUrl": "https://i.ytimg.com/vi/90h5GMM4iB8/hqdefault.jpg"
+        },
+        {
+          "videoId": "j5ZBs64cHTE",
+          "title": "Love With Workout Mashup #4",
+          "artist": "DJ DALAL LONDON, VDJ Mahe",
+          "album": "Motivational Mashup",
+          "durationSec": 188,
+          "imageUrl": "https://i.ytimg.com/vi/j5ZBs64cHTE/hqdefault.jpg"
+        },
+        {
+          "videoId": "BVnIWAuCv7M",
+          "title": "Jo Tere Sang X Tere Liye (Synthwave Remix)",
+          "artist": "ROHAN",
+          "album": "Indian Bollywood Synthwave",
+          "durationSec": 174,
+          "imageUrl": "https://i.ytimg.com/vi/BVnIWAuCv7M/hqdefault.jpg"
+        },
+        {
+          "videoId": "DoK2iKDCaMI",
+          "title": "Aarambh Hai Prachand X NF's Hope",
+          "artist": "Beatzhacker",
+          "album": "Instagram Viral Original Mashup",
+          "durationSec": 165,
+          "imageUrl": "https://i.ytimg.com/vi/DoK2iKDCaMI/hqdefault.jpg"
+        },
+        {
+          "videoId": "Ard-_9pCyzA",
+          "title": "Bande",
+          "artist": "Sivam, Sam C.S.",
+          "album": "Vikram Vedha",
+          "durationSec": 195,
+          "imageUrl": "https://i.ytimg.com/vi/Ard-_9pCyzA/hqdefault.jpg"
+        },
+        {
+          "videoId": "Jyst8oIHOAY",
+          "title": "Mercy",
+          "artist": "Badshah",
+          "album": "ONE (Original Never Ends)",
+          "durationSec": 177,
+          "imageUrl": "https://i.ytimg.com/vi/Jyst8oIHOAY/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "diwali_festive_2026",
+      "title": "Diwali Festive Special",
+      "subtitle": "A festival of lights, devotion & celebration",
+      "badge": "DIWALI • 2026",
+      "imageUrl": "",
+      "gradientColors": [
+        "#6D1B00",
+        "#B84A00",
+        "#3B123B"
+      ],
+      "activeHours": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "startDate": "2026-11-05T00:00:00+05:30",
+      "endDate": "2026-11-12T00:00:00+05:30",
+      "priority": 100,
+      "destination": "festival_special",
+      "tracks": []
+    }
+  ]
+}
