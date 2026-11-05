@@ -204,10 +204,10 @@ class FestivalService {
             .map(_parseTrackJson)
             .whereType<Track>()
             .toList()
-        : id == 'navratri_2026'
-            ? _kNavratriTracks
-            : id == 'diwali_2026'
-                ? _kDiwaliTracks
+        : id == 'diwali_2026'
+            ? _kDiwaliTracks
+            : id == 'navratri_2026'
+                ? _kNavratriTracks
                 : <Track>[];
 
     return FestivalEvent(
@@ -254,8 +254,9 @@ class FestivalService {
     );
   }
 
-  static DateTime _ist(int year, int month, int day) =>
-      DateTime.utc(year, month, day)
+  static DateTime _ist(int year, int month, int day,
+          [int hour = 0, int minute = 0, int second = 0]) =>
+      DateTime.utc(year, month, day, hour, minute, second)
           .subtract(const Duration(hours: 5, minutes: 30));
 
   static Track _track({
@@ -303,6 +304,69 @@ class FestivalService {
       isExplicit: false,
     );
   }
+
+  static const String ytPluginId = 'content-resolver.bloomfactory.ytvideo';
+
+  static Track _ytTrack({
+    required String videoId,
+    required String title,
+    required String artist,
+    required String album,
+    required int durationSec,
+    required String imageUrl,
+  }) {
+    final compositeId = '$ytPluginId::$videoId';
+    final artwork = Artwork(
+      url: imageUrl,
+      urlLow: imageUrl,
+      urlHigh: 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg',
+      layout: ImageLayout.square,
+    );
+    return Track(
+      id: compositeId,
+      title: title,
+      artists: [
+        ArtistSummary(
+          id: '',
+          name: artist,
+          thumbnail: artwork,
+        ),
+      ],
+      album: AlbumSummary(
+        id: '',
+        title: album,
+        artists: const [],
+        thumbnail: artwork,
+      ),
+      durationMs: BigInt.from(durationSec * 1000),
+      thumbnail: artwork,
+      url: 'https://www.youtube.com/watch?v=$videoId',
+      isExplicit: false,
+    );
+  }
+
+  // ── Verified Diwali Tracks (Exact 19 YouTube tracks in order) ─────────────
+  static final List<Track> _kDiwaliTracks = [
+    _ytTrack(videoId: 'yWNPxS0sXnE', title: 'Ramayana: Jai Jai Ram', artist: 'AR Rahman, Shreya Ghoshal, Arijit Singh', album: 'Ramayana', durationSec: 128, imageUrl: 'https://i.ytimg.com/vi/yWNPxS0sXnE/hqdefault.jpg'),
+    _ytTrack(videoId: 'z_e1d5_VVfw', title: 'Ramayana: Mangal Rang', artist: 'AR Rahman, Arijit Singh, Shreya Ghoshal, Kumar V', album: 'Ramayana', durationSec: 145, imageUrl: 'https://i.ytimg.com/vi/z_e1d5_VVfw/hqdefault.jpg'),
+    _ytTrack(videoId: '5k_2d_15f6Y', title: 'लक्ष्मी स्तुति | Lakshmi Stuti | Diwali Special Lakshmi Puja', artist: 'Power of Chants', album: 'Diwali Special Lakshmi Puja', durationSec: 1170, imageUrl: 'https://i.ytimg.com/vi/5k_2d_15f6Y/hqdefault.jpg'),
+    _ytTrack(videoId: 'nxRf-p8KWdM', title: 'Mahalakshmi Ashtakam - Prayer for Abundance & Divine Grace', artist: 'Religious India', album: 'Diwali Special 2025', durationSec: 3827, imageUrl: 'https://i.ytimg.com/vi/nxRf-p8KWdM/hqdefault.jpg'),
+    _ytTrack(videoId: 'OgE62AQv5iA', title: 'दीपावली नॉनस्टॉप राम भजन - Ram Aayenge To Angana Sajaungi', artist: 'Bhakti Group', album: 'Diwali NonStop Ram Bhajan', durationSec: 3847, imageUrl: 'https://i.ytimg.com/vi/OgE62AQv5iA/hqdefault.jpg'),
+    _ytTrack(videoId: '22bLNq6iCjU', title: 'Jai Shree Ram | Ayodhya Ram Mandir Song | Yug Ram Raj Ka', artist: 'Hansraj Raghuwanshi', album: 'Yug Ram Raj Ka', durationSec: 348, imageUrl: 'https://i.ytimg.com/vi/22bLNq6iCjU/hqdefault.jpg'),
+    _ytTrack(videoId: '3TylP-ux8W0', title: 'Ram Aayenge', artist: 'Vishal Mishra, Payal Dev, Manoj Muntashir', album: 'Ram Aayenge', durationSec: 283, imageUrl: 'https://i.ytimg.com/vi/3TylP-ux8W0/hqdefault.jpg'),
+    _ytTrack(videoId: 'q5PmN7SuUkY', title: 'Mere Ghar Ram Aaye Hain', artist: 'Jubin Nautiyal, Payal Dev, Manoj Muntashir', album: 'Mere Ghar Ram Aaye Hain', durationSec: 255, imageUrl: 'https://i.ytimg.com/vi/q5PmN7SuUkY/hqdefault.jpg'),
+    _ytTrack(videoId: 'wEU8mWwAcv0', title: 'Shri Ram Ki Gali Mein Tum Jana', artist: 'Tulsi Kumar, Bhushan Kumar', album: 'Shri Ram Ki Gali Mein Tum Jana', durationSec: 273, imageUrl: 'https://i.ytimg.com/vi/wEU8mWwAcv0/hqdefault.jpg'),
+    _ytTrack(videoId: 'UuLkjyBKQE4', title: 'RAM LALA', artist: 'Vishal Mishra, Manoj Muntashir', album: 'RAM LALA', durationSec: 273, imageUrl: 'https://i.ytimg.com/vi/UuLkjyBKQE4/hqdefault.jpg'),
+    _ytTrack(videoId: '6fQzvZpBzj8', title: 'Ye Chamak Ye Damak 2.0 | Sab Kuch Sarkar Tumhi Se Hai', artist: 'Sudhir Vyas, Ak Digital', album: 'Ye Chamak Ye Damak 2.0', durationSec: 348, imageUrl: 'https://i.ytimg.com/vi/6fQzvZpBzj8/hqdefault.jpg'),
+    _ytTrack(videoId: 'wVrz52oz_T8', title: 'नगरी हो अयोध्या सी | Nagri Ho Ayodhya Si', artist: 'प्रकाश गाँधी | PMC Sant Sandesh', album: 'Nagri Ho Ayodhya Si', durationSec: 482, imageUrl: 'https://i.ytimg.com/vi/wVrz52oz_T8/hqdefault.jpg'),
+    _ytTrack(videoId: 'Ekymhpz8oUM', title: 'जरा देर ठहरो राम तमन्ना यही है', artist: 'Katha Puraan Bhajan', album: 'जरा देर ठहरो राम', durationSec: 292, imageUrl: 'https://i.ytimg.com/vi/Ekymhpz8oUM/hqdefault.jpg'),
+    _ytTrack(videoId: 'txXXRMfp12w', title: 'Ram Siya Ram', artist: 'Sachet Tandon, Poonam Thakkar, Shabbir Ahmed', album: 'Ram Siya Ram', durationSec: 259, imageUrl: 'https://i.ytimg.com/vi/txXXRMfp12w/hqdefault.jpg'),
+    _ytTrack(videoId: 'leVoi6kkp3o', title: 'Shree Ram Stuti', artist: 'Sonika Sharma Agarwal, Vickky Agarwal', album: 'Shree Ram Stuti', durationSec: 199, imageUrl: 'https://i.ytimg.com/vi/leVoi6kkp3o/hqdefault.jpg'),
+    _ytTrack(videoId: 'yFyP0dMx5cw', title: 'मंगल भवन अमंगल हारी | Ram Siya Ram | Ramayan Chaupai', artist: 'Medi Tuner', album: 'Ramayan Chaupai', durationSec: 148, imageUrl: 'https://i.ytimg.com/vi/yFyP0dMx5cw/hqdefault.jpg'),
+    _ytTrack(videoId: 'H2r9M66CQPk', title: 'Ghar Me Padharo Laxmi Maiya घर में पधारो लक्ष्मी मैया', artist: 'Nova Spiritual India', album: 'Laxmi Mata Bhajan', durationSec: 370, imageUrl: 'https://i.ytimg.com/vi/H2r9M66CQPk/hqdefault.jpg'),
+    _ytTrack(videoId: 'oec7CXRAfeE', title: 'लक्ष्मी आरती हिंदी | Om Jai Laxmi Mata', artist: 'Shemaroo Bhakti', album: 'Mata Laxmi Aarti', durationSec: 587, imageUrl: 'https://i.ytimg.com/vi/oec7CXRAfeE/hqdefault.jpg'),
+    _ytTrack(videoId: 'dxVa3AaPvy8', title: 'धनतेरस स्पेशल नॉनस्टॉप भजन | Kuber Laxmi Bhajan', artist: 'Ganga Bhakti', album: 'Dhanteras Ke Bhajan', durationSec: 1964, imageUrl: 'https://i.ytimg.com/vi/dxVa3AaPvy8/hqdefault.jpg'),
+  ];
 
   // ── Verified Navratri Tracks (Preserving all 10 + 2 canonical items) ───────
   static final List<Track> _kNavratriTracks = [
@@ -400,148 +464,24 @@ class FestivalService {
 
   // Provider IDs, metadata, artwork, and playback were verified through the
   // installed JioSaavn resolver and the shared player engine.
-  static final List<Track> _kDiwaliTracks = [
-    _track(
-      rawId: '6EIDGV-w',
-      title: 'Sukhkarta Dukhharta',
-      artist: 'Amitabh Bachchan',
-      album: 'Sukhkarta Dukhharta',
-      durationSec: 128,
-      imageUrl:
-          'https://c.saavncdn.com/349/Sukhkarta-Dukhharta-Marathi-2021-20210618223706-150x150.jpg',
-    ),
-    _track(
-      rawId: '_8OlmfDF',
-      title: 'Om Jai Lakshmi Mata (Aarti)',
-      artist: 'Anuradha Paudwal, Bela Sulakhe',
-      album: 'Shri Mahalaxmi Kamalwasini Sarv Mangla Saukhya Dayini',
-      durationSec: 333,
-      imageUrl:
-          'https://c.saavncdn.com/004/Shri-Mahalaxmi-Kamalwasini-Sarv-Mangla-Saukhya-Dayini-Hindi-2007-20221205151513-150x150.jpg',
-    ),
-    _track(
-      rawId: 'q3ElTqvW',
-      title: 'Mere Ghar Ram Aaye Hain',
-      artist: 'Jubin Nautiyal',
-      album: 'Mere Ghar Ram Aaye Hain',
-      durationSec: 234,
-      imageUrl:
-          'https://c.saavncdn.com/946/Mere-Ghar-Ram-Aaye-Hain-Hindi-2022-20221019191009-150x150.jpg',
-    ),
-    _track(
-      rawId: 'dBM1AsPC',
-      title: 'Ram Siya Ram',
-      artist: 'Sachet-Parampara, Sachet Tandon, Parampara Tandon',
-      album: 'Adipurush',
-      durationSec: 230,
-      imageUrl:
-          'https://c.saavncdn.com/972/Adipurush-Hindi-2023-20230607184755-150x150.jpg',
-    ),
-    _track(
-      rawId: '8YZi9g27',
-      title:
-          'Laxmi Kuber Mantra - Om yakshaya kuberaya vaishravanaya dhana dhan pataye dhanadhanya samridhi me dehi dapaya svaha',
-      artist: 'Shubhangi Joshi',
-      album:
-          'Laxmi Kuber Mantra - Om yakshaya kuberaya vaishravanaya dhana dhan pataye dhanadhanya samridhi me dehi dapaya svaha',
-      durationSec: 337,
-      imageUrl:
-          'https://c.saavncdn.com/057/Laxmi-Kuber-Mantra-Om-yakshaya-kuberaya-vaishravanaya-dhana-dhan-pataye-dhanadhanya-samridhi-me-dehi-dapaya-svaha-Hindi-2024-20240118152427-150x150.jpg',
-    ),
-    _track(
-      rawId: 'KvvRcXsn',
-      title: 'Aarti Kunj Bihari Ki',
-      artist: 'Anuradha Paudwal',
-      album: 'Aarti Kunj Bihari Ki',
-      durationSec: 297,
-      imageUrl:
-          'https://c.saavncdn.com/824/Aarti-Kunj-Bihari-Ki-Hindi-2017-150x150.jpg',
-    ),
-    _track(
-      rawId: '3PVqxbZf',
-      title: 'Bhai Dooj Vrat Katha',
-      artist: 'Diksha Rawat',
-      album: 'Bhai Dooj Vrat Katha',
-      durationSec: 161,
-      imageUrl:
-          'https://c.saavncdn.com/972/Bhai-Dooj-Vrat-Katha-Hindi-2022-20260607124540-150x150.jpg',
-    ),
-    _track(
-      rawId: '94sdDisK',
-      title: 'Shree Ganeshay Dheemahi',
-      artist: 'Shankar Mahadevan',
-      album: 'Viruddh... Family Comes First',
-      durationSec: 407,
-      imageUrl:
-          'https://c.saavncdn.com/592/Viruddh-Family-Comes-First-Hindi-2005-150x150.jpg',
-    ),
-    _track(
-      rawId: 'ALDWwuwj',
-      title: 'Jai Ganesh Deva',
-      artist: 'Anuradha Paudwal',
-      album: 'Aarti Vol-3',
-      durationSec: 270,
-      imageUrl:
-          'https://c.saavncdn.com/065/Aarti-Vol-3-Hindi-1989-20211102161000-150x150.jpg',
-    ),
-    _track(
-      rawId: 'Pl851a1Z',
-      title: 'Vakratunda Mahakaya (Ganesh Mantra)',
-      artist: 'Anuradha Paudwal',
-      album: 'Durga Saptashati',
-      durationSec: 143,
-      imageUrl:
-          'https://c.saavncdn.com/304/Durga-Saptashati-Hindi-2015-20250812103817-150x150.jpg',
-    ),
-    _track(
-      rawId: 'GQOZ52ac',
-      title: 'Raghupati Raghav Raja Ram',
-      artist: 'Sachet Tandon',
-      album: 'Raghupati Raghav Raja Ram',
-      durationSec: 196,
-      imageUrl:
-          'https://c.saavncdn.com/642/Raghupati-Raghav-Raja-Ram-Hindi-2020-20200630234001-150x150.jpg',
-    ),
-    _track(
-      rawId: 'In-xltz_',
-      title: 'Hanuman Chalisa',
-      artist: 'Hariharan, shivam samrat',
-      album: 'Hanuman Chalisa',
-      durationSec: 347,
-      imageUrl:
-          'https://c.saavncdn.com/741/Hanuman-Chalisa-Sanskrit-2026-20260720104804-150x150.jpg',
-    ),
-    _track(
-      rawId: 'RciMpqOj',
-      title: 'Om Namah Shivaya Har Har By Anuradha Paudwal',
-      artist: 'Anuradha Paudwal',
-      album: 'Om Namah Shivaya By Anuradha Paudwal',
-      durationSec: 1416,
-      imageUrl:
-          'https://c.saavncdn.com/601/Om-Namah-Shivaya-By-Anuradha-Paudwal-Hindi-2021-20210426234746-150x150.jpg',
-    ),
-    _track(
-      rawId: 'vWVUI-eT',
-      title: 'Lakshmi Chalisa',
-      artist: 'Ds Pal',
-      album: 'Mata Rani Bhajan',
-      durationSec: 657,
-      imageUrl:
-          'https://c.saavncdn.com/247/Mata-Rani-Bhajan-Hindi-2022-20221017170015-150x150.jpg',
-    ),
-    _track(
-      rawId: 'AEHmmhTb',
-      title: 'Aarti Shri Ramayan Ji Ki',
-      artist: 'Parul Mishra, Jai Kesarwani',
-      album: 'Sampurna Aarti Sangrah',
-      durationSec: 350,
-      imageUrl:
-          'https://c.saavncdn.com/625/Sampurna-Aarti-Sangrah-Hindi-2018-20180903-150x150.jpg',
-    ),
-  ];
 
   // ── Default Multi-Year Indian Festival Schedule ──────────────────────────
   static final List<FestivalEvent> _kDefaultFestivalSchedule = [
+    FestivalEvent(
+      id: 'diwali_2026',
+      name: 'Diwali Festive Special',
+      greeting: 'Happy Diwali!',
+      region: 'All-India',
+      startDate: _ist(2026, 11, 5, 0, 0, 0),
+      endDate: _ist(2026, 11, 11, 0, 0, 0),
+      promotionDays: 0,
+      bannerUrl: 'assets/images/diwali_festive_banner.webp',
+      bannerTitle: 'Diwali Festive Special 2026',
+      bannerSubtitle: 'Devotional Ram Bhajans, Lakshmi Aarti & Festive Anthems',
+      categories: ['All', 'Ram Bhajans', 'Lakshmi Puja & Aarti'],
+      tracks: _kDiwaliTracks,
+    ),
+
     // Navratri category promotion ends at 2026-10-21 00:00 Asia/Kolkata.
     FestivalEvent(
       id: 'navratri_2026',
@@ -557,27 +497,6 @@ class FestivalService {
       bannerSubtitle: 'Non-Stop Garba, Dandiya & Raas Hits',
       categories: ['All', 'Garba Hits', 'Dandiya', 'Bollywood Garba', 'Aarti'],
       tracks: _kNavratriTracks,
-    ),
-    // Diwali category is active from Nov 5 until the exclusive Nov 12 boundary.
-    FestivalEvent(
-      id: 'diwali_2026',
-      name: 'Diwali Dhamaka',
-      greeting: 'Happy Diwali!',
-      region: 'All-India',
-      startDate: _ist(2026, 11, 5),
-      endDate: _ist(2026, 11, 12),
-      promotionDays: 0,
-      bannerUrl: '',
-      bannerTitle: 'Diwali Festive Special',
-      bannerSubtitle: 'A festival of lights, devotion & celebration',
-      categories: [
-        'Diwali',
-        'Lakshmi Puja',
-        'Ganesh Puja',
-        'Ram-bhakti',
-        'Bhai Dooj'
-      ],
-      tracks: _kDiwaliTracks,
     ),
     // Makar Sankranti / Pongal 2027 (Jan 14, 2027) -> Promotion Jan 4 - Jan 16
     FestivalEvent(
@@ -611,4 +530,7 @@ class FestivalService {
       tracks: _kNavratriTracks,
     ),
   ];
+
+  static List<Track> getNavratriTracks() => List.unmodifiable(_kNavratriTracks);
+  static List<Track> getDiwaliTracks() => List.unmodifiable(_kDiwaliTracks);
 }
