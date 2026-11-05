@@ -76,19 +76,29 @@ PlaylistDB albumSummaryToPlaylistDB(AlbumSummary albumSummary) {
 
 /// Reconstruct an [AlbumSummary] from an album-type [PlaylistDB].
 AlbumSummary playlistDBToAlbumSummary(PlaylistDB playlistDB) {
+  final albumDb = playlistDB.album;
+  final id = (albumDb?.mediaId != null && albumDb!.mediaId!.isNotEmpty)
+      ? albumDb.mediaId!
+      : playlistDB.name;
   return AlbumSummary(
-    id: playlistDB.album?.mediaId ?? '',
+    id: id,
     title: playlistDBDisplayName(playlistDB),
     thumbnail: playlistDB.thumbnail != null
         ? artworkDBToArtwork(playlistDB.thumbnail!)
-        : null,
-    artists: playlistDB.artists != null
+        : (albumDb?.thumbnail != null
+            ? artworkDBToArtwork(albumDb!.thumbnail!)
+            : null),
+    artists: (playlistDB.artists != null && playlistDB.artists!.isNotEmpty)
         ? playlistDB.artists!
             .map((a) => artistSummaryDBToArtistSummary(a))
             .toList()
-        : [],
-    url: playlistDB.album?.url,
-    year: int.tryParse(playlistDB.album?.year ?? '') ?? 0,
+        : (albumDb?.artists != null
+            ? albumDb!.artists!
+                .map((a) => artistSummaryDBToArtistSummary(a))
+                .toList()
+            : []),
+    url: albumDb?.url,
+    year: int.tryParse(albumDb?.year ?? '') ?? 0,
   );
 }
 
