@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "app_name": "Orvia",
+  "min_supported_version": "3.0.0",
+  "channels": {
+    "stable": {
+      "version": "3.0.7",
+      "build_number": 7,
+      "release_notes": "Diwali Festive Special with recomposed widescreen artwork & 19-track curated collection; expanded Creator's Choice featuring 70 hand-picked tracks & playlist protection; Morning Bhakti with 26 devotional tracks (6:00-10:30 AM); offline multi-selection fix across tabs; fluid desktop responsive layout; verified in-place update stability and data preservation.",
+      "published_at": "2026-11-05T20:30:00Z",
+      "platforms": {
+        "android": {
+          "download_url": "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk",
+          "sha256": "f32b5089f196a53044c71a6f03805c43fd9bfc3fb4b1b22dbbe38ae3160313d5",
+          "file_size": 66279669
+        },
+        "windows": {
+          "download_url": "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip",
+          "sha256": "b8c8ed48721e9b72b6d63ee4be80a0cc7fefe372ca21769184367c1567795de3",
+          "file_size": 39290275
+        }
+      }
+    }
+  }
+}

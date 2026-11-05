@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "timezone": "Asia/Kolkata",
+  "festivals": [
+    {
+      "id": "diwali_2026",
+      "name": "Diwali Festive Special",
+      "greeting": "Happy Diwali!",
+      "region": "All-India",
+      "startDate": "2026-11-05T00:00:00+05:30",
+      "endDate": "2026-11-11T00:00:00+05:30",
+      "promotionDays": 0,
+      "bannerUrl": "assets/images/diwali_festive_banner.webp",
+      "bannerTitle": "Diwali Festive Special 2026",
+      "bannerSubtitle": "Devotional Ram Bhajans, Lakshmi Aarti & Festive Anthems",
+      "categories": [
+        "All",
+        "Ram Bhajans",
+        "Lakshmi Puja & Aarti"
+      ]
+    },
+    {
+      "id": "navratri_2026",
+      "name": "Navratri & Garba Special",
+      "greeting": "Shubh Navratri!",
+      "region": "Gujarat / All-India",
+      "startDate": "2026-10-10T00:00:00+05:30",
+      "endDate": "2026-10-21T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/124/Gori-Radha-Ne-Kalo-Kaan-Gujarati-2026-20261006132514-500x500.webp",
+      "bannerTitle": "Navratri Festive Special 2026",
+      "bannerSubtitle": "Non-Stop Garba, Dandiya & Raas Hits",
+      "categories": [
+        "All",
+        "Garba Hits",
+        "Dandiya",
+        "Bollywood Garba",
+        "Aarti"
+      ]
+    },
+    {
+      "id": "sankranti_2027",
+      "name": "Makar Sankranti & Pongal",
+      "greeting": "Happy Makar Sankranti & Pongal!",
+      "region": "All-India",
+      "startDate": "2027-01-14T00:00:00+05:30",
+      "endDate": "2027-01-16T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/837/Raees-Hindi-2017-500x500.jpg",
+      "bannerTitle": "Kai Po Che — Kite Flying Beats",
+      "bannerSubtitle": "Celebrate Uttarayan with vibrant folk & festive tunes",
+      "categories": [
+        "All",
+        "Folk Tunes",
+        "Kite Beats",
+        "Celebration"
+      ]
+    },
+    {
+      "id": "holi_2027",
+      "name": "Holi Colors of Joy",
+      "greeting": "Bura Na Mano Holi Hai!",
+      "region": "All-India",
+      "startDate": "2027-03-22T00:00:00+05:30",
+      "endDate": "2027-03-24T00:00:00+05:30",
+      "promotionDays": 10,
+      "bannerUrl": "https://c.saavncdn.com/712/Goliyon-Ki-Raasleela-Ram-Leela-Hindi-2013-20230607144131-500x500.jpg",
+      "bannerTitle": "Holi Party Non-Stop Hits",
+      "bannerSubtitle": "Rang Barse, energetic beats & vibrant party mixes",
+      "categories": [
+        "All",
+        "Holi Anthems",
+        "Dance Beats",
+        "Bhakti"
+      ]
+    }
+  ]
+}
