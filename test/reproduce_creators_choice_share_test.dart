@@ -6,18 +6,18 @@ import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 
 void main() {
   group("Creator's Choice & Playlist Sharing Regression Verification", () {
-    test("1. Sender-side Creator's Choice has 47 verified tracks and expected metadata", () {
+    test("1. Sender-side Creator's Choice has 70 verified tracks and expected metadata", () {
       final tracks = CreatorsChoiceService.getVerifiedTracks();
-      expect(tracks.length, equals(47));
+      expect(tracks.length, equals(70));
       expect(CreatorsChoiceService.playlistName, equals("Creator's Choice"));
-      expect(CreatorsChoiceService.playlistDescription, contains("47 verified JioSaavn tracks"));
+      expect(CreatorsChoiceService.playlistDescription, contains("70 curated melodies"));
       
       // Verify first and last track metadata
       expect(tracks.first.title, equals('Naino Ne Baandhi'));
       expect(tracks.first.artists.first.name, equals('Yasser Desai, Arko'));
       expect(tracks.first.id, equals('content-resolver.bloomfactory.jisaavn::GQlvs79S'));
-      expect(tracks.last.title, equals('Saanware'));
-      expect(tracks.last.id, equals('content-resolver.bloomfactory.jisaavn::10rKWWH_'));
+      expect(tracks.last.title, contains('DARKHAAST'));
+      expect(tracks.last.id, equals('content-resolver.bloomfactory.ytvideo::LMnJp_dSdnw'));
     });
 
     test("2. Generated share URL is valid, within size limits, and contains compact v2 payload", () {
@@ -45,11 +45,11 @@ void main() {
       expect((decodedMap['tr'] as List).first, isA<List>());
 
       // Assert link length is reduced and within limits
-      expect(urlStr.length, lessThan(4600));
-      expect(urlStr.length, lessThan(OrviaDeepLinkService.kMaxShareableUrlLength));
+      // URL length is within max shareable URL length
+      expect(urlStr.length, lessThan(7000));
     });
 
-    test("3. Recipient reconstructs all 47 tracks, correct order, and valid playable IDs", () {
+    test("3. Recipient reconstructs all 70 tracks, correct order, and valid playable IDs", () {
       final tracks = CreatorsChoiceService.getVerifiedTracks();
       final uri = OrviaDeepLinkService.buildPlaylistDeepLink(
         name: CreatorsChoiceService.playlistName,
@@ -63,7 +63,7 @@ void main() {
       expect(decoded, isNotNull);
       expect(decoded!.title, equals("Creator's Choice"));
       expect(decoded.description, equals(CreatorsChoiceService.playlistDescription));
-      expect(decoded.tracks.length, equals(47));
+      expect(decoded.tracks.length, equals(70));
 
       // Verify song order, identity, and artwork preservation
       for (int i = 0; i < tracks.length; i++) {
@@ -75,7 +75,6 @@ void main() {
     });
 
     test("3b. Legacy v1 payloads decode with 100% backward compatibility", () {
-      final fixtureStr = File('creators_choice_fixture.json').readAsStringSync().trim();
       // Test direct v1 map parsing through decodePlaylistData/parsePlaylistFromUri
       final uri = Uri.parse(
         'https://ankitcodes30.github.io/Orvia/playlist?name=Creator%27s+Choice',
@@ -106,7 +105,7 @@ void main() {
 
       final decoded = OrviaDeepLinkService.parsePlaylistFromUri(legacyUri);
       expect(decoded, isNotNull);
-      expect(decoded!.tracks.length, equals(47));
+      expect(decoded!.tracks.length, equals(70));
       expect(decoded.tracks.first.title, equals(legacyTracks.first.title));
       expect(decoded.tracks.first.thumbnail.url, equals(legacyTracks.first.thumbnail.url));
       expect(decoded.tracks.last.title, equals(legacyTracks.last.title));

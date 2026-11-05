@@ -15,6 +15,7 @@ import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/screens/screen/library_views/cubit/current_playlist_cubit.dart';
 import 'package:Orvia/screens/screen/library_views/playlist_edit_view.dart';
+import 'package:Orvia/screens/widgets/confirmation_dialog.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
@@ -113,7 +114,11 @@ class _PlaylistOptionsSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final ctx = parentContext ?? context;
     final sheetRoute = ModalRoute.of(context);
-    final isProtected = CreatorsChoiceService.isCreatorsChoice(title);
+    final isProtected = CreatorsChoiceService.isCreatorsChoice(title) ||
+        title == 'Liked songs' ||
+        title == 'Liked' ||
+        title == 'Liked albums' ||
+        storageKey == 'liked_albums_collection';
     bool effectiveIsPinned = isPinned;
     if (isInternal) {
       try {
@@ -519,9 +524,38 @@ class _PlaylistOptionsSheet extends StatelessWidget {
                                     title: l10n.playlistDelete,
                                     iconColor: Colors.redAccent,
                                     titleColor: Colors.redAccent,
-                                    onTap: () => ctx
-                                        .read<LibraryItemsCubit>()
-                                        .removePlaylistByName(title),
+                                    onTap: () async {
+                                      // Wait for bottom sheet to close
+                                      await Future.any([
+                                        if (sheetRoute != null) sheetRoute.completed,
+                                        Future.delayed(const Duration(milliseconds: 300)),
+                                      ]);
+                                      if (!ctx.mounted) return;
+
+                                      final confirmed = await showConfirmDestructiveDialog(
+                                        ctx,
+                                        title: 'Delete Playlist?',
+                                        message: 'Are you sure you want to delete "$title"? This cannot be undone.',
+                                        confirmLabel: 'Delete',
+                                      );
+                                      if (!confirmed || !ctx.mounted) return;
+
+                                      final targetId = playlistId;
+                                      if (targetId != null) {
+                                        ctx
+                                            .read<LibraryItemsCubit>()
+                                            .removePlaylistById(targetId);
+                                      } else if (storageKey != null &&
+                                          storageKey!.isNotEmpty) {
+                                        ctx
+                                            .read<LibraryItemsCubit>()
+                                            .removePlaylistByName(storageKey!);
+                                      } else {
+                                        ctx
+                                            .read<LibraryItemsCubit>()
+                                            .removePlaylistByName(title);
+                                      }
+                                    },
                                   ),
                               ],
                             ),

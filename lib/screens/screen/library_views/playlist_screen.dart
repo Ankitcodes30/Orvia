@@ -11,7 +11,11 @@ import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/screens/screen/library_views/cubit/current_playlist_cubit.dart';
 import 'package:Orvia/screens/screen/library_views/more_opts_sheet.dart';
 import 'package:Orvia/blocs/downloader/cubit/downloader_cubit.dart';
+import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
+import 'package:Orvia/screens/widgets/multi_select_bar.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
+import 'package:Orvia/screens/widgets/bulk_download_sheet.dart';
+import 'package:Orvia/screens/widgets/confirmation_dialog.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
 import 'package:Orvia/screens/widgets/play_pause_widget.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
@@ -37,6 +41,75 @@ class _PlaylistViewState extends State<PlaylistView> {
   late final ScrollController _scrollController;
   bool _didTriggerInitialLoad = false;
   String? _targetPlaylistName;
+
+  // Multi-Select Mode
+  bool _isMultiSelect = false;
+  final Set<String> _selectedTrackIds = {};
+
+  void _exitMultiSelect() {
+    setState(() {
+      _isMultiSelect = false;
+      _selectedTrackIds.clear();
+    });
+  }
+
+  void _toggleSelectAll(List<Track> tracks) {
+    setState(() {
+      if (_selectedTrackIds.length == tracks.length) {
+        _selectedTrackIds.clear();
+      } else {
+        _selectedTrackIds.addAll(tracks.map((t) => t.id));
+      }
+    });
+  }
+
+  Future<void> _handleMultiLike(List<Track> tracks) async {
+    final selected = tracks.where((t) => _selectedTrackIds.contains(t.id)).toList();
+    if (selected.isEmpty) return;
+    await context.read<LibraryItemsCubit>().likeTracks(selected);
+    _exitMultiSelect();
+  }
+
+  Future<void> _handleMultiDownload(List<Track> tracks) async {
+    final selected = tracks.where((t) => _selectedTrackIds.contains(t.id)).toList();
+    if (selected.isEmpty) return;
+    final downloader = context.read<DownloaderCubit>();
+    int queued = 0;
+    for (final t in selected) {
+      if (!downloader.isDownloaded(t.id)) {
+        await downloader.downloadSong(t, showSnackbar: false);
+        queued++;
+      }
+    }
+    SnackbarService.showMessage('Added $queued song${queued == 1 ? '' : 's'} to download queue');
+    _exitMultiSelect();
+  }
+
+  Future<void> _handleMultiRemoveFromPlaylist(
+      BuildContext context, CurrentPlaylistState state) async {
+    if (CreatorsChoiceService.isCreatorsChoice(state.playlist.title)) return;
+    final count = _selectedTrackIds.length;
+    if (count == 0) return;
+
+    final confirmed = await showConfirmDestructiveDialog(
+      context,
+      title: 'Remove $count Songs from Playlist?',
+      message: 'Remove $count songs from "${state.playlist.title}"?',
+      confirmLabel: 'Remove',
+    );
+    if (confirmed && mounted) {
+      final cubit = context.read<CurrentPlaylistCubit>();
+      final selected = state.playlist.tracks
+          .where((t) => _selectedTrackIds.contains(t.id))
+          .toList();
+      for (final t in selected) {
+        cubit.removeTrack(t);
+      }
+      SnackbarService.showMessage(
+          'Removed $count song${count == 1 ? '' : 's'} from "${state.playlist.title}"');
+      _exitMultiSelect();
+    }
+  }
 
   @override
   void initState() {
@@ -143,6 +216,29 @@ class _PlaylistViewState extends State<PlaylistView> {
       backgroundColor: Default_Theme.themeColor,
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
+      bottomNavigationBar: _isMultiSelect
+          ? BlocBuilder<CurrentPlaylistCubit, CurrentPlaylistState>(
+              builder: (context, state) {
+                final isCreatorsChoice =
+                    CreatorsChoiceService.isCreatorsChoice(state.playlist.title);
+                return MultiSelectActionBar(
+                  selectedCount: _selectedTrackIds.length,
+                  totalCount: state.playlist.tracks.length,
+                  onToggleSelectAll: () =>
+                      _toggleSelectAll(state.playlist.tracks),
+                  onClose: _exitMultiSelect,
+                  contextType: isCreatorsChoice
+                      ? MultiSelectContext.discovery
+                      : MultiSelectContext.userPlaylist,
+                  onLike: () => _handleMultiLike(state.playlist.tracks),
+                  onDownload: () => _handleMultiDownload(state.playlist.tracks),
+                  onRemoveFromPlaylist: isCreatorsChoice
+                      ? null
+                      : () => _handleMultiRemoveFromPlaylist(context, state),
+                );
+              },
+            )
+          : null,
       body: BlocBuilder<CurrentPlaylistCubit, CurrentPlaylistState>(
         builder: (context, state) {
           final waitingForTarget = _targetPlaylistName != null &&
@@ -167,9 +263,12 @@ class _PlaylistViewState extends State<PlaylistView> {
           final fgColor = colors[0];
           final bgColor = colors[1];
           final tracks = state.playlist.tracks;
-          final imageUrl = tracks.isNotEmpty
-              ? (tracks.first.thumbnail.urlHigh ?? tracks.first.thumbnail.url)
-              : '';
+          final playlistThumb = state.playlist.thumbnail?.url;
+          final imageUrl = (playlistThumb != null && playlistThumb.isNotEmpty)
+              ? playlistThumb
+              : (tracks.isNotEmpty
+                  ? (tracks.first.thumbnail.urlHigh ?? tracks.first.thumbnail.url)
+                  : '');
 
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -691,6 +790,7 @@ class _PlaylistViewState extends State<PlaylistView> {
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final track = tracks[index];
+          final isSelected = _selectedTrackIds.contains(track.id);
 
           return AnimatedListItem(
             index: index,
@@ -698,7 +798,43 @@ class _PlaylistViewState extends State<PlaylistView> {
               index: index + 1,
               key: ValueKey(track.id),
               song: track,
-              onTap: () => _playFromPlaylist(context, state, index: index),
+              showOptions: !_isMultiSelect,
+              isSelectMode: _isMultiSelect,
+              isSelected: isSelected,
+              onSelectChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedTrackIds.add(track.id);
+                  } else {
+                    _selectedTrackIds.remove(track.id);
+                    if (_selectedTrackIds.isEmpty) {
+                      _isMultiSelect = false;
+                    }
+                  }
+                });
+              },
+              onLongPress: () {
+                setState(() {
+                  _isMultiSelect = true;
+                  _selectedTrackIds.add(track.id);
+                });
+              },
+              onTap: () {
+                if (_isMultiSelect) {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedTrackIds.remove(track.id);
+                      if (_selectedTrackIds.isEmpty) {
+                        _isMultiSelect = false;
+                      }
+                    } else {
+                      _selectedTrackIds.add(track.id);
+                    }
+                  });
+                  return;
+                }
+                _playFromPlaylist(context, state, index: index);
+              },
               onOptionsTap: () => showMoreBottomSheet(
                 context,
                 track,
@@ -716,11 +852,19 @@ class _PlaylistViewState extends State<PlaylistView> {
     );
   }
 
-  void _removeTrack(BuildContext context, Track track) {
+  Future<void> _removeTrack(BuildContext context, Track track) async {
     final cubit = context.read<CurrentPlaylistCubit>();
     if (CreatorsChoiceService.isCreatorsChoice(cubit.state.playlist.title)) {
       return;
     }
+    final confirmed = await showConfirmDestructiveDialog(
+      context,
+      title: 'Remove from Playlist?',
+      message: 'Remove "${track.title}" from "${cubit.state.playlist.title}"?',
+      confirmLabel: 'Remove',
+    );
+    if (!confirmed || !context.mounted) return;
+
     final l10n = AppLocalizations.of(context)!;
     cubit.removeTrack(track);
     SnackbarService.showMessage(
@@ -734,115 +878,21 @@ class _PlaylistViewState extends State<PlaylistView> {
             .tracks;
     if (items.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final rawId = state.playlist.remotePlaylist?.id ??
+        state.playlist.album?.id ??
+        state.playlist.title.toLowerCase().replaceAll(' ', '_');
+    final collectionId = 'playlist_$rawId';
+
+    showBulkDownloadSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Default_Theme.themeColor,
-        title: Text(l10n.dialogDownloadPlaylist,
-            style: const TextStyle(color: Colors.white)),
-        content: Text(
-            l10n.dialogDownloadPlaylistMessage(
-                items.length, state.playlist.title),
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.buttonCancel,
-                  style:
-                      TextStyle(color: Colors.white.withValues(alpha: 0.7)))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Default_Theme.accentColor2,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.dialogDownloadAll,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      await _showAddToDownloadProgress(context, items, l10n);
-      SnackbarService.showMessage(l10n.snackbarSongsAddedToQueue(items.length));
-    }
-  }
-
-  Future<void> _showAddToDownloadProgress(
-      BuildContext context, List<Track> items, AppLocalizations l10n) async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        int completed = 0;
-        String currentTitle = '';
-        void Function(void Function()) setStateRef = (_) {};
-
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          for (final song in items) {
-            setStateRef(() => currentTitle = song.title);
-            try {
-              context
-                  .read<DownloaderCubit>()
-                  .downloadSong(song, showSnackbar: false);
-            } catch (_) {}
-            await Future.delayed(const Duration(milliseconds: 100));
-            setStateRef(() => completed++);
-          }
-          if (dialogCtx.mounted) Navigator.of(dialogCtx).pop();
-        });
-
-        return StatefulBuilder(
-          builder: (sbCtx, sbSetState) {
-            setStateRef = sbSetState;
-            return AlertDialog(
-              backgroundColor: Default_Theme.themeColor,
-              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              content: SizedBox(
-                width: 320,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.dialogAddingToDownloadQueue,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text('$completed/${items.length} items',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7))),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: items.isEmpty
-                            ? 0
-                            : (completed / items.length).clamp(0.0, 1.0),
-                        minHeight: 6,
-                        backgroundColor: Colors.white.withValues(alpha: 0.1),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            Default_Theme.accentColor2),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(currentTitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 12)),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      collectionId: collectionId,
+      title: state.playlist.title,
+      type: 'playlist',
+      coverUrl: state.playlist.thumbnail?.url ??
+          (items.isNotEmpty
+              ? (items.first.thumbnail.urlHigh ?? items.first.thumbnail.url)
+              : null),
+      tracks: items,
     );
   }
 }

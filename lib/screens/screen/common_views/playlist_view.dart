@@ -13,6 +13,7 @@ import 'package:Orvia/plugins/blocs/content/content_state.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
+import 'package:Orvia/screens/widgets/bulk_download_sheet.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
@@ -904,6 +905,23 @@ class _PlaylistHeaderContent extends StatelessWidget {
                   isActive: isSaved,
                   tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
                   onTap: onToggleSave,
+                ),
+                _PremiumCircularButton(
+                  icon: MingCute.download_2_line,
+                  isActive: false,
+                  tooltip: 'Download Playlist',
+                  onTap: tracks.isEmpty
+                      ? () {}
+                      : () {
+                          showBulkDownloadSheet(
+                            context: context,
+                            collectionId: 'playlist_$playlistId',
+                            title: title,
+                            type: 'playlist',
+                            coverUrl: imageUrl,
+                            tracks: tracks,
+                          );
+                        },
                 ),
                 _PremiumCircularButton(
                   icon: MingCute.share_forward_line,

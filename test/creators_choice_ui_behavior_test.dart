@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:isar_community/isar.dart';
 
 import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
-import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/screen/library_views/cubit/current_playlist_cubit.dart';
@@ -16,7 +14,6 @@ import 'package:Orvia/services/db/dao/playlist_dao.dart';
 import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/db/global_db.dart';
 import 'package:Orvia/services/import_export_service.dart';
-import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -296,7 +293,7 @@ void main() {
 
       await cubit.openPlaylist(CreatorsChoiceService.playlistName, deferFirstPage: true);
       expect(cubit.state.playlist.title, equals(CreatorsChoiceService.playlistName));
-      expect(cubit.state.totalTracks, equals(47));
+      expect(cubit.state.totalTracks, equals(CreatorsChoiceService.getVerifiedTracks().length));
 
       // Attempt rename
       cubit.renameCurrentPlaylist('Renamed Playlist');
@@ -306,39 +303,42 @@ void main() {
       final allTracks = CreatorsChoiceService.getVerifiedTracks();
       final removeResult = await cubit.removeTrack(allTracks.first);
       expect(removeResult, isNull);
-      expect(cubit.state.totalTracks, equals(47));
+      expect(cubit.state.totalTracks, equals(CreatorsChoiceService.getVerifiedTracks().length));
 
       await cubit.close();
     });
   });
 
-  group("47 Tracks & Playback Integrity Tests", () {
-    test("11. Verified Creator's Choice tracks count is exactly 47 with valid playback properties", () {
+  group("Creator's Choice Tracks & Playback Integrity Tests", () {
+    test("11. Verified Creator's Choice tracks count is exactly 70 with valid playback properties", () {
       final tracks = CreatorsChoiceService.getVerifiedTracks();
-      expect(tracks.length, equals(47));
+      expect(tracks.length, equals(70));
 
       for (var i = 0; i < tracks.length; i++) {
         final t = tracks[i];
-        expect(t.id, startsWith(CreatorsChoiceService.pluginId), reason: 'Track $i should have composite saavn plugin id');
+        expect(
+          t.id.startsWith(CreatorsChoiceService.pluginId) ||
+              t.id.startsWith(CreatorsChoiceService.ytPluginId),
+          isTrue,
+          reason: 'Track $i should have valid plugin id prefix',
+        );
         expect(t.title.trim(), isNotEmpty, reason: 'Track $i title must not be empty');
         expect(t.artists, isNotEmpty, reason: 'Track $i artists must not be empty');
-        expect(t.album?.title.trim(), isNotEmpty, reason: 'Track $i album must not be empty');
         expect(t.durationMs, isNotNull, reason: 'Track $i duration must not be null');
         expect(t.durationMs! > BigInt.zero, isTrue, reason: 'Track $i duration must be positive');
         expect(t.thumbnail.url, startsWith('https://'), reason: 'Track $i thumbnail URL must be secure https');
       }
     });
 
-    test("12. Seeding populates all 47 tracks into PlaylistDAO without loss", () async {
+    test("12. Seeding populates all 70 tracks into PlaylistDAO without loss", () async {
       await CreatorsChoiceService.ensurePlaylistExists(playlistDAO);
 
       final cc = await playlistDAO.getPlaylistByName(CreatorsChoiceService.playlistName);
       expect(cc, isNotNull);
 
       final entries = await playlistDAO.getPlaylistTracks(cc!.id);
-      expect(entries.length, equals(47));
+      expect(entries.length, equals(70));
       expect(entries.first.title, equals('Naino Ne Baandhi'));
-      expect(entries.last.title, equals('Saanware'));
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/services/db/global_db.dart';
 import 'package:Orvia/services/db/mappers/collection_mapper.dart';
 import 'package:Orvia/services/db/mappers/media_item_mapper.dart';
@@ -24,13 +25,16 @@ class LibraryDAO {
   String _mediaIdOf(PlaylistDB p) {
     switch (p.type) {
       case PlaylistTypeDB.artist:
-        return (p.artists != null && p.artists!.isNotEmpty)
+        final artistId = (p.artists != null && p.artists!.isNotEmpty)
             ? (p.artists!.first.mediaId ?? '')
             : '';
+        return artistId.isNotEmpty ? artistId : p.name;
       case PlaylistTypeDB.album:
-        return p.album?.mediaId ?? '';
+        final albumId = p.album?.mediaId ?? '';
+        return albumId.isNotEmpty ? albumId : p.name;
       case PlaylistTypeDB.remotePlaylist:
-        return p.remotePlaylist?.mediaId ?? '';
+        final playlistId = p.remotePlaylist?.mediaId ?? '';
+        return playlistId.isNotEmpty ? playlistId : p.name;
       case PlaylistTypeDB.userPlaylist:
         return '';
     }
@@ -39,12 +43,17 @@ class LibraryDAO {
   /// Find an existing saved row by mediaId (not name) for the given [type].
   Future<PlaylistDB?> _findByMediaId(
       PlaylistTypeDB type, String mediaId) async {
-    if (mediaId.isEmpty) return null;
+    final cleanId = mediaId.trim();
+    if (cleanId.isEmpty) return null;
     final isar = await _db;
     final candidates =
         await isar.playlistDBs.filter().typeIndexEqualTo(type.index).findAll();
     for (final c in candidates) {
-      if (_mediaIdOf(c) == mediaId) return c;
+      final cId = _mediaIdOf(c);
+      if (cId == cleanId || c.name == cleanId) return c;
+      if (isMatchingTrackId(cId, cleanId) || isMatchingTrackId(c.name, cleanId)) {
+        return c;
+      }
     }
     return null;
   }
@@ -81,26 +90,51 @@ class LibraryDAO {
 
   /// Save (or update) an [AlbumSummary] in the library.
   Future<int> saveAlbum(AlbumSummary album,
-      {required String sourceName}) async {
-    final existing = await _findByMediaId(PlaylistTypeDB.album, album.id);
+      {required String sourceName, String? pluginId}) async {
+    final cleanTitle =
+        album.title.trim().isNotEmpty ? album.title.trim() : 'Unknown Album';
+    String effectiveId = album.id.trim();
+    if (!isStampedId(effectiveId) && pluginId != null && pluginId.isNotEmpty) {
+      effectiveId = buildMediaId(pluginId, effectiveId);
+    }
+    final effectiveAlbum = AlbumSummary(
+      id: effectiveId,
+      title: cleanTitle,
+      artists: album.artists,
+      thumbnail: album.thumbnail,
+      subtitle: album.subtitle,
+      year: album.year,
+      url: album.url,
+    );
 
-    final albumDb = albumSummaryToAlbumSummaryDB(album);
-    final row =
-        existing ?? PlaylistDB(name: album.id, type: PlaylistTypeDB.album);
+    final isar = await _db;
+    final existing =
+        await _findByMediaId(PlaylistTypeDB.album, effectiveAlbum.id);
+    final existingByName = existing == null
+        ? await isar.playlistDBs
+            .filter()
+            .nameEqualTo(effectiveAlbum.id)
+            .findFirst()
+        : null;
+
+    final albumDb = albumSummaryToAlbumSummaryDB(effectiveAlbum);
+    final row = existing ??
+        existingByName ??
+        PlaylistDB(name: effectiveAlbum.id, type: PlaylistTypeDB.album);
 
     row.type = PlaylistTypeDB.album;
-    row.name = album.id;
+    row.name = effectiveAlbum.id;
     row.subtitle = 'Album • $sourceName';
     row.thumbnail = albumDb.thumbnail;
-    row.description = album.subtitle;
+    row.description = effectiveAlbum.subtitle;
     row.artists = albumDb.artists;
     row.album = albumDb;
     row.remotePlaylist = null;
     row.updatedAt = DateTime.now();
 
-    final isar = await _db;
     final id = await isar.writeTxn(() => isar.playlistDBs.put(row));
-    log('Saved remote album "${album.title}" (id: $id)', name: 'LibraryDAO');
+    log('Saved remote album "${effectiveAlbum.title}" (id: $id)',
+        name: 'LibraryDAO');
     return id;
   }
 
@@ -216,9 +250,25 @@ class LibraryDAO {
   /// artist/album/remotePlaylist domain objects that the cubit can use to
   /// build navigation targets.
   Future<Playlist?> resolveByStorageKey(String storageKey) async {
+    final cleanKey = storageKey.trim();
+    if (cleanKey.isEmpty) return null;
     final isar = await _db;
-    final db =
-        await isar.playlistDBs.filter().nameEqualTo(storageKey).findFirst();
+    var db =
+        await isar.playlistDBs.filter().nameEqualTo(cleanKey).findFirst();
+    if (db == null) {
+      final candidates = await isar.playlistDBs
+          .filter()
+          .not()
+          .typeIndexEqualTo(PlaylistTypeDB.userPlaylist.index)
+          .findAll();
+      for (final c in candidates) {
+        final cId = _mediaIdOf(c);
+        if (cId == cleanKey || c.name == cleanKey || isMatchingTrackId(cId, cleanKey) || isMatchingTrackId(c.name, cleanKey)) {
+          db = c;
+          break;
+        }
+      }
+    }
     if (db == null) return null;
     return playlistDBToPlaylist(db);
   }

@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/db/global_db.dart';
 import 'package:Orvia/services/db/mappers/media_item_mapper.dart';
@@ -38,7 +39,7 @@ class PlaylistDAO {
     final isar = await _db;
 
     final existing =
-        isar.playlistDBs.filter().nameEqualTo(name).findFirstSync();
+        await isar.playlistDBs.filter().nameEqualTo(name).findFirst();
     if (existing != null) {
       log('Playlist "$name" already exists (id: ${existing.id})',
           name: 'PlaylistDAO');
@@ -67,7 +68,13 @@ class PlaylistDAO {
   /// Find a playlist by its case-insensitive [name] (unique index).
   Future<PlaylistDB?> getPlaylistByName(String name) async {
     final isar = await _db;
-    return isar.playlistDBs.filter().nameEqualTo(name).findFirst();
+    var row = await isar.playlistDBs.filter().nameEqualTo(name).findFirst();
+    if (row == null && name == likedSongsPlaylist) {
+      row = await isar.playlistDBs.filter().nameEqualTo(likedPlaylist).findFirst();
+    } else if (row == null && name == likedPlaylist) {
+      row = await isar.playlistDBs.filter().nameEqualTo(likedSongsPlaylist).findFirst();
+    }
+    return row;
   }
 
   /// Find a playlist by Isar internal [id].
@@ -101,6 +108,11 @@ class PlaylistDAO {
   /// Delete a playlist by id, cascading to all its [PlaylistEntryDB] rows.
   Future<void> deletePlaylist(int playlistId) async {
     final isar = await _db;
+    final playlist = await isar.playlistDBs.get(playlistId);
+    if (playlist != null && CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+      log('deletePlaylist blocked: Creator\'s Choice is immutable', name: 'PlaylistDAO');
+      return;
+    }
     await isar.writeTxn(() async {
       await isar.playlistEntryDBs
           .filter()
@@ -108,12 +120,18 @@ class PlaylistDAO {
           .deleteAll();
       await isar.playlistDBs.delete(playlistId);
     });
-    _trackDAO.purgeOrphanTracks();
+    try {
+      await _trackDAO.purgeOrphanTracks();
+    } catch (_) {}
     log('Deleted playlist id=$playlistId', name: 'PlaylistDAO');
   }
 
   /// Delete a playlist by [name].
   Future<void> deletePlaylistByName(String name) async {
+    if (CreatorsChoiceService.isCreatorsChoice(name)) {
+      log('deletePlaylistByName blocked: Creator\'s Choice is immutable', name: 'PlaylistDAO');
+      return;
+    }
     final playlist = await getPlaylistByName(name);
     if (playlist != null) await deletePlaylist(playlist.id);
   }
@@ -129,6 +147,10 @@ class PlaylistDAO {
     final isar = await _db;
     final playlist = await isar.playlistDBs.get(playlistId);
     if (playlist == null) return;
+    if (CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+      log('updatePlaylistMeta blocked: Creator\'s Choice is immutable', name: 'PlaylistDAO');
+      return;
+    }
     if (name != null) playlist.name = name;
     if (thumbnail != null) playlist.thumbnail = thumbnail;
     if (description != null) playlist.description = description;
@@ -151,6 +173,11 @@ class PlaylistDAO {
       final playlist = await isar.playlistDBs.get(playlistId);
       if (playlist == null) {
         log('addTrackToPlaylist: playlist $playlistId not found',
+            name: 'PlaylistDAO');
+        return null;
+      }
+      if (CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+        log('addTrackToPlaylist blocked: Creator\'s Choice is immutable',
             name: 'PlaylistDAO');
         return null;
       }
@@ -211,14 +238,18 @@ class PlaylistDAO {
   /// Append multiple tracks in a single transaction.
   ///
   /// Accepts domain [Track] models. Deduplicates automatically.
-  Future<void> addTracksToPlaylist(int playlistId, List<Track> tracks) async {
+  Future<void> addTracksToPlaylist(int playlistId, List<Track> tracks,
+      {bool allowSystem = false}) async {
     if (tracks.isEmpty) return;
     final isar = await _db;
     final trackIds = await _trackDAO.upsertTracks(tracks);
 
     await isar.writeTxn(() async {
       final playlist = await isar.playlistDBs.get(playlistId);
-      if (playlist == null) return;
+      if (playlist == null ||
+          (!allowSystem && CreatorsChoiceService.isCreatorsChoice(playlist.name))) {
+        return;
+      }
 
       final maxPosEntry = await isar.playlistEntryDBs
           .filter()
@@ -266,7 +297,8 @@ class PlaylistDAO {
   Future<bool> isTrackProtected(int playlistId, String mediaId) async => false;
 
   /// Replace the full ordered contents of [playlistId] with [tracks].
-  Future<void> setPlaylistTracks(int playlistId, List<Track> tracks) async {
+  Future<void> setPlaylistTracks(int playlistId, List<Track> tracks,
+      {bool allowSystem = false}) async {
     final isar = await _db;
     final workingTracks = List<Track>.from(tracks);
 
@@ -278,7 +310,10 @@ class PlaylistDAO {
 
     await isar.writeTxn(() async {
       final playlist = await isar.playlistDBs.get(playlistId);
-      if (playlist == null) return;
+      if (playlist == null ||
+          (!allowSystem && CreatorsChoiceService.isCreatorsChoice(playlist.name))) {
+        return;
+      }
 
       final existingEntries = await isar.playlistEntryDBs
           .filter()
@@ -316,11 +351,20 @@ class PlaylistDAO {
   }
 
   /// Remove a specific entry by its [entryId].
-  Future<void> removeEntry(int entryId) async {
+  Future<void> removeEntry(int entryId, {bool allowSystem = false}) async {
     final isar = await _db;
     final entry = await isar.playlistEntryDBs.get(entryId);
     if (entry == null) return;
     final playlistId = entry.playlistId;
+    if (playlistId != null) {
+      final playlist = await isar.playlistDBs.get(playlistId);
+      if (playlist != null &&
+          !allowSystem &&
+          CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+        log('removeEntry blocked: Creator\'s Choice is immutable', name: 'PlaylistDAO');
+        return;
+      }
+    }
     await entry.track.load();
     final trackMediaId = entry.track.value?.mediaId;
 
@@ -341,20 +385,46 @@ class PlaylistDAO {
   }
 
   /// Remove a track identified by [mediaId] from a playlist.
-  Future<void> removeTrackFromPlaylist(int playlistId, String mediaId) async {
+  Future<void> removeTrackFromPlaylist(int playlistId, String mediaId,
+      {bool allowSystem = false}) async {
+    final cleanId = mediaId.trim();
+    if (cleanId.isEmpty) return;
     final isar = await _db;
-    final track =
-        await isar.trackDBs.filter().mediaIdEqualTo(mediaId).findFirst();
+    final playlist = await isar.playlistDBs.get(playlistId);
+    if (playlist != null &&
+        !allowSystem &&
+        CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+      log('removeTrackFromPlaylist blocked: Creator\'s Choice is immutable',
+          name: 'PlaylistDAO');
+      return;
+    }
+    var track =
+        await isar.trackDBs.filter().mediaIdEqualTo(cleanId).findFirst();
+    if (track == null && cleanId.contains('::')) {
+      final localId = cleanId.split('::').last;
+      if (localId.isNotEmpty) {
+        track = await isar.trackDBs
+            .filter()
+            .mediaIdEndsWith('::$localId')
+            .findFirst();
+      }
+    } else if (track == null && !cleanId.contains('::')) {
+      track = await isar.trackDBs
+          .filter()
+          .mediaIdEndsWith('::$cleanId')
+          .findFirst();
+    }
     if (track == null) return;
+    final resolvedTrackId = track.id;
 
     final entry = await isar.playlistEntryDBs
         .filter()
         .playlistIdEqualTo(playlistId)
         .and()
-        .track((q) => q.idEqualTo(track.id))
+        .track((q) => q.idEqualTo(resolvedTrackId))
         .findFirst();
 
-    if (entry != null) await removeEntry(entry.id);
+    if (entry != null) await removeEntry(entry.id, allowSystem: allowSystem);
   }
 
   // ── Ordered track retrieval ────────────────────────────────────────────────
@@ -590,33 +660,97 @@ class PlaylistDAO {
   // ── Like helpers ───────────────────────────────────────────────────────────
 
   static const likedPlaylist = 'Liked';
+  static const likedSongsPlaylist = 'Liked songs';
 
-  /// Add or remove [track] from the "Liked" playlist.
+  /// Ensure the liked songs playlist exists and is migrated to 'Liked songs' if named 'Liked'.
+  Future<int> ensureLikedSongsPlaylist() async {
+    final isar = await _db;
+    final likedSongs =
+        await isar.playlistDBs.filter().nameEqualTo(likedSongsPlaylist).findFirst();
+    if (likedSongs != null) return likedSongs.id;
+
+    final legacyLiked =
+        await isar.playlistDBs.filter().nameEqualTo(likedPlaylist).findFirst();
+    if (legacyLiked != null) {
+      legacyLiked.name = likedSongsPlaylist;
+      legacyLiked.updatedAt = DateTime.now();
+      await isar.writeTxn(() => isar.playlistDBs.put(legacyLiked));
+      log('Migrated legacy "$likedPlaylist" playlist to "$likedSongsPlaylist"',
+          name: 'PlaylistDAO');
+      return legacyLiked.id;
+    }
+
+    try {
+      final playlist = PlaylistDB(
+          name: likedSongsPlaylist, type: PlaylistTypeDB.userPlaylist);
+      return await isar.writeTxn(() => isar.playlistDBs.put(playlist));
+    } catch (_) {
+      final retry = await isar.playlistDBs
+          .filter()
+          .nameEqualTo(likedSongsPlaylist)
+          .findFirst();
+      if (retry != null) return retry.id;
+      rethrow;
+    }
+  }
+
+  /// Add or remove [track] from the "Liked songs" playlist.
   ///
   /// Accepts a domain [Track] model.
   Future<void> setTrackLiked(Track track, bool liked) async {
-    final likedId = await ensurePlaylist(likedPlaylist);
+    final likedId = await ensureLikedSongsPlaylist();
     if (liked) {
       await addTrackToPlaylist(likedId, track);
     } else {
       await removeTrackFromPlaylist(likedId, track.id);
+      final legacy = await isarTrackLikedLegacy(track.id);
+      if (legacy != null && legacy != likedId) {
+        await removeTrackFromPlaylist(legacy, track.id);
+      }
     }
   }
 
-  /// Returns true if [mediaId] is in the "Liked" playlist.
-  Future<bool> isTrackLiked(String mediaId) async {
+  /// Internal helper to check legacy liked playlist id if separate.
+  Future<int?> isarTrackLikedLegacy(String mediaId) async {
     final isar = await _db;
-    final liked =
-        isar.playlistDBs.filter().nameEqualTo(likedPlaylist).findFirstSync();
+    final legacy =
+        await isar.playlistDBs.filter().nameEqualTo(likedPlaylist).findFirst();
+    return legacy?.id;
+  }
+
+  /// Returns true if [mediaId] is in the "Liked songs" (or legacy "Liked") playlist.
+  Future<bool> isTrackLiked(String mediaId) async {
+    final cleanId = mediaId.trim();
+    if (cleanId.isEmpty) return false;
+    final isar = await _db;
+    var liked =
+        await isar.playlistDBs.filter().nameEqualTo(likedSongsPlaylist).findFirst();
+    liked ??=
+        await isar.playlistDBs.filter().nameEqualTo(likedPlaylist).findFirst();
     if (liked == null) return false;
-    final track =
-        await isar.trackDBs.filter().mediaIdEqualTo(mediaId).findFirst();
+    var track =
+        await isar.trackDBs.filter().mediaIdEqualTo(cleanId).findFirst();
+    if (track == null && cleanId.contains('::')) {
+      final localId = cleanId.split('::').last;
+      if (localId.isNotEmpty) {
+        track = await isar.trackDBs
+            .filter()
+            .mediaIdEndsWith('::$localId')
+            .findFirst();
+      }
+    } else if (track == null && !cleanId.contains('::')) {
+      track = await isar.trackDBs
+          .filter()
+          .mediaIdEndsWith('::$cleanId')
+          .findFirst();
+    }
     if (track == null) return false;
+    final resolvedTrackId = track.id;
     final entry = await isar.playlistEntryDBs
         .filter()
         .playlistIdEqualTo(liked.id)
         .and()
-        .track((q) => q.idEqualTo(track.id))
+        .track((q) => q.idEqualTo(resolvedTrackId))
         .findFirst();
     return entry != null;
   }
@@ -711,12 +845,22 @@ class PlaylistDAO {
   /// Ensure a named playlist exists; return its id (creating it if needed).
   Future<int> ensurePlaylist(String name,
       {PlaylistTypeDB type = PlaylistTypeDB.userPlaylist}) async {
+    if (name == likedPlaylist || name == likedSongsPlaylist) {
+      return ensureLikedSongsPlaylist();
+    }
     final isar = await _db;
     final existing =
-        isar.playlistDBs.filter().nameEqualTo(name).findFirstSync();
+        await isar.playlistDBs.filter().nameEqualTo(name).findFirst();
     if (existing != null) return existing.id;
-    final playlist = PlaylistDB(name: name, type: type);
-    return isar.writeTxn(() => isar.playlistDBs.put(playlist));
+    try {
+      final playlist = PlaylistDB(name: name, type: type);
+      return await isar.writeTxn(() => isar.playlistDBs.put(playlist));
+    } catch (_) {
+      final retry =
+          await isar.playlistDBs.filter().nameEqualTo(name).findFirst();
+      if (retry != null) return retry.id;
+      rethrow;
+    }
   }
 
   /// Update (or set) the thumbnail URL for a playlist.
@@ -724,7 +868,7 @@ class PlaylistDAO {
     final isar = await _db;
     await isar.writeTxn(() async {
       final playlist = await isar.playlistDBs.get(playlistId);
-      if (playlist == null) return;
+      if (playlist == null || CreatorsChoiceService.isCreatorsChoice(playlist.name)) return;
       playlist.thumbnail = ArtworkDB()..url = thumbUrl;
       await isar.playlistDBs.put(playlist);
     });
@@ -736,7 +880,7 @@ class PlaylistDAO {
     final isar = await _db;
     await isar.writeTxn(() async {
       final playlist = await isar.playlistDBs.get(playlistId);
-      if (playlist == null) return;
+      if (playlist == null || CreatorsChoiceService.isCreatorsChoice(playlist.name)) return;
       playlist.isPinned = pinned;
       await isar.playlistDBs.put(playlist);
     });

@@ -3,6 +3,7 @@ import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -79,7 +80,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
       return p.type == PlaylistType.userPlaylist &&
           p.playlistName != "recently_played" &&
           p.playlistName != SettingKeys.downloadPlaylist &&
-          p.playlistName != SettingKeys.localMusicPlaylist;
+          p.playlistName != SettingKeys.localMusicPlaylist &&
+          !CreatorsChoiceService.isCreatorsChoice(p.playlistName);
     }).toList();
 
     final filtered = query.isEmpty
@@ -101,7 +103,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
     Track song,
     PlaylistItemProperties playlist,
   ) async {
-    if (_pendingPlaylistOps.value.contains(playlist.playlistName)) {
+    if (CreatorsChoiceService.isCreatorsChoice(playlist.playlistName) ||
+        _pendingPlaylistOps.value.contains(playlist.playlistName)) {
       return;
     }
 
