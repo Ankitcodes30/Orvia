@@ -445,16 +445,12 @@ class FestiveSpecialSlide extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: festival.id.contains('diwali')
-                        ? [
-                            Colors.black.withValues(alpha: 0.25),
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.15),
-                          ]
-                        : [
-                            Colors.black.withValues(alpha: 0.2),
-                            Colors.black.withValues(alpha: 0.85),
-                          ],
+                    colors: [
+                      Colors.black.withValues(alpha: 0.25),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.85),
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
                   ),
                 ),
               ),
@@ -496,81 +492,55 @@ class FestiveSpecialSlide extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (!festival.id.contains('diwali'))
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            festival.bannerTitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            festival.bannerSubtitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  'Explore Specials',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.amber.shade300,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(Icons.arrow_downward_rounded,
-                                  size: 14, color: Colors.amber.shade300),
-                            ],
-                          ),
-                        ],
-                      )
-                    else
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Tap to listen',
-                                style: TextStyle(
-                                  color: Colors.amber.shade200,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              Icon(MingCute.play_fill,
-                                  size: 10, color: Colors.amber.shade200),
-                            ],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          festival.bannerTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 3),
+                        Text(
+                          festival.bannerSubtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              MingCute.play_circle_fill,
+                              color: festival.id.contains('diwali')
+                                  ? Colors.amber.shade300
+                                  : Default_Theme.accentColor2,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${festival.tracks.isNotEmpty ? festival.tracks.length : (festival.id.contains('diwali') ? 19 : 0)} tracks • Tap to explore',
+                              style: TextStyle(
+                                color: festival.id.contains('diwali')
+                                    ? Colors.amber.shade300
+                                    : Default_Theme.accentColor2,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

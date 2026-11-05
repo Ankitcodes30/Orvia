@@ -587,13 +587,11 @@ class _StructuredHomeSections extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (activeFestival != null) ...[
+        if (activeFestival != null &&
+            !activeFestival.id.contains('diwali') &&
+            !activeFestival.name.toLowerCase().contains('diwali')) ...[
           const SizedBox(height: 14),
-          if (activeFestival.id.contains('diwali') ||
-              activeFestival.name.toLowerCase().contains('diwali'))
-            DiwaliSpecialSection(key: festiveSectionKey)
-          else
-            NavratriSpecialSection(key: festiveSectionKey),
+          NavratriSpecialSection(key: festiveSectionKey),
         ],
         // 3. Trending Now — only once
         if (trending != null) ...[

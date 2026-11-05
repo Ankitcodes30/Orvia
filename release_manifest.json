@@ -6,18 +6,18 @@
     "stable": {
       "version": "3.0.7",
       "build_number": 7,
-      "release_notes": "Expanded Iconic Indian Artists showcase featuring 7 legendary artists (Mohammed Rafi, Diljit Dosanjh, Mukesh, Udit Narayan, Asha Bhosle, Alka Yagnik, Falguni Pathak) with instant-play curated song collections, enhanced audio streaming resolution and fallback handling, seamless artist track discovery with Load More Songs, and improved in-app update reliability.",
-      "published_at": "2026-10-31T15:30:00Z",
+      "release_notes": "Diwali Festive Special with recomposed widescreen artwork & 19-track curated collection; expanded Creator's Choice featuring 70 hand-picked tracks & playlist protection; Morning Bhakti with 26 devotional tracks (6:00-10:30 AM); offline multi-selection fix across tabs; fluid desktop responsive layout; verified in-place update stability and data preservation.",
+      "published_at": "2026-11-05T20:30:00Z",
       "platforms": {
         "android": {
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk",
-          "sha256": "dc80968b1f5a5b39e05af38650a9ee44331db7dcf767a032ec1267035dc60133",
-          "file_size": 28443207
+          "sha256": "f32b5089f196a53044c71a6f03805c43fd9bfc3fb4b1b22dbbe38ae3160313d5",
+          "file_size": 66279669
         },
         "windows": {
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip",
-          "sha256": "d66437059b678e1bc88f7f329818acfc1874d7c589b9cd3e5aab338c312f57f4",
-          "file_size": 35154801
+          "sha256": "b8c8ed48721e9b72b6d63ee4be80a0cc7fefe372ca21769184367c1567795de3",
+          "file_size": 39290275
         }
       }
     }

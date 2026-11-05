@@ -12,14 +12,14 @@
 			icon: 'fa-brands fa-android',
 			name: 'Android APK',
 			href: androidDownloadLink,
-			size: '59.0 MB · Direct Download'
+			size: '63.2 MB · Direct Download'
 		},
 		{
 			platform: 'windows',
 			icon: 'fa-brands fa-windows',
 			name: 'Windows ZIP',
 			href: windowsDownloadLink,
-			size: '33.8 MB · Direct Download'
+			size: '37.5 MB · Direct Download'
 		},
 		{
 			platform: 'linux',
@@ -73,17 +73,17 @@
 
 	{#if showIntegrity}
 		<div class="integrity-card">
-			<h4><i class="fa-solid fa-circle-check text-green"></i> Release v3.0.7 Verified Notes & SHA-256</h4>
-			<p class="install-tip"><i class="fa-solid fa-circle-info"></i> Release v3.0.7 binaries are verified and served directly. Checksums below match the exact published packages.</p>
+			<h4><i class="fa-solid fa-circle-check text-green"></i> Release v3.0.7+7 Verified Notes & SHA-256</h4>
+			<p class="install-tip"><i class="fa-solid fa-circle-info"></i> Release v3.0.7+7 binaries are verified and served directly. Checksums below match the exact published packages.</p>
 			<div class="checksum-row">
-				<strong>Android Release APK (v3.0.7 · 59.0 MB):</strong>
-				<code>519D3CAE43F5F05251A109FF07DD472BD6648B1E9C350EFDD079721D1117FC75</code>
+				<strong>Android Release APK (v3.0.7+7 · 63.2 MB):</strong>
+				<code>F32B5089F196A53044C71A6F03805C43FD9BFC3FB4B1B22DBBE38AE3160313D5</code>
 				<p class="install-tip"><i class="fa-solid fa-certificate"></i> Signing: Official Production Release Key (CN=Ankit Kumbhare, O=Orvia).</p>
 				<p class="install-tip"><i class="fa-solid fa-gear"></i> Android Install: Enable "Install unknown apps" from browser settings if prompted.</p>
 			</div>
 			<div class="checksum-row">
-				<strong>Windows Portable ZIP (v3.0.7 · 33.8 MB):</strong>
-				<code>F4649C9D4C625AD0C07EC3BE07EBBABFBD0CDF0A9195CC0BEC1A25EBA2D17971</code>
+				<strong>Windows Portable ZIP (v3.0.7+7 · 37.5 MB):</strong>
+				<code>B8C8ED48721E9B72B6D63EE4BE80A0CC7FEFE372CA21769184367C1567795DE3</code>
 				<p class="install-tip"><i class="fa-brands fa-windows"></i> Windows Install: Extract the ZIP archive completely, then launch <code>orvia.exe</code>.</p>
 			</div>
 		</div>

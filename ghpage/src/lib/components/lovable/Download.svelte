@@ -87,7 +87,7 @@
 			</article>
 		</div>
 		<p id="download-availability" class="mt-6 text-sm text-[oklch(0.7_0.02_265)]" role="status">
-			Verified production release v3.0.7 is available. Direct verified downloads with SHA-256 integrity verification.
+			Verified production release v3.0.7+7 is available. Direct verified downloads with SHA-256 integrity verification.
 		</p>
 	</div>
 </section>
