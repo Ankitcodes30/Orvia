@@ -1,14 +1,12 @@
 import 'dart:io' as io;
 import 'dart:async';
+import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/blocs/player_overlay/player_overlay_cubit.dart';
 import 'package:Orvia/screens/screen/home_views/timer_view.dart';
 import 'package:Orvia/core/constants/sentinel_values.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/services/orvia_player.dart';
-import 'package:Orvia/services/db/dao/playlist_dao.dart';
-import 'package:Orvia/services/db/dao/track_dao.dart';
-import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/shortcut_indicator_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -295,10 +293,10 @@ class _KeyboardShortcutsHandlerState extends State<KeyboardShortcutsHandler> {
     final currentMedia = player.currentMedia;
     if (isTrackNull(currentMedia)) return;
 
-    final playlistDao = PlaylistDAO(DBProvider.db, TrackDAO(DBProvider.db));
-    final isCurrentlyLiked = await playlistDao.isTrackLiked(currentMedia.id);
+    final libraryCubit = context.read<LibraryItemsCubit>();
+    final isCurrentlyLiked = await libraryCubit.isTrackLiked(currentMedia);
     final newLikeState = !isCurrentlyLiked;
-    await playlistDao.setTrackLiked(currentMedia, newLikeState);
+    await libraryCubit.setTrackLiked(currentMedia, newLikeState);
     if (mounted) {
       SnackbarService.showMessage(newLikeState
           ? AppLocalizations.of(context)!.playerLiked(currentMedia.title)

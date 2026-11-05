@@ -375,11 +375,13 @@ class DBProvider {
   static const downloadPlaylist = '_DOWNLOADS';
   static const recentlyPlayedPlaylist = 'recently_played';
   static const likedPlaylist = 'Liked';
+  static const likedSongsPlaylist = 'Liked songs';
   static const localMusicPlaylist = '_LOCAL_MUSIC';
   static final standardPlaylists = [
     downloadPlaylist,
     recentlyPlayedPlaylist,
     likedPlaylist,
+    likedSongsPlaylist,
     localMusicPlaylist,
   ];
 

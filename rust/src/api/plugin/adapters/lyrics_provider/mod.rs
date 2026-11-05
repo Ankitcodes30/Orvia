@@ -64,6 +64,10 @@ impl bindgen::UtilsHost for LyricsProviderHostImpl {
         };
 
         let mut req = HTTP_CLIENT.request(method, &url);
+        req = req.header(
+            "User-Agent",
+            "OrviaMusicPlayer/3.0.7 (https://github.com/ankitcodes30/Orvia) Mozilla/5.0",
+        );
 
         if let Some(timeout) = options.timeout_seconds {
             let capped_timeout = timeout.min(30);
@@ -72,6 +76,9 @@ impl bindgen::UtilsHost for LyricsProviderHostImpl {
 
         if let Some(headers) = options.headers {
             for (k, v) in headers {
+                if k.eq_ignore_ascii_case("user-agent") && (v.contains("BEX Plugin") || v.trim().is_empty()) {
+                    continue;
+                }
                 req = req.header(k, v);
             }
         }

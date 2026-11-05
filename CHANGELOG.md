@@ -1,4 +1,18 @@
 
+## [3.0.7+7]
+
+### Added
+- **Iconic Indian Artists Showcase**: Expanded the Featured Artists section with 7 legendary Indian artists: Mohammed Rafi, Diljit Dosanjh, Mukesh, Udit Narayan, Asha Bhosle, Alka Yagnik, and Falguni Pathak, featuring curated instant-play music collections.
+- **Continuous Artist Discovery**: Seamlessly discover and listen to more tracks with the improved "Load more songs" flow in artist discographies.
+
+### Changed
+- **Playback Reliability**: Enhanced audio streaming resolution and fallback handling for smoother and uninterrupted playback across online tracks.
+- **Update Experience**: Improved in-app update checks, verified download integrity, and streamlined background update notifications.
+
+### Fixed
+- Resolved playback interruption and stream resolution failures on select featured banners.
+- Fixed duplicate track listings and improved queue continuity during search and browsing.
+
 ## [3.0.4] - 2026-05-29
 
 ### Fixed

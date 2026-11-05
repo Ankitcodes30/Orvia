@@ -3,15 +3,18 @@ import 'dart:ui';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/plugins/blocs/import/content_import_cubit.dart';
 import 'package:Orvia/plugins/blocs/import/content_import_state.dart';
+import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/screens/screen/library_views/more_opts_sheet.dart';
 import 'package:Orvia/screens/screen/common_views/album_view.dart';
+import 'package:Orvia/screens/screen/library_views/liked_albums_screen.dart';
 import 'package:Orvia/screens/screen/common_views/artist_view.dart';
 import 'package:Orvia/screens/screen/common_views/playlist_view.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -120,7 +123,7 @@ class _LibraryScreenViewState extends State<_LibraryScreenView> {
               );
             }
 
-            if (itemsState.playlists.isEmpty) {
+            if (itemsState.playlists.isEmpty && itemsState.favouriteArtists.isEmpty) {
               return CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
@@ -157,6 +160,12 @@ class _LibraryScreenViewState extends State<_LibraryScreenView> {
                   physics: const BouncingScrollPhysics(),
                   slivers: [
                     customDiscoverBar(context),
+                    if (!_isSearching && itemsState.favouriteArtists.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _FavouriteArtistsSection(
+                          artists: itemsState.favouriteArtists,
+                        ),
+                      ),
                     if (_isSearching)
                       SliverToBoxAdapter(
                         child: _buildSearchBar(),
@@ -481,6 +490,17 @@ class _ListOfPlaylists extends StatelessWidget {
 
   static Future<void> _openLibraryItem(
       BuildContext context, PlaylistItemProperties item) async {
+    if (item.playlistName == 'Liked albums' ||
+        item.storageKey == 'liked_albums_collection') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LikedAlbumsScreen(),
+        ),
+      );
+      return;
+    }
+
     if (item.type == PlaylistType.userPlaylist) {
       context.pushNamed(
         RoutePaths.playlistView,
@@ -493,43 +513,81 @@ class _ListOfPlaylists extends StatelessWidget {
     final playlist = await context
         .read<LibraryItemsCubit>()
         .resolveLibraryItem(item.storageKey);
-    if (!context.mounted || playlist == null) return;
+    if (!context.mounted) return;
+
+    if (playlist == null && item.type == PlaylistType.album) {
+      // Direct fallback from state.likedAlbums if storageKey is an album id
+      final likedAlbums = context.read<LibraryItemsCubit>().state.likedAlbums;
+      final album = likedAlbums.firstWhere(
+        (a) => a.id == item.storageKey || isMatchingTrackId(a.id, item.storageKey),
+        orElse: () => AlbumSummary(
+          id: item.storageKey,
+          title: item.playlistName,
+          artists: const [],
+          thumbnail: item.coverImgUrl != null
+              ? Artwork(
+                  url: item.coverImgUrl!,
+                  layout: ImageLayout.square,
+                )
+              : null,
+        ),
+      );
+      final resolvedAlbumPluginId = pluginIdOf(album.id);
+      final effectiveAlbumPluginId = (resolvedAlbumPluginId != null && resolvedAlbumPluginId.isNotEmpty)
+          ? resolvedAlbumPluginId
+          : kDefaultSaavnPluginId;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AlbumView(album: album, pluginId: effectiveAlbumPluginId),
+        ),
+      );
+      return;
+    }
+
+    if (playlist == null) return;
 
     switch (playlist.type) {
       case PlaylistType.artist:
         if (playlist.artists == null || playlist.artists!.isEmpty) return;
         final artist = playlist.artists!.first;
-        final pluginId = pluginIdOf(artist.id);
-        if (pluginId == null || pluginId.isEmpty) return;
+        final resolvedArtistPluginId = pluginIdOf(artist.id);
+        final effectiveArtistPluginId = (resolvedArtistPluginId != null && resolvedArtistPluginId.isNotEmpty)
+            ? resolvedArtistPluginId
+            : kDefaultSaavnPluginId;
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ArtistView(artist: artist, pluginId: pluginId),
+            builder: (_) => ArtistView(artist: artist, pluginId: effectiveArtistPluginId),
           ),
         );
         return;
       case PlaylistType.album:
         if (playlist.album == null) return;
         final album = playlist.album!;
-        final pluginId = pluginIdOf(album.id);
-        if (pluginId == null || pluginId.isEmpty) return;
+        final resolvedAlbumPluginId = pluginIdOf(album.id);
+        final effectiveAlbumPluginId = (resolvedAlbumPluginId != null && resolvedAlbumPluginId.isNotEmpty)
+            ? resolvedAlbumPluginId
+            : kDefaultSaavnPluginId;
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AlbumView(album: album, pluginId: pluginId),
+            builder: (_) => AlbumView(album: album, pluginId: effectiveAlbumPluginId),
           ),
         );
         return;
       case PlaylistType.remotePlaylist:
         if (playlist.remotePlaylist == null) return;
         final remote = playlist.remotePlaylist!;
-        final pluginId = pluginIdOf(remote.id);
-        if (pluginId == null || pluginId.isEmpty) return;
+        final resolvedRemotePluginId = pluginIdOf(remote.id);
+        final effectiveRemotePluginId = (resolvedRemotePluginId != null && resolvedRemotePluginId.isNotEmpty)
+            ? resolvedRemotePluginId
+            : kDefaultSaavnPluginId;
         await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) =>
-                OnlPlaylistView(playlist: remote, pluginId: pluginId),
+                OnlPlaylistView(playlist: remote, pluginId: effectiveRemotePluginId),
           ),
         );
         return;
@@ -539,7 +597,11 @@ class _ListOfPlaylists extends StatelessWidget {
   }
 
   Widget _buildTile(BuildContext context, PlaylistItemProperties playlist) {
+    final isLikedAlbums = playlist.playlistName == 'Liked albums' ||
+        playlist.storageKey == 'liked_albums_collection';
+
     void openMenu() {
+      if (isLikedAlbums) return;
       showPlaylistOptsExtSheet(
         context,
         playlist.playlistName,
@@ -552,12 +614,12 @@ class _ListOfPlaylists extends StatelessWidget {
 
     return LibItemCard(
       onTap: isReorderable ? null : () => _openLibraryItem(context, playlist),
-      onSecondaryTap: isReorderable ? null : openMenu,
-      onLongPress: isReorderable
+      onSecondaryTap: isReorderable || isLikedAlbums ? null : openMenu,
+      onLongPress: isReorderable || isLikedAlbums
           ? null
           : () => onEnterReorder != null ? onEnterReorder!() : openMenu,
-      onMenuTap: isReorderable ? null : openMenu,
-      showMenuButton: !isReorderable,
+      onMenuTap: isReorderable || isLikedAlbums ? null : openMenu,
+      showMenuButton: !isReorderable && !isLikedAlbums,
       title: playlist.playlistName,
       coverArt: playlist.coverImgUrl ?? '',
       subtitle: playlist.subTitle ?? '',
@@ -657,5 +719,121 @@ Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
     },
     child: child,
   );
+}
+
+class _FavouriteArtistsSection extends StatelessWidget {
+  final List<ArtistSummary> artists;
+
+  const _FavouriteArtistsSection({required this.artists});
+
+  @override
+  Widget build(BuildContext context) {
+    if (artists.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(
+                MingCute.heart_fill,
+                size: 16,
+                color: Default_Theme.accentColor2,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Favourite Artists',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Default_Theme.primaryColor1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '(${artists.length})',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: artists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final artist = artists[index];
+              return InkWell(
+                borderRadius: BorderRadius.circular(36),
+                onTap: () {
+                  final resolvedPluginId = pluginIdOf(artist.id);
+                  final effectivePluginId = (resolvedPluginId != null && resolvedPluginId.isNotEmpty)
+                      ? resolvedPluginId
+                      : kDefaultSaavnPluginId;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ArtistView(
+                        artist: artist,
+                        pluginId: effectivePluginId,
+                      ),
+                    ),
+                  );
+                },
+                child: SizedBox(
+                  width: 68,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Default_Theme.accentColor2.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: LoadImageCached(
+                            imageUrl: artist.thumbnail?.url ?? '',
+                            fallbackUrl: artist.thumbnail?.urlLow,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        artist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Default_Theme.primaryColor1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
 }
 

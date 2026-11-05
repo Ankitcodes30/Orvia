@@ -58,6 +58,8 @@ class LocalMusicService {
     SettingKeys.downloadPlaylist,
     SettingKeys.recentlyPlayedPlaylist,
     PlaylistDAO.likedPlaylist,
+    PlaylistDAO.likedSongsPlaylist,
+    'Liked albums',
   };
 
   static bool supportsPhotoManagerThumbnail(AssetType type) {

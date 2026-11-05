@@ -17,6 +17,7 @@ class RoutePaths {
   static const String testScreen = "TestPage";
   static const String playerScreen = "MusicPlayer";
   static const String playlistView = "PlaylistView";
+  static const String likedAlbumsView = "LikedAlbumsView";
   static const String addToPlaylistScreen = "AddToPlaylist";
 
   // ── Sub-routes ──────────────────────────────────────────────────────────────

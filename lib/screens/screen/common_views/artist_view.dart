@@ -3,7 +3,6 @@ import 'dart:ui';
 
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/core/di/service_locator.dart';
-import 'package:Orvia/core/events/global_event_bus.dart';
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/plugins/blocs/content/content_bloc.dart';
@@ -23,8 +22,10 @@ import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/screens/widgets/load_more_songs_tile.dart';
+import 'package:Orvia/services/catalogue/curated_artists_service.dart';
 import 'package:Orvia/core/utils/track_identity.dart';
 import 'package:Orvia/services/catalogue/curated_playlists_service.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -42,24 +43,117 @@ class ArtistView extends StatefulWidget {
     return str.toLowerCase().replaceAll(RegExp(r'[^a-z0-9.]'), '');
   }
 
-  static bool isTrackRelatedToArtist(Track track, String artistName, {String? artistId}) {
+  /// Checks whether an artist credit string denotes exclusively a non-vocal role
+
+  /// (e.g. composer, lyricist, music director, producer) without any vocal performance credit.
+
+  static bool _hasNonVocalRoleOnly(String rawName) {
+    final lower = rawName.toLowerCase();
+
+    final hasNonVocal = RegExp(
+      r'\b(composer|composed|lyricist|lyrics|lyric|music\s*director|music\s*by|written\s*by|writer|producer|produced\s*by|arranger|orchestra|soundtrack|score)\b',
+    ).hasMatch(lower);
+
+    final hasVocal = RegExp(
+      r'\b(singer|vocalist|vocals|vocal|feat|ft|featuring|performed\s*by|performer|duet)\b',
+    ).hasMatch(lower);
+
+    return hasNonVocal && !hasVocal;
+  }
+
+  /// Strips role indicators and parenthetical role annotations from artist names.
+
+  static String _stripRoleSuffix(String rawName) {
+    return rawName
+        .replaceAll(RegExp(r'[\(\[\{][^\)\]\}]*[\)\]\}]'), '')
+        .replaceAll(
+          RegExp(
+            r'\b(singer|vocalist|vocals|vocal|feat|ft|featuring|performed\s*by|performer|duet|composer|composed|lyricist|lyrics|music\s*director|producer)\b',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+  }
+
+  /// Determines if an album title or structure represents a compilation album
+
+  /// where individual tracks must not inherit album-level artist credits.
+
+  static bool _isCompilationAlbum(AlbumSummary? album) {
+    if (album == null) return false;
+
+    final title = album.title.toLowerCase();
+
+    if (title.contains('compilation') ||
+        title.contains('various artists') ||
+        title.contains('tribute') ||
+        title.contains('homage') ||
+        title.contains('best of') ||
+        title.contains('hits of') ||
+        title.contains('greatest hits') ||
+        title.contains('top 100') ||
+        title.contains('top 50') ||
+        title.contains('anthology') ||
+        title.contains('soundtrack') ||
+        title.contains('ost') ||
+        title.contains('collection')) {
+      return true;
+    }
+
+    for (final a in album.artists) {
+      final name = a.name.toLowerCase();
+
+      if (name.contains('various') || name.contains('soundtrack')) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool isTrackRelatedToArtist(Track track, String artistName,
+      {String? artistId}) {
     final cleanTarget = _normalizeArtistString(artistName);
+
     if (cleanTarget.isEmpty) return true;
 
+    // Detect creator channels or handles (e.g. A.K. MUSIC WORLD or @channel)
+
+    final isAkChannel = cleanTarget.contains('akmusicworld') ||
+        (artistId != null &&
+            (_normalizeArtistString(artistId).contains('akmusicworld') ||
+                artistId.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+                artistId.contains('UC55Gz5tT6m3_rWd3l1_PjXw')));
+
+    final isChannelTarget = isAkChannel ||
+        artistName.trim().startsWith('@') ||
+        (artistId != null && artistId.startsWith('@'));
+
     // 1. Direct canonical channel/artist ID match if available.
-    // Only enforce strict ID rejection when cleanTargetId is an actual opaque provider ID
+
+    // Enforce ID rejection only when cleanTargetId is an actual opaque provider ID
+
     // (e.g. YouTube "UC..." or numeric ID), NOT a channel handle like "@a.k.musicworld199".
+
     if (artistId != null && artistId.isNotEmpty) {
       final cleanTargetId =
           artistId.contains('::') ? artistId.split('::').last : artistId;
+
       final targetIsYt = cleanTargetId.startsWith('UC');
+
       final targetIsNumeric = RegExp(r'^\d+$').hasMatch(cleanTargetId);
+
       bool hasSameFormatArtistId = false;
 
       for (final a in track.artists) {
+        if (_hasNonVocalRoleOnly(a.name)) continue;
+
         final aId = a.id.contains('::') ? a.id.split('::').last : a.id;
+
         if (aId.isNotEmpty) {
           if (aId == cleanTargetId) return true;
+
           if ((targetIsYt && aId.startsWith('UC')) ||
               (targetIsNumeric && RegExp(r'^\d+$').hasMatch(aId))) {
             hasSameFormatArtistId = true;
@@ -67,11 +161,17 @@ class ArtistView extends StatefulWidget {
         }
       }
 
-      if (track.album?.artists != null) {
+      // Check album artists ONLY for non-compilation studio/creator albums
+
+      if (track.album != null && !_isCompilationAlbum(track.album)) {
         for (final a in track.album!.artists) {
+          if (_hasNonVocalRoleOnly(a.name)) continue;
+
           final aId = a.id.contains('::') ? a.id.split('::').last : a.id;
+
           if (aId.isNotEmpty) {
             if (aId == cleanTargetId) return true;
+
             if ((targetIsYt && aId.startsWith('UC')) ||
                 (targetIsNumeric && RegExp(r'^\d+$').hasMatch(aId))) {
               hasSameFormatArtistId = true;
@@ -81,23 +181,26 @@ class ArtistView extends StatefulWidget {
       }
 
       // If the candidate track has an ID from the same provider format (e.g. both YouTube UC... or both numeric),
+
       // and none matched cleanTargetId, reject it as a different channel/artist within that same provider.
+
       if (hasSameFormatArtistId) {
         return false;
       }
     }
 
     // Special support for A.K. MUSIC WORLD channel and handle variants (@a.k.musicworld199)
-    final isAkChannel = cleanTarget.contains('akmusicworld') ||
-        (artistId != null &&
-            _normalizeArtistString(artistId).contains('akmusicworld'));
+
     if (isAkChannel) {
       final targetHasDots = artistName.contains('.');
+
       final cleanTitle = _normalizeArtistString(track.title);
+
       final cleanTitleWithDots = _normalizeArtistStringWithDots(track.title);
-      final cleanArtists = track.artists
-          .map((a) => _normalizeArtistString(a.name))
-          .join(' ');
+
+      final cleanArtists =
+          track.artists.map((a) => _normalizeArtistString(a.name)).join(' ');
+
       final cleanArtistsWithDots = track.artists
           .map((a) => _normalizeArtistStringWithDots(a.name))
           .join(' ');
@@ -118,24 +221,34 @@ class ArtistView extends StatefulWidget {
       }
     }
 
-    // 2. Strict normalized name match fallback (only when no IDs are present on track).
-    // Note: Dotted and non-dotted variants of the same channel name are accepted
-    // (e.g. "A.K. MUSIC WORLD" vs "AK MUSIC WORLD").
+    // 2. Strict normalized name match on track.artists (performers of the recording).
+
     final targetHasDots = artistName.contains('.');
+
     final cleanTargetWithDots = _normalizeArtistStringWithDots(artistName);
 
     for (final a in track.artists) {
       if (TrackIdentity.isViewCountOrMetadataArtifact(a.name)) continue;
-      final names = a.name.split(RegExp(r'[,&/]|(\bfeat\b)|(\bft\b)', caseSensitive: false));
-      for (final rawName in names) {
+
+      if (_hasNonVocalRoleOnly(a.name)) continue;
+
+      final stripped = _stripRoleSuffix(a.name);
+
+      final candidateNames = (stripped.isNotEmpty ? stripped : a.name)
+          .split(RegExp(r'[,&/]|(\bfeat\b)|(\bft\b)', caseSensitive: false));
+
+      for (final rawName in candidateNames) {
         if (TrackIdentity.isViewCountOrMetadataArtifact(rawName)) continue;
+
         if (targetHasDots) {
           final cleanAWithDots = _normalizeArtistStringWithDots(rawName);
+
           if (cleanAWithDots == cleanTargetWithDots) {
             return true;
           }
         } else {
           final cleanA = _normalizeArtistString(rawName);
+
           if (cleanA.isNotEmpty && cleanA == cleanTarget) {
             return true;
           }
@@ -143,19 +256,31 @@ class ArtistView extends StatefulWidget {
       }
     }
 
-    if (track.album?.artists != null) {
+    // 3. Check album artists ONLY for non-compilation studio/creator albums
+
+    if (track.album != null && !_isCompilationAlbum(track.album)) {
       for (final a in track.album!.artists) {
         if (TrackIdentity.isViewCountOrMetadataArtifact(a.name)) continue;
-        final names = a.name.split(RegExp(r'[,&/]|(\bfeat\b)|(\bft\b)', caseSensitive: false));
-        for (final rawName in names) {
+
+        if (_hasNonVocalRoleOnly(a.name)) continue;
+
+        final stripped = _stripRoleSuffix(a.name);
+
+        final candidateNames = (stripped.isNotEmpty ? stripped : a.name)
+            .split(RegExp(r'[,&/]|(\bfeat\b)|(\bft\b)', caseSensitive: false));
+
+        for (final rawName in candidateNames) {
           if (TrackIdentity.isViewCountOrMetadataArtifact(rawName)) continue;
+
           if (targetHasDots) {
             final cleanAWithDots = _normalizeArtistStringWithDots(rawName);
+
             if (cleanAWithDots == cleanTargetWithDots) {
               return true;
             }
           } else {
             final cleanA = _normalizeArtistString(rawName);
+
             if (cleanA.isNotEmpty && cleanA == cleanTarget) {
               return true;
             }
@@ -164,16 +289,23 @@ class ArtistView extends StatefulWidget {
       }
     }
 
-    // 3. Fallback: if artist/channel name is embedded in track title
-    if (targetHasDots) {
-      final cleanTitleWithDots = _normalizeArtistStringWithDots(track.title);
-      if (cleanTitleWithDots.contains(cleanTargetWithDots)) {
-        return true;
-      }
-    } else {
-      final cleanTitle = _normalizeArtistString(track.title);
-      if (cleanTarget.isNotEmpty && cleanTitle.contains(cleanTarget)) {
-        return true;
+    // 4. Restricted title-matching fallback: ONLY for creator channels / handles
+
+    // Standard singers/vocalists never use title fallback to prevent compilation/tribute false positives.
+
+    if (isChannelTarget) {
+      if (targetHasDots) {
+        final cleanTitleWithDots = _normalizeArtistStringWithDots(track.title);
+
+        if (cleanTitleWithDots.contains(cleanTargetWithDots)) {
+          return true;
+        }
+      } else {
+        final cleanTitle = _normalizeArtistString(track.title);
+
+        if (cleanTarget.isNotEmpty && cleanTitle.contains(cleanTarget)) {
+          return true;
+        }
       }
     }
 
@@ -204,16 +336,25 @@ class _ArtistViewState extends State<ArtistView> {
     _searchController = TextEditingController();
     _contentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (!context.read<PluginBloc>().state.isPluginLoaded(widget.pluginId)) {
-        GlobalEventBus.instance.emitError(
-          AppError.pluginNotLoaded(pluginId: widget.pluginId),
-        );
-        return;
+      final effectivePluginId =
+          widget.pluginId.isNotEmpty ? widget.pluginId : kDefaultSaavnPluginId;
+      final pluginBloc = context.read<PluginBloc>();
+      if (!pluginBloc.state.isPluginLoaded(effectivePluginId)) {
+        if (pluginBloc.state.isLoading ||
+            pluginBloc.state.availablePlugins
+                .any((p) => p.manifest.id == effectivePluginId)) {
+          try {
+            await pluginBloc.stream
+                .firstWhere((s) => s.isPluginLoaded(effectivePluginId))
+                .timeout(const Duration(seconds: 3));
+          } catch (_) {}
+        }
       }
+      if (!mounted) return;
       _contentBloc.add(LoadArtistDetails(
-        pluginId: widget.pluginId,
+        pluginId: effectivePluginId,
         artistId: widget.artist.id,
       ));
       _fetchInitialCatalogue();
@@ -236,10 +377,20 @@ class _ArtistViewState extends State<ArtistView> {
         widget.artist.id
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9]'), '')
-            .contains('akmusicworld');
+            .contains('akmusicworld') ||
+        widget.artist.id.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+        widget.artist.id.contains('UC55Gz5tT6m3_rWd3l1_PjXw');
 
     if (isAkChannel && _catalogueTracks.isEmpty) {
       _catalogueTracks.addAll(CuratedPlaylistsService.getAkMusicWorldTracks());
+    }
+
+    final curated = CuratedArtistsService.getCuratedTracksForArtist(
+      widget.artist.name,
+      artistId: widget.artist.id,
+    );
+    if (curated != null && _catalogueTracks.isEmpty) {
+      _catalogueTracks.addAll(curated);
     }
 
     final effectiveQuery = isAkChannel
@@ -266,11 +417,14 @@ class _ArtistViewState extends State<ArtistView> {
           final tracks = <Track>[];
           if (isAkChannel) {
             tracks.addAll(CuratedPlaylistsService.getAkMusicWorldTracks());
+          } else if (curated != null) {
+            tracks.addAll(curated);
           }
           for (final item in results.items) {
             item.when(
               track: (t) {
-                if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name, artistId: widget.artist.id)) {
+                if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name,
+                    artistId: widget.artist.id)) {
                   tracks.add(t);
                 }
               },
@@ -279,7 +433,8 @@ class _ArtistViewState extends State<ArtistView> {
               playlist: (_) {},
             );
           }
-          final deduplicated = TrackIdentity.deduplicateTracks(tracks);
+          final deduplicated =
+              TrackIdentity.deduplicateTracksSemantically(tracks);
           setState(() {
             _catalogueTracks
               ..clear()
@@ -320,7 +475,9 @@ class _ArtistViewState extends State<ArtistView> {
   }
 
   Future<void> _loadMoreCatalogue() async {
-    if (_isLoadingMoreTracks || _nextPageToken == null || _searchQuery.isNotEmpty) {
+    if (_isLoadingMoreTracks ||
+        _nextPageToken == null ||
+        _searchQuery.isNotEmpty) {
       return;
     }
     setState(() {
@@ -329,67 +486,99 @@ class _ArtistViewState extends State<ArtistView> {
     });
 
     try {
-      final response = await ServiceLocator.pluginService.execute(
-        pluginId: widget.pluginId,
-        request: PluginRequest.contentResolver(
-          ContentResolverCommand.search(
-            query: widget.artist.name,
-            filter: ContentSearchFilter.track,
-            pageToken: _nextPageToken,
+      const targetBatchSize = 10;
+      const maxPagesToFetch = 4;
+      var pagesFetched = 0;
+      final accumulatedNewTracks = <Track>[];
+      var currentToken = _nextPageToken;
+
+      final existingForDedup = [
+        ...(_contentBloc.state.artistDetails?.topTracks ?? const <Track>[]),
+        ..._catalogueTracks,
+      ];
+
+      while (currentToken != null &&
+          accumulatedNewTracks.length < targetBatchSize &&
+          pagesFetched < maxPagesToFetch) {
+        pagesFetched++;
+        final response = await ServiceLocator.pluginService.execute(
+          pluginId: widget.pluginId,
+          request: PluginRequest.contentResolver(
+            ContentResolverCommand.search(
+              query: widget.artist.name,
+              filter: ContentSearchFilter.track,
+              pageToken: currentToken,
+            ),
           ),
-        ),
-      );
+        );
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      response.when(
-        search: (results) {
-          final newTracks = <Track>[];
-          for (final item in results.items) {
-            item.when(
-              track: (t) {
-                if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name, artistId: widget.artist.id)) {
-                  newTracks.add(t);
-                }
-              },
-              album: (_) {},
-              artist: (_) {},
-              playlist: (_) {},
-            );
-          }
-          final deduplicated = TrackIdentity.deduplicateTracks(
-            newTracks,
-            existingTracks: _catalogueTracks,
-          );
+        String? nextToken;
+        final pageTracks = <Track>[];
 
-          setState(() {
-            _catalogueTracks.addAll(deduplicated);
-            _nextPageToken = results.nextPageToken;
-            _isLoadingMoreTracks = false;
-            _catalogueLoadMoreError = null;
-          });
-        },
-        trackDetails: (_) {},
-        albumDetails: (_) {},
-        artistDetails: (_) {},
-        playlistDetails: (_) {},
-        streams: (_) {},
-        moreTracks: (_) {},
-        moreAlbums: (_) {},
-        homeSections: (_) {},
-        loadMoreItems: (_) {},
-        charts: (_) {},
-        chartDetails: (_) {},
-        segments: (_) {},
-        lyricsResult: (_) {},
-        lyricsSearchResults: (_) {},
-        lyricsById: (_, __) {},
-        suggestions: (_) {},
-        canHandle: (_) {},
-        collectionInfo: (_) {},
-        importTracks: (_) {},
-        ack: () {},
-      );
+        response.when(
+          search: (results) {
+            nextToken = results.nextPageToken;
+            for (final item in results.items) {
+              item.when(
+                track: (t) {
+                  if (ArtistView.isTrackRelatedToArtist(t, widget.artist.name,
+                      artistId: widget.artist.id)) {
+                    pageTracks.add(t);
+                  }
+                },
+                album: (_) {},
+                artist: (_) {},
+                playlist: (_) {},
+              );
+            }
+          },
+          trackDetails: (_) {},
+          albumDetails: (_) {},
+          artistDetails: (_) {},
+          playlistDetails: (_) {},
+          streams: (_) {},
+          moreTracks: (_) {},
+          moreAlbums: (_) {},
+          homeSections: (_) {},
+          loadMoreItems: (_) {},
+          charts: (_) {},
+          chartDetails: (_) {},
+          segments: (_) {},
+          lyricsResult: (_) {},
+          lyricsSearchResults: (_) {},
+          lyricsById: (_, __) {},
+          suggestions: (_) {},
+          canHandle: (_) {},
+          collectionInfo: (_) {},
+          importTracks: (_) {},
+          ack: () {},
+        );
+
+        final deduplicated = TrackIdentity.deduplicateTracksSemantically(
+          pageTracks,
+          existingTracks: [
+            ...existingForDedup,
+            ...accumulatedNewTracks,
+          ],
+        );
+
+        accumulatedNewTracks.addAll(deduplicated);
+        currentToken = nextToken;
+        if (currentToken == null || nextToken == null) {
+          break;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _catalogueTracks.addAll(accumulatedNewTracks);
+          _nextPageToken = currentToken;
+          _isLoadingMoreTracks = false;
+          _catalogueLoadMoreError = null;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -659,7 +848,10 @@ class _ArtistViewState extends State<ArtistView> {
                       unselectedLabelStyle: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600)
                           .merge(Default_Theme.secondoryTextStyle),
-                      tabs: const [Tab(text: 'Popular Songs'), Tab(text: 'Albums')],
+                      tabs: const [
+                        Tab(text: 'Popular Songs'),
+                        Tab(text: 'Albums')
+                      ],
                     ),
                   ),
                 ),
@@ -680,17 +872,72 @@ class _ArtistViewState extends State<ArtistView> {
           bloc: _contentBloc,
           builder: (context, state) {
             final details = state.artistDetails;
-            final artistSummary = details?.summary ?? widget.artist;
+            final candidateSummary = details?.summary;
+            final isCandidateNameValid = candidateSummary != null &&
+                candidateSummary.name.trim().isNotEmpty &&
+                candidateSummary.name.trim().toLowerCase() != 'unknown artist' &&
+                !TrackIdentity.isViewCountOrMetadataArtifact(
+                    candidateSummary.name);
+
+            final isAk = widget.artist.name
+                    .toLowerCase()
+                    .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                    .contains('akmusicworld') ||
+                widget.artist.id
+                    .toLowerCase()
+                    .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                    .contains('akmusicworld') ||
+                widget.artist.id.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+                widget.artist.id.contains('UC55Gz5tT6m3_rWd3l1_PjXw') ||
+                (candidateSummary != null &&
+                    (candidateSummary.name
+                            .toLowerCase()
+                            .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                            .contains('akmusicworld') ||
+                        candidateSummary.id
+                            .toLowerCase()
+                            .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                            .contains('akmusicworld') ||
+                        candidateSummary.id
+                            .contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+                        candidateSummary.id.contains('UC55Gz5tT6m3_rWd3l1_PjXw')));
+
+            final artistSummary = isAk
+                ? ArtistSummary(
+                    id: widget.artist.id.isNotEmpty
+                        ? widget.artist.id
+                        : (candidateSummary?.id ?? ''),
+                    name: 'A.K. MUSIC WORLD',
+                    thumbnail: const Artwork(
+                      url: 'assets/icons/AnkitLogo.png',
+                      urlLow: 'assets/icons/AnkitLogo.png',
+                      urlHigh: 'assets/icons/AnkitLogo.png',
+                      layout: ImageLayout.square,
+                    ),
+                    subtitle:
+                        widget.artist.subtitle ?? candidateSummary?.subtitle,
+                    url: widget.artist.url ?? candidateSummary?.url,
+                  )
+                : (isCandidateNameValid ? candidateSummary : widget.artist);
+
             final topTracks = details?.topTracks ?? [];
             final albums = details?.albums.items ?? [];
-            final imageUrl = artistSummary.thumbnail?.urlHigh ??
+            final rawImageUrl = artistSummary.thumbnail?.urlHigh ??
                 artistSummary.thumbnail?.url ??
                 widget.artist.thumbnail?.urlHigh ??
                 widget.artist.thumbnail?.url ??
                 '';
+            final imageUrl = isAk ||
+                    rawImageUrl.isEmpty ||
+                    rawImageUrl.contains('placeholder') ||
+                    _ArtistHeaderContent.isGenericProviderIcon(rawImageUrl)
+                ? (isAk ? 'assets/icons/AnkitLogo.png' : rawImageUrl)
+                : rawImageUrl;
 
-            final allTracks =
-                _catalogueTracks.isNotEmpty ? _catalogueTracks : topTracks;
+            final allTracks = TrackIdentity.deduplicateTracksSemantically([
+              ...topTracks,
+              ..._catalogueTracks,
+            ]);
             final artistMeta = <String>[
               if (allTracks.isNotEmpty)
                 '${allTracks.length} Song${allTracks.length == 1 ? '' : 's'}',
@@ -703,17 +950,24 @@ class _ArtistViewState extends State<ArtistView> {
                 return _ArtistHeaderContent(
                   isMobile: constraints.maxWidth < 750,
                   imageUrl: imageUrl,
-                  fallbackUrl: artistSummary.thumbnail?.url,
-                  title: artistSummary.name,
-                  subtitle: _cleanText(artistSummary.subtitle),
+                  fallbackUrl: isAk
+                      ? 'assets/icons/AnkitLogo.png'
+                      : (artistSummary.thumbnail?.url ??
+                          widget.artist.thumbnail?.url),
+                  title: isAk ? 'A.K. MUSIC WORLD' : artistSummary.name,
+                  subtitle: _cleanText(
+                      artistSummary.subtitle ?? widget.artist.subtitle),
                   meta: artistMeta,
                   description: _cleanText(details?.description),
                   pluginId: widget.pluginId,
-                  artistId: artistSummary.id,
+                  artistId: artistSummary.id.isNotEmpty
+                      ? artistSummary.id
+                      : widget.artist.id,
                   topTracks: allTracks,
                   isSaved: _isSaved,
-                  url: artistSummary.url,
+                  url: artistSummary.url ?? widget.artist.url,
                   onToggleSave: _toggleSaveState,
+                  isAk: isAk,
                 );
               },
             );
@@ -731,7 +985,8 @@ class _ArtistViewState extends State<ArtistView> {
             _catalogueTracks.isEmpty) {
           if (_isLoadingCatalogue) {
             return const Center(
-              child: CircularProgressIndicator(color: Default_Theme.accentColor2),
+              child:
+                  CircularProgressIndicator(color: Default_Theme.accentColor2),
             );
           }
           return Center(
@@ -788,9 +1043,13 @@ class _ArtistViewState extends State<ArtistView> {
         }
 
         final details = state.artistDetails;
-        final topTracks = details?.topTracks ?? [];
+        final rawTopTracks = details?.topTracks ?? [];
         final albums = details?.albums.items ?? [];
-        final artistName = details?.summary.name ?? widget.artist.name;
+        final candidateSummary = details?.summary;
+        final isCandidateValid = candidateSummary != null &&
+            candidateSummary.name.trim().isNotEmpty &&
+            candidateSummary.name.trim().toLowerCase() != 'unknown artist' &&
+            !TrackIdentity.isViewCountOrMetadataArtifact(candidateSummary.name);
 
         final isAk = widget.artist.name
                 .toLowerCase()
@@ -799,10 +1058,56 @@ class _ArtistViewState extends State<ArtistView> {
             widget.artist.id
                 .toLowerCase()
                 .replaceAll(RegExp(r'[^a-z0-9]'), '')
-                .contains('akmusicworld');
+                .contains('akmusicworld') ||
+            widget.artist.id.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+            widget.artist.id.contains('UC55Gz5tT6m3_rWd3l1_PjXw') ||
+            (candidateSummary != null &&
+                (candidateSummary.name
+                        .toLowerCase()
+                        .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                        .contains('akmusicworld') ||
+                    candidateSummary.id
+                        .toLowerCase()
+                        .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                        .contains('akmusicworld') ||
+                    candidateSummary.id.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+                    candidateSummary.id.contains('UC55Gz5tT6m3_rWd3l1_PjXw')));
+
+        final artistName = isAk
+            ? 'A.K. MUSIC WORLD'
+            : (isCandidateValid ? candidateSummary.name : widget.artist.name);
+
+        final isAsha =
+            widget.artist.name.toLowerCase().contains('asha bhosle') ||
+                widget.artist.id.contains('455166');
+
+        const kAshaExcludedAlbums = {
+          'dilwale dulhania le jayenge',
+          'mere jeevan saathi',
+          'monica, o my darling',
+          'monica o my darling',
+          'run down the city',
+        };
+
+        // Filter top tracks strictly through artist relation check (rejection of irrelevant songs)
+        final topTracks = rawTopTracks.where((t) {
+          return ArtistView.isTrackRelatedToArtist(t, artistName,
+              artistId: widget.artist.id);
+        }).toList();
+
+        final allTracks = TrackIdentity.deduplicateTracksSemantically([
+          ...topTracks,
+          ..._catalogueTracks,
+        ]);
 
         final effectiveAlbums = <AlbumSummary>[
-          ...albums,
+          ...albums.where((alb) {
+            final normTitle = alb.title.toLowerCase().trim();
+            if (isAsha && kAshaExcludedAlbums.contains(normTitle)) {
+              return false;
+            }
+            return true;
+          }),
           if (isAk && !albums.any((a) => a.title.contains('A.K. Music World')))
             AlbumSummary(
               id: 'ak_music_world_piano_covers',
@@ -823,6 +1128,49 @@ class _ArtistViewState extends State<ArtistView> {
               ),
             ),
         ];
+
+        if (effectiveAlbums.isEmpty) {
+          final seenAlbumMap = <String, AlbumSummary>{};
+          for (final t in allTracks) {
+            final alb = t.album;
+            if (alb != null && alb.title.trim().isNotEmpty) {
+              final key = alb.title.toLowerCase().trim();
+              if (isAsha && kAshaExcludedAlbums.contains(key)) {
+                continue;
+              }
+              final candidateArt =
+                  TrackIdentity.isValidArtworkUrl(alb.thumbnail?.url)
+                      ? alb.thumbnail
+                      : (TrackIdentity.isValidArtworkUrl(t.thumbnail.url)
+                          ? t.thumbnail
+                          : null);
+
+              if (!seenAlbumMap.containsKey(key)) {
+                seenAlbumMap[key] = AlbumSummary(
+                  id: alb.id.isNotEmpty ? alb.id : t.id,
+                  title: alb.title,
+                  artists: [
+                    ArtistSummary(
+                        id: widget.artist.id, name: widget.artist.name)
+                  ],
+                  thumbnail: candidateArt ?? alb.thumbnail ?? t.thumbnail,
+                );
+              } else {
+                final existing = seenAlbumMap[key]!;
+                if (!TrackIdentity.isValidArtworkUrl(existing.thumbnail?.url) &&
+                    candidateArt != null) {
+                  seenAlbumMap[key] = AlbumSummary(
+                    id: existing.id,
+                    title: existing.title,
+                    artists: existing.artists,
+                    thumbnail: candidateArt,
+                  );
+                }
+              }
+            }
+          }
+          effectiveAlbums.addAll(seenAlbumMap.values);
+        }
 
         return TabBarView(
           children: [
@@ -1000,7 +1348,10 @@ class _ArtistViewState extends State<ArtistView> {
                       return AnimatedListItem(
                         index: index,
                         child: AlbumCard(
-                            album: albums[index], pluginId: widget.pluginId),
+                            album: albums[index],
+                            pluginId: widget.pluginId.isNotEmpty
+                                ? widget.pluginId
+                                : kDefaultSaavnPluginId),
                       );
                     },
                     childCount: albums.length +
@@ -1033,6 +1384,7 @@ class _ArtistHeaderContent extends StatelessWidget {
   final bool isSaved;
   final String? url;
   final VoidCallback onToggleSave;
+  final bool isAk;
 
   const _ArtistHeaderContent({
     required this.isMobile,
@@ -1048,6 +1400,7 @@ class _ArtistHeaderContent extends StatelessWidget {
     required this.isSaved,
     this.url,
     required this.onToggleSave,
+    this.isAk = false,
   });
 
   @override
@@ -1100,20 +1453,24 @@ class _ArtistHeaderContent extends StatelessWidget {
   }
 
   Widget _buildAvatar(double size) {
-    final isAk = title
+    final isAkChannel = isAk ||
+        title
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9]'), '')
             .contains('akmusicworld') ||
         artistId
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9]'), '')
-            .contains('akmusicworld');
-    final effectiveImg = (imageUrl.isEmpty ||
-            imageUrl.contains('placeholder') ||
-            isGenericProviderIcon(imageUrl)) &&
-        isAk
+            .contains('akmusicworld') ||
+        artistId.contains('UCKRT6rAUKbi7lwfAHBbJk3Q') ||
+        artistId.contains('UC55Gz5tT6m3_rWd3l1_PjXw');
+    final effectiveImg = isAkChannel
         ? 'assets/icons/AnkitLogo.png'
-        : imageUrl;
+        : ((imageUrl.isEmpty ||
+                    imageUrl.contains('placeholder') ||
+                    isGenericProviderIcon(imageUrl))
+            ? 'assets/icons/AnkitLogo.png'
+            : imageUrl);
 
     return Hero(
       tag: '${pluginId}_artist_$artistId',
@@ -1136,8 +1493,8 @@ class _ArtistHeaderContent extends StatelessWidget {
           child: ClipOval(
             child: LoadImageCached(
               imageUrl: effectiveImg,
-              fallbackUrl: isAk ? 'assets/icons/AnkitLogo.png' : fallbackUrl,
-              placeholderUrl: isAk ? 'assets/icons/AnkitLogo.png' : null,
+              fallbackUrl: isAkChannel ? 'assets/icons/AnkitLogo.png' : fallbackUrl,
+              placeholderUrl: isAkChannel ? 'assets/icons/AnkitLogo.png' : null,
               fit: BoxFit.cover,
             ),
           ),
@@ -1212,8 +1569,8 @@ class _ArtistHeaderContent extends StatelessWidget {
           builder: (context, titleSnap) {
             final isPlaying = playSnap.data ?? false;
             final currentQueue = titleSnap.data ?? '';
-            final isThisQueue = currentQueue.trim().toLowerCase() ==
-                title.trim().toLowerCase();
+            final isThisQueue =
+                currentQueue.trim().toLowerCase() == title.trim().toLowerCase();
 
             return Wrap(
               alignment:

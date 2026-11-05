@@ -8,6 +8,7 @@ import 'package:Orvia/screens/screen/library_screen.dart';
 import 'package:Orvia/screens/screen/library_views/import_media_view.dart';
 import 'package:Orvia/screens/screen/library_views/import_process_screen.dart';
 import 'package:Orvia/screens/screen/library_views/playlist_screen.dart';
+import 'package:Orvia/screens/screen/library_views/liked_albums_screen.dart';
 import 'package:Orvia/screens/screen/offline_screen.dart';
 import 'package:Orvia/screens/screen/local_music_screen.dart';
 import 'package:Orvia/screens/screen/search_screen.dart';
@@ -164,6 +165,11 @@ class AppRouter {
                           initialPlaylistName: initialPlaylistName,
                         );
                       },
+                    ),
+                    GoRoute(
+                      name: RoutePaths.likedAlbumsView,
+                      path: RoutePaths.likedAlbumsView,
+                      builder: (context, state) => const LikedAlbumsScreen(),
                     ),
                   ]),
             ]),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'package:Orvia/plugins/utils/media_id.dart';
 
 import 'package:Orvia/blocs/add_to_playlist/cubit/add_to_playlist_cubit.dart';
 import 'package:Orvia/blocs/downloader/cubit/downloader_cubit.dart';
@@ -72,7 +75,7 @@ void showMoreBottomSheet(
   );
 }
 
-class _TrackOptionsBottomSheet extends StatelessWidget {
+class _TrackOptionsBottomSheet extends StatefulWidget {
   final Track song;
   final bool showDelete;
   final bool showRemoveFromHistory;
@@ -94,6 +97,43 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
     this.onDelete,
     this.onRemoveFromHistory,
   });
+
+  @override
+  State<_TrackOptionsBottomSheet> createState() =>
+      _TrackOptionsBottomSheetState();
+}
+
+class _TrackOptionsBottomSheetState extends State<_TrackOptionsBottomSheet> {
+  bool _isLiked = false;
+  StreamSubscription? _likeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    final libraryCubit = context.read<LibraryItemsCubit>();
+    _checkLikedState();
+    _likeSub = libraryCubit.trackLikedStream.listen((event) {
+      if (isMatchingTrackId(widget.song.id, event.trackId)) {
+        if (mounted) {
+          setState(() => _isLiked = event.isLiked);
+        }
+      }
+    });
+  }
+
+  Future<void> _checkLikedState() async {
+    try {
+      final liked =
+          await context.read<LibraryItemsCubit>().isTrackLiked(widget.song);
+      if (mounted) setState(() => _isLiked = liked);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _likeSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +180,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                     child: SongCardWidget(
-                      song: song,
+                      song: widget.song,
                       showOptions: false,
                       showCopyBtn: true,
                       showInfoBtn: true,
@@ -153,12 +193,12 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (showSinglePlay ||
-                              showPlayNext ||
-                              showAddToQueue) ...[
+                          if (widget.showSinglePlay ||
+                              widget.showPlayNext ||
+                              widget.showAddToQueue) ...[
                             _ActionRow(
                               children: [
-                                if (showSinglePlay)
+                                if (widget.showSinglePlay)
                                   _ActionButton(
                                     icon: MingCute.play_circle_fill,
                                     label: l10n.playerPlayWithMix,
@@ -169,16 +209,16 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                                           .read<OrviaPlayerCubit>()
                                           .orviaPlayer
                                           .updateQueueTracks(
-                                            [song],
+                                            [widget.song],
                                             doPlay: true,
                                             queueTitle: 'Direct Play',
                                           );
                                       Navigator.pop(ctx);
                                       SnackbarService.showMessage(
-                                          l10n.snackbarNowPlaying(song.title));
+                                          l10n.snackbarNowPlaying(widget.song.title));
                                     },
                                   ),
-                                if (showPlayNext)
+                                if (widget.showPlayNext)
                                   _ActionButton(
                                     icon: MingCute.square_arrow_right_line,
                                     label: l10n.playerPlayNext,
@@ -188,13 +228,13 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                                       ctx
                                           .read<OrviaPlayerCubit>()
                                           .orviaPlayer
-                                          .addPlayNextTrack(song);
+                                          .addPlayNextTrack(widget.song);
                                       Navigator.pop(ctx);
                                       SnackbarService.showMessage(
                                           l10n.snackbarAddedToNextQueue);
                                     },
                                   ),
-                                if (showAddToQueue)
+                                if (widget.showAddToQueue)
                                   _ActionButton(
                                     icon: MingCute.playlist_2_line,
                                     label: l10n.playerAddToQueue,
@@ -204,7 +244,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                                       ctx
                                           .read<OrviaPlayerCubit>()
                                           .orviaPlayer
-                                          .addQueueTracks([song]);
+                                          .addQueueTracks([widget.song]);
                                       Navigator.pop(ctx);
                                       SnackbarService.showMessage(
                                           l10n.snackbarAddedToQueue);
@@ -215,15 +255,24 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             const SizedBox(height: 8),
                           ],
                           _CompactTile(
-                            icon: MingCute.heart_line,
-                            title: l10n.playerAddToFavorites,
-                            onTap: (ctx) {
-                              ctx
-                                  .read<LibraryItemsCubit>()
-                                  .setTrackLiked(song, true);
-                              Navigator.pop(ctx);
-                              SnackbarService.showMessage(
-                                  l10n.snackbarAddedToLiked(song.title));
+                            icon: _isLiked ? MingCute.heart_fill : MingCute.heart_line,
+                            iconColor: _isLiked ? Default_Theme.accentColor2 : null,
+                            title: _isLiked ? 'Remove from Favorites' : l10n.playerAddToFavorites,
+                            onTap: (ctx) async {
+                              final targetLikeState = !_isLiked;
+                              try {
+                                await ctx
+                                    .read<LibraryItemsCubit>()
+                                    .setTrackLiked(widget.song, targetLikeState);
+                                if (ctx.mounted) {
+                                  Navigator.pop(ctx);
+                                  SnackbarService.showMessage(targetLikeState
+                                      ? l10n.playerLiked(widget.song.title)
+                                      : l10n.playerUnliked(widget.song.title));
+                                }
+                              } catch (e) {
+                                SnackbarService.showMessage('Failed to update favourite');
+                              }
                             },
                           ),
                           _CompactTile(
@@ -231,7 +280,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             title: l10n.menuAddToPlaylist,
                             onTap: (ctx) {
                               final router = GoRouter.of(ctx);
-                              ctx.read<AddToPlaylistCubit>().setTrack(song);
+                              ctx.read<AddToPlaylistCubit>().setTrack(widget.song);
                               Navigator.pop(ctx);
                               router.pushNamed(RoutePaths.addToPlaylistScreen);
                             },
@@ -241,7 +290,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             title: l10n.menuSmartReplace,
                             onTap: (ctx) {
                               Navigator.pop(ctx);
-                              showSmartReplaceDialog(parentContext, song);
+                              showSmartReplaceDialog(widget.parentContext, widget.song);
                             },
                           ),
 
@@ -256,7 +305,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
 
                               final result =
                                   await SongMetadataRefreshService.refreshTrack(
-                                song,
+                                widget.song,
                                 player: player,
                               );
 
@@ -283,23 +332,28 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             builder: (ctx, state) {
                               final isDownloaded = ctx
                                   .read<DownloaderCubit>()
-                                  .isDownloaded(song.id);
-                              return _CompactTile(
-                                icon: isDownloaded
-                                    ? Icons.offline_pin_rounded
-                                    : MingCute.download_2_line,
-                                title: isDownloaded
-                                    ? l10n.menuAvailableOffline
-                                    : l10n.menuDownload,
-                                iconColor: isDownloaded ? Colors.green : null,
-                                onTap: (sheetCtx) {
-                                  if (!isDownloaded) {
-                                    sheetCtx
-                                        .read<DownloaderCubit>()
-                                        .downloadSong(song);
-                                  }
-                                  Navigator.pop(sheetCtx);
-                                },
+                                  .isDownloaded(widget.song.id);
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _CompactTile(
+                                    icon: isDownloaded
+                                        ? Icons.offline_pin_rounded
+                                        : MingCute.download_2_line,
+                                    title: isDownloaded
+                                        ? l10n.menuAvailableOffline
+                                        : l10n.menuDownload,
+                                    iconColor: isDownloaded ? Colors.green : null,
+                                    onTap: (sheetCtx) {
+                                      if (!isDownloaded) {
+                                        sheetCtx
+                                            .read<DownloaderCubit>()
+                                            .downloadSong(widget.song);
+                                      }
+                                      Navigator.pop(sheetCtx);
+                                    },
+                                  ),
+                                ],
                               );
                             },
                           ),
@@ -309,8 +363,8 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             onTap: (ctx) {
                               Navigator.pop(ctx);
                               SnackbarService.showMessage(
-                                  l10n.menuSharePreparing(song.title));
-                              OrviaDeepLinkService.shareTrack(parentContext, song);
+                                  l10n.menuSharePreparing(widget.song.title));
+                              OrviaDeepLinkService.shareTrack(widget.parentContext, widget.song);
                             },
                           ),
                           _CompactTile(
@@ -318,10 +372,10 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             title: l10n.menuOpenOriginalLink,
                             onTap: (ctx) async {
                               Navigator.pop(ctx);
-                              if (song.url?.isEmpty ?? true) return;
+                              if (widget.song.url?.isEmpty ?? true) return;
                               try {
                                 await launchUrl(
-                                  Uri.parse(song.url!),
+                                  Uri.parse(widget.song.url!),
                                   mode: LaunchMode.externalApplication,
                                 );
                               } catch (_) {
@@ -330,7 +384,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                               }
                             },
                           ),
-                          if (showRemoveFromHistory) ...[
+                          if (widget.showRemoveFromHistory) ...[
                             const SizedBox(height: 8),
                             _CompactTile(
                               icon: MingCute.history_line,
@@ -339,11 +393,11 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                               titleColor: Theme.of(context).colorScheme.error,
                               onTap: (ctx) {
                                 Navigator.pop(ctx);
-                                onRemoveFromHistory?.call();
+                                widget.onRemoveFromHistory?.call();
                               },
                             ),
                           ],
-                          if (showDelete) ...[
+                          if (widget.showDelete) ...[
                             const SizedBox(height: 8),
                             _CompactTile(
                               icon: MingCute.delete_2_line,
@@ -352,7 +406,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                               titleColor: Theme.of(context).colorScheme.error,
                               onTap: (ctx) {
                                 Navigator.pop(ctx);
-                                onDelete?.call();
+                                widget.onDelete?.call();
                               },
                             ),
                           ],

@@ -6,12 +6,14 @@ import 'package:Orvia/core/di/service_locator.dart';
 import 'package:Orvia/core/events/global_event_bus.dart';
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/plugins/blocs/content/content_bloc.dart';
 import 'package:Orvia/plugins/blocs/content/content_event.dart';
 import 'package:Orvia/plugins/blocs/content/content_state.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
+import 'package:Orvia/screens/widgets/bulk_download_sheet.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
@@ -60,9 +62,11 @@ class _AlbumViewState extends State<AlbumView> {
       if (state.error != null &&
           (state.albumDetails?.tracks.items.isNotEmpty ?? false)) {
         setState(() => _loadMoreError = state.error);
-      } else if (state.albumDetailStatus == DetailStatus.loaded &&
-          _loadMoreError != null) {
-        setState(() => _loadMoreError = null);
+      } else if (state.albumDetailStatus == DetailStatus.loaded) {
+        if (_loadMoreError != null) {
+          setState(() => _loadMoreError = null);
+        }
+        _checkSavedState();
       }
     });
 
@@ -107,20 +111,63 @@ class _AlbumViewState extends State<AlbumView> {
     return widget.pluginId;
   }
 
+  AlbumSummary get _effectiveAlbum {
+    final detailsSummary = _contentBloc.state.albumDetails?.summary;
+    final resolvedId = (detailsSummary != null && detailsSummary.id.isNotEmpty)
+        ? detailsSummary.id
+        : widget.album.id;
+    final cleanTitle = (detailsSummary != null && detailsSummary.title.trim().isNotEmpty)
+        ? detailsSummary.title.trim()
+        : (widget.album.title.trim().isNotEmpty ? widget.album.title.trim() : 'Unknown Album');
+    final artists = (detailsSummary != null && detailsSummary.artists.isNotEmpty)
+        ? detailsSummary.artists
+        : widget.album.artists;
+    final thumbnail = detailsSummary?.thumbnail ?? widget.album.thumbnail;
+    final url = detailsSummary?.url ?? widget.album.url;
+    final year = (detailsSummary?.year != null && detailsSummary!.year! > 0)
+        ? detailsSummary.year
+        : widget.album.year;
+    final subtitle = detailsSummary?.subtitle ?? widget.album.subtitle;
+
+    final effectiveId = (!isStampedId(resolvedId) && widget.pluginId.isNotEmpty)
+        ? buildMediaId(widget.pluginId, resolvedId)
+        : resolvedId;
+
+    return AlbumSummary(
+      id: effectiveId,
+      title: cleanTitle,
+      artists: artists,
+      thumbnail: thumbnail,
+      subtitle: subtitle,
+      year: year,
+      url: url,
+    );
+  }
+
   Future<void> _checkSavedState() async {
-    final saved = await context
-        .read<LibraryItemsCubit>()
-        .isRemoteSaved(widget.album.id, PlaylistType.album);
+    final cubit = context.read<LibraryItemsCubit>();
+    final target = _effectiveAlbum;
+    var saved = await cubit.isRemoteSaved(target.id, PlaylistType.album);
+    if (!saved && target.id != widget.album.id) {
+      saved = await cubit.isRemoteSaved(widget.album.id, PlaylistType.album);
+    }
     if (mounted) setState(() => _isSaved = saved);
   }
 
   Future<void> _toggleSaveState() async {
     final cubit = context.read<LibraryItemsCubit>();
+    final target = _effectiveAlbum;
     if (_isSaved) {
-      await cubit.removeRemoteSaved(widget.album.id, PlaylistType.album);
+      await cubit.removeRemoteSaved(target.id, PlaylistType.album);
+      if (widget.album.id != target.id) {
+        await cubit.removeRemoteSaved(widget.album.id, PlaylistType.album);
+      }
     } else {
       await cubit.saveRemoteAlbum(
-          album: widget.album, sourceName: _sourceName(context));
+        album: target,
+        sourceName: _sourceName(context),
+        pluginId: widget.pluginId,
+      );
     }
     await _checkSavedState();
   }
@@ -614,6 +661,23 @@ class _AlbumHeaderContent extends StatelessWidget {
               ? l10n.tooltipRemoveFromLibrary
               : l10n.tooltipSaveToLibrary,
           onTap: onToggleSave,
+        ),
+        _PremiumCircularButton(
+          icon: MingCute.download_2_line,
+          isActive: false,
+          tooltip: 'Download Album',
+          onTap: tracks.isEmpty
+              ? () {}
+              : () {
+                  showBulkDownloadSheet(
+                    context: context,
+                    collectionId: 'album_$albumId',
+                    title: title,
+                    type: 'album',
+                    coverUrl: imageUrl,
+                    tracks: tracks,
+                  );
+                },
         ),
         if (url != null)
           _PremiumCircularButton(

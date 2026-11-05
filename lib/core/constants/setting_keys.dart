@@ -46,6 +46,10 @@ class SettingKeys {
   static const String downloadPlaylist = "_DOWNLOADS";
   static const String downQuality = "downloadQuality";
 
+  /// Offline section organizer persistence keys
+  static const String offlineFolders = "offline_custom_folders";
+  static const String offlineCollections = "offline_downloaded_collections";
+
   // ── Backup ──────────────────────────────────────────────────────────────────
   static const String backupPath = "backupPath";
   static const String autoBackup = "autoBackup";

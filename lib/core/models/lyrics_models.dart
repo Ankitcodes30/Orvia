@@ -38,11 +38,14 @@ class Lyrics {
     this.mediaID,
     this.offset,
   }) {
-    if (lyricsSynced != null) {
-      parsedLyrics = ParsedLyrics(
-        syncedLyrics: lyricsSynced ?? '',
+    if (parsedLyrics == null && lyricsSynced != null && lyricsSynced!.trim().isNotEmpty) {
+      final parsed = ParsedLyrics(
+        syncedLyrics: lyricsSynced!,
         duration: duration ?? '',
       );
+      if (parsed.lyrics.isNotEmpty) {
+        parsedLyrics = parsed;
+      }
     }
   }
 
@@ -122,26 +125,43 @@ class ParsedLyrics {
   }
 
   void parseLyrics(String syncedLyrics) {
-    //LRC fromat is [mm:ss.xx] lyrics
-    final regex = RegExp(r'\[(\d+):(\d+)\.(\d+)\] (.+)');
-    final matches = regex.allMatches(syncedLyrics);
+    // Robust LRC parser: supports [mm:ss], [mm:ss.xx], [mm:ss.xxx] with or without space after bracket
+    final regex = RegExp(r'\[(\d+):(\d+)(?:\.(\d+))?\]\s*(.*)');
+    final lines = syncedLyrics.split(RegExp(r'\r?\n'));
 
-    for (var match in matches) {
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      final match = regex.firstMatch(trimmed);
+      if (match == null) continue;
+
       final min = int.parse(match.group(1)!);
       final sec = int.parse(match.group(2)!);
-      final milli = int.parse(match.group(3)!);
-      final text = match.group(4)!;
+      final fractionStr = match.group(3);
+      int millis = 0;
+      if (fractionStr != null && fractionStr.isNotEmpty) {
+        if (fractionStr.length == 1) {
+          millis = int.parse(fractionStr) * 100;
+        } else if (fractionStr.length == 2) {
+          // Centiseconds: [00:11.20] -> 200 ms
+          millis = int.parse(fractionStr) * 10;
+        } else {
+          millis = int.parse(fractionStr.substring(0, 3));
+        }
+      }
+      final text = match.group(4)?.trim() ?? '';
       lyrics.add(
         ParsedLyric(
           text: text,
           start: Duration(
             minutes: min,
-            seconds: sec.toInt(),
-            milliseconds: milli,
+            seconds: sec,
+            milliseconds: millis,
           ),
         ),
       );
     }
+    lyrics.sort((a, b) => a.start.compareTo(b.start));
     log("ParsedLyrics: ${lyrics.length}");
   }
 

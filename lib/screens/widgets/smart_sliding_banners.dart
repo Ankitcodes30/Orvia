@@ -361,13 +361,10 @@ class _SmartSlidingBannersState extends State<SmartSlidingBanners>
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              if (banner.id == 'diwali_festive_2026')
-                                const _DiwaliBannerArt()
-                              else
-                                LoadImageCached(
-                                  imageUrl: banner.imageUrl,
-                                  fit: BoxFit.cover,
-                                ),
+                              LoadImageCached(
+                                imageUrl: banner.imageUrl,
+                                fit: BoxFit.cover,
+                              ),
                               if (banner.tracks.isNotEmpty)
                                 Positioned(
                                   right: 6,
@@ -470,43 +467,3 @@ class _SmartSlidingBannersState extends State<SmartSlidingBanners>
   }
 }
 
-class _DiwaliBannerArt extends StatelessWidget {
-  const _DiwaliBannerArt();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFB02E), Color(0xFFB83212), Color(0xFF39143F)],
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(
-            Icons.wb_twilight_rounded,
-            size: 88,
-            color: const Color(0xFFFFE5A1).withValues(alpha: 0.25),
-          ),
-          const Positioned(
-            bottom: 4,
-            child: Text('🪔', style: TextStyle(fontSize: 38)),
-          ),
-          const Positioned(
-            top: 7,
-            right: 8,
-            child: Icon(Icons.auto_awesome, color: Color(0xFFFFE5A1), size: 17),
-          ),
-          const Positioned(
-            top: 12,
-            left: 10,
-            child: Icon(Icons.auto_awesome, color: Color(0xFFFFE5A1), size: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}

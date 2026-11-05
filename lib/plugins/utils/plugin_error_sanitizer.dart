@@ -1,3 +1,26 @@
+/// Maps raw technical plugin IDs and manifest identifiers into clean, user-friendly
+/// display brand names.
+String formatUserFriendlyPluginName(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return 'Content Provider';
+  final lower = raw.trim().toLowerCase();
+  if (lower.contains('jisaavn') || lower.contains('jiosaavn') || lower.contains('saavn')) {
+    return 'JioSaavn';
+  }
+  if (lower.contains('ytmusic') || lower.contains('youtube')) {
+    return 'YouTube Music';
+  }
+  if (lower.contains('spotify')) {
+    return 'Spotify';
+  }
+  if (lower.contains('billboard')) {
+    return 'Billboard';
+  }
+  // Remove technical prefixes if any
+  return raw
+      .replaceFirst(RegExp(r'^(content-resolver|chart-provider)\.[^.]+\.'), '')
+      .replaceFirst(RegExp(r'^(content-resolver|chart-provider)\.'), '');
+}
+
 /// Formats errors from plugins, network requests, or WASM executions into
 /// clean, user-friendly messages without leaking URLs, technical stack traces,
 /// or raw WASM details to the user.

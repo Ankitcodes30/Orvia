@@ -53,7 +53,7 @@ void main() {
       Uri.parse(SmartBannerService.remoteConfigUrl),
       Uri.parse(SmartBannerService.remoteFallbackUrl),
     ]);
-    expect(SmartBannerService.getActiveBanners().first.title, 'Remote Test');
+    expect(SmartBannerService.getActiveBanners().any((b) => b.title == 'Remote Test'), isTrue);
   });
 
   test('keeps embedded banners when both remote endpoints are offline',
@@ -112,13 +112,11 @@ void main() {
       reason: "Night Calm must be completely removed from banners.json",
     );
 
-    final diwali = sourceBanners
-        .cast<Map<String, dynamic>>()
-        .firstWhere((banner) => banner['id'] == 'diwali_festive_2026');
-    expect(diwali['startDate'], '2026-11-05T00:00:00+05:30');
-    expect(diwali['endDate'], '2026-11-12T00:00:00+05:30');
-    expect(diwali['destination'], 'festival_special');
-    expect(diwali['tracks'], isEmpty);
+    expect(
+      sourceBanners.cast<Map<String, dynamic>>().any((b) => b['id'] == 'diwali_festive_2026'),
+      isFalse,
+      reason: "Diwali must be completely removed from banners.json",
+    );
   });
 
   test('festival banner starts inclusively and expires at the end instant', () {
@@ -206,7 +204,8 @@ void main() {
     );
   });
 
-  test('Diwali banner uses inclusive IST start and exclusive IST expiry', () {
+  test('Diwali banner is permanently disallowed and blocked from active banners', () {
+    expect(SmartBannerService.kDisallowedBannerIds.contains('diwali_festive_2026'), isTrue);
     final banner = SmartBannerItem.fromJson({
       'id': 'diwali_festive_2026',
       'title': 'Diwali Festive Special',
@@ -220,19 +219,7 @@ void main() {
 
     expect(
       SmartBannerService.getActiveBanners(
-        testTime: DateTime.utc(2026, 11, 4, 18, 29, 59),
-      ).any((item) => item.id == banner.id),
-      isFalse,
-    );
-    expect(
-      SmartBannerService.getActiveBanners(
         testTime: DateTime.utc(2026, 11, 4, 18, 30),
-      ).any((item) => item.id == banner.id),
-      isTrue,
-    );
-    expect(
-      SmartBannerService.getActiveBanners(
-        testTime: DateTime.utc(2026, 11, 11, 18, 30),
       ).any((item) => item.id == banner.id),
       isFalse,
     );
@@ -259,17 +246,27 @@ void main() {
     );
   });
 
-  test('remote refresh retains destination banners and filters expired ones',
+  test('remote refresh retains destination banners, filters expired ones, and disallows diwali',
       () async {
     final client = MockClient((_) async => http.Response(
           jsonEncode({
             'banners': [
+              {
+                'id': 'festive_special_active',
+                'title': 'Festive Special',
+                'startDate': '2026-11-05T00:00:00+05:30',
+                'endDate': '2026-11-12T00:00:00+05:30',
+                'destination': 'festival_special',
+                'priority': 100,
+                'tracks': [],
+              },
               {
                 'id': 'diwali_festive_2026',
                 'title': 'Diwali Festive Special',
                 'startDate': '2026-11-05T00:00:00+05:30',
                 'endDate': '2026-11-12T00:00:00+05:30',
                 'destination': 'festival_special',
+                'priority': 100,
                 'tracks': [],
               }
             ]
@@ -285,26 +282,33 @@ void main() {
       SmartBannerService.getActiveBanners(
         testTime: DateTime.utc(2026, 11, 4, 18, 30),
       ).map((banner) => banner.id),
-      contains('diwali_festive_2026'),
+      contains('festive_special_active'),
+    );
+    expect(
+      SmartBannerService.getActiveBanners(
+        testTime: DateTime.utc(2026, 11, 4, 18, 30),
+      ).map((banner) => banner.id),
+      isNot(contains('diwali_festive_2026')),
     );
     expect(
       SmartBannerService.getActiveBanners(
         testTime: DateTime.utc(2026, 11, 11, 18, 30),
       ).map((banner) => banner.id),
-      isNot(contains('diwali_festive_2026')),
+      isNot(contains('festive_special_active')),
     );
   });
 
-  testWidgets('Diwali banner tap invokes the festival-section navigation',
+  testWidgets('Festival banner tap invokes the festival-section navigation',
       (tester) async {
     final client = MockClient((_) async => http.Response(
           jsonEncode({
             'banners': [
               {
-                'id': 'diwali_festive_2026',
-                'title': 'Diwali Festive Special',
+                'id': 'test_festive_banner',
+                'title': 'Festive Special',
                 'subtitle': 'Lights and music',
                 'destination': 'festival_special',
+                'priority': 100,
                 'tracks': [],
               }
             ]
@@ -327,7 +331,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Diwali Festive Special').first);
+    await tester.tap(find.text('Festive Special').first);
     await tester.pump();
 
     expect(navigated, isTrue);

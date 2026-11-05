@@ -9,6 +9,7 @@ import 'package:Orvia/core/models/exported.dart' hide Lyrics;
 import 'package:Orvia/core/models/lyrics_models.dart';
 import 'package:Orvia/services/db/dao/lyrics_dao.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
+import 'package:Orvia/services/lyrics/lrclib_lyrics_service.dart';
 import 'package:Orvia/services/meta_resolver/cross_plugin_resolver.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
@@ -43,9 +44,13 @@ class LyricsCubit extends Cubit<LyricsState> {
           maxResultsPerQuery: 15,
         ),
         super(LyricsInitial()) {
+    final currentMi = playerCubit.orviaPlayer.mediaItem.valueOrNull;
+    if (currentMi != null && currentMi.id != 'Null') {
+      getLyrics(mediaItemToTrack(currentMi));
+    }
     _mediaItemSubscription =
         playerCubit.orviaPlayer.mediaItem.stream.listen((item) {
-      if (item != null) {
+      if (item != null && item.id != 'Null') {
         getLyrics(mediaItemToTrack(item));
       }
     });
@@ -77,53 +82,70 @@ class LyricsCubit extends Cubit<LyricsState> {
     final priority = await _loadPriority();
     if (_isStale(requestId)) return;
 
-    if (priority.isEmpty) {
-      emit(LyricsNoPlugin(track));
-      return;
+    if (priority.isNotEmpty) {
+      final profile = _buildTrackProfile(track);
+
+      for (final pluginId in priority) {
+        if (_isStale(requestId)) return;
+
+        try {
+          final direct = await _tryGetLyricsByMetadataVariants(
+            pluginId: pluginId,
+            profile: profile,
+            track: track,
+          );
+          if (_isStale(requestId)) return;
+
+          if (direct != null) {
+            emit(LyricsLoaded(direct, track));
+            _autoSave(direct);
+            log(
+              'Lyrics loaded for ID: ${track.id} [Plugin: $pluginId/direct]',
+              name: 'LyricsCubit',
+            );
+            return;
+          }
+
+          final searched = await _tryGetLyricsViaSearchFallback(
+            pluginId: pluginId,
+            profile: profile,
+            track: track,
+          );
+          if (_isStale(requestId)) return;
+
+          if (searched != null) {
+            emit(LyricsLoaded(searched, track));
+            _autoSave(searched);
+            log(
+              'Lyrics loaded for ID: ${track.id} [Plugin: $pluginId/search]',
+              name: 'LyricsCubit',
+            );
+            return;
+          }
+        } catch (e) {
+          log('Plugin $pluginId failed: $e', name: 'LyricsCubit');
+        }
+      }
     }
 
-    final profile = _buildTrackProfile(track);
+    if (_isStale(requestId)) return;
 
-    for (final pluginId in priority) {
+    // Direct native LRCLIB fallback when plugins are unavailable or fail to match
+    try {
+      final nativeLyrics = await LrclibLyricsService.fetchLyrics(track: track);
       if (_isStale(requestId)) return;
 
-      try {
-        final direct = await _tryGetLyricsByMetadataVariants(
-          pluginId: pluginId,
-          profile: profile,
-          track: track,
+      if (nativeLyrics != null) {
+        emit(LyricsLoaded(nativeLyrics, track));
+        _autoSave(nativeLyrics);
+        log(
+          'Lyrics loaded for ID: ${track.id} [Native: LRCLIB]',
+          name: 'LyricsCubit',
         );
-        if (_isStale(requestId)) return;
-
-        if (direct != null) {
-          emit(LyricsLoaded(direct, track));
-          _autoSave(direct);
-          log(
-            'Lyrics loaded for ID: ${track.id} [Plugin: $pluginId/direct]',
-            name: 'LyricsCubit',
-          );
-          return;
-        }
-
-        final searched = await _tryGetLyricsViaSearchFallback(
-          pluginId: pluginId,
-          profile: profile,
-          track: track,
-        );
-        if (_isStale(requestId)) return;
-
-        if (searched != null) {
-          emit(LyricsLoaded(searched, track));
-          _autoSave(searched);
-          log(
-            'Lyrics loaded for ID: ${track.id} [Plugin: $pluginId/search]',
-            name: 'LyricsCubit',
-          );
-          return;
-        }
-      } catch (e) {
-        log('Plugin $pluginId failed: $e', name: 'LyricsCubit');
+        return;
       }
+    } catch (e) {
+      log('Native LRCLIB fallback failed: $e', name: 'LyricsCubit');
     }
 
     if (_isStale(requestId)) return;

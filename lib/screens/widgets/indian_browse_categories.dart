@@ -34,97 +34,97 @@ class IndianCategoryItem {
 const List<IndianCategoryItem> kIndianBrowseCategories = [
   IndianCategoryItem(
     title: 'Best of 2026',
-    query: 'Latest 2026 Hindi Chartbusters',
+    query: 'Hindi 2026',
     icon: MingCute.sparkles_fill,
     accentColor: Color(0xFF9C27B0),
   ),
   IndianCategoryItem(
     title: 'Bollywood Hits',
-    query: 'Top Bollywood Chartbusters Dance Songs',
+    query: 'Bollywood Hits',
     icon: MingCute.film_fill,
     accentColor: Color(0xFFF44336),
   ),
   IndianCategoryItem(
     title: 'Lofi & Chill',
-    query: 'Hindi Lofi Chill Beats Aesthetic',
+    query: 'Hindi Lofi',
     icon: MingCute.headphone_fill,
     accentColor: Color(0xFF673AB7),
   ),
   IndianCategoryItem(
     title: 'Study / Focus',
-    query: 'Study Focus Ambient Deep Work Music',
+    query: 'Study Instrumental',
     icon: MingCute.book_2_fill,
     accentColor: Color(0xFF607D8B),
   ),
   IndianCategoryItem(
     title: 'Sleep / Relaxing',
-    query: 'Deep Sleep Relaxing Ambient Peaceful Music',
+    query: 'Relaxing Instrumental',
     icon: MingCute.moon_fill,
     accentColor: Color(0xFF795548),
   ),
   IndianCategoryItem(
     title: 'Instrumental Discovery',
-    query: 'Indian Instrumental Classical Sitar Flute Saxophone',
+    query: 'Indian Instrumental',
     icon: MingCute.guitar_fill,
     accentColor: Color(0xFF2E7D32),
   ),
   IndianCategoryItem(
     title: 'Bhakti & Spiritual',
-    query: 'Bhakti Devotional Bhajan Aarti Mantra Devi',
+    query: 'Bhakti Bhajan',
     icon: MingCute.flower_fill,
     accentColor: Color(0xFFFF9800),
   ),
   IndianCategoryItem(
     title: 'Marathi Hits',
-    query: 'Top Marathi Hits Bhavgeet Lavani Party Songs',
+    query: 'Marathi Hits',
     icon: MingCute.heart_fill,
     accentColor: Color(0xFF009688),
   ),
   IndianCategoryItem(
     title: 'Punjabi Hits',
-    query: 'Latest Punjabi Pop Hits',
+    query: 'Punjabi Hits',
     icon: MingCute.disc_fill,
     accentColor: Color(0xFFFF9800),
   ),
   IndianCategoryItem(
     title: 'Haryanvi Hits',
-    query: 'Top Haryanvi Hits Ragni Songs',
+    query: 'Haryanvi Hits',
     icon: MingCute.volume_fill,
     accentColor: Color(0xFFFFC107),
   ),
   IndianCategoryItem(
     title: 'Gujarati Hits',
-    query: 'Gujarati Top Songs Geet',
+    query: 'Gujarati Songs',
     icon: MingCute.palette_fill,
     accentColor: Color(0xFF4CAF50),
   ),
   IndianCategoryItem(
     title: 'Tamil Hits',
-    query: 'Latest Tamil Hits Kollywood',
+    query: 'Tamil Hits',
     icon: MingCute.star_fill,
     accentColor: Color(0xFF00BCD4),
   ),
   IndianCategoryItem(
     title: 'Telugu Hits',
-    query: 'Latest Telugu Hits Tollywood',
+    query: 'Telugu Hits',
     icon: MingCute.flash_fill,
     accentColor: Color(0xFF03A9F4),
   ),
   IndianCategoryItem(
     title: 'Bengali Hits',
-    query: 'Top Bengali Songs Rabindra Sangeet Hits',
+    query: 'Bengali Hits',
     icon: MingCute.flower_fill,
     accentColor: Color(0xFF3F51B5),
   ),
   IndianCategoryItem(
     title: 'Best of 2025',
-    query: 'Best of 2025 Hindi Hits',
+    query: 'Hindi 2025',
     icon: MingCute.calendar_fill,
     accentColor: Color(0xFFE91E63),
   ),
   IndianCategoryItem(
     title: 'Navratri 2026',
-    query: 'Navratri 2026 Garba Dandiya Mataji Bhakti',
+    query: 'Navratri Garba',
     icon: MingCute.fire_fill,
     accentColor: Color(0xFFFF7A00),
   ),
@@ -134,6 +134,9 @@ class IndianBrowseCategories extends StatelessWidget {
   final String pluginId;
 
   const IndianBrowseCategories({super.key, required this.pluginId});
+
+  static Track getVerifiedLofiTrack() =>
+      _CategoryDetailScreenState.getVerifiedLofiTrack();
 
   @override
   Widget build(BuildContext context) {
@@ -269,6 +272,9 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
   bool _isLoadingMore = false;
   String? _loadMoreError;
 
+  static Track getVerifiedLofiTrack() =>
+      CuratedPlaylistsService.getVerifiedLofiTrack();
+
   @override
   void initState() {
     super.initState();
@@ -368,6 +374,86 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
         return;
       }
 
+      if (widget.category.title == 'Lofi & Chill') {
+        final lofiTrack = getVerifiedLofiTrack();
+        try {
+          final response = await ServiceLocator.pluginService.execute(
+            pluginId: widget.pluginId,
+            request: PluginRequest.contentResolver(
+              ContentResolverCommand.search(
+                query: widget.category.query,
+                filter: ContentSearchFilter.track,
+              ),
+            ),
+          ).timeout(const Duration(seconds: 15));
+
+          if (!mounted) return;
+
+          response.when(
+            search: (results) {
+              final tracks = <Track>[lofiTrack];
+              for (final item in results.items) {
+                item.when(
+                  track: (t) => tracks.add(t),
+                  album: (_) {},
+                  artist: (_) {},
+                  playlist: (_) {},
+                );
+              }
+              final deduplicated = TrackIdentity.deduplicateTracks(tracks);
+              setState(() {
+                _tracks
+                  ..clear()
+                  ..addAll(deduplicated);
+                _isLoading = false;
+                _nextPageToken = results.nextPageToken;
+              });
+            },
+            trackDetails: (_) => _handleNonSearchResponse(),
+            albumDetails: (_) => _handleNonSearchResponse(),
+            artistDetails: (_) => _handleNonSearchResponse(),
+            playlistDetails: (_) => _handleNonSearchResponse(),
+            streams: (_) => _handleNonSearchResponse(),
+            moreTracks: (paged) {
+              final tracks = <Track>[lofiTrack, ...paged.items];
+              final deduplicated = TrackIdentity.deduplicateTracks(tracks);
+              setState(() {
+                _tracks
+                  ..clear()
+                  ..addAll(deduplicated);
+                _isLoading = false;
+                _nextPageToken = paged.nextPageToken;
+              });
+            },
+            moreAlbums: (_) => _handleNonSearchResponse(),
+            homeSections: (_) => _handleNonSearchResponse(),
+            loadMoreItems: (_) => _handleNonSearchResponse(),
+            charts: (_) => _handleNonSearchResponse(),
+            chartDetails: (_) => _handleNonSearchResponse(),
+            segments: (_) => _handleNonSearchResponse(),
+            lyricsResult: (_) => _handleNonSearchResponse(),
+            lyricsSearchResults: (_) => _handleNonSearchResponse(),
+            lyricsById: (_, __) => _handleNonSearchResponse(),
+            suggestions: (_) => _handleNonSearchResponse(),
+            canHandle: (_) => _handleNonSearchResponse(),
+            collectionInfo: (_) => _handleNonSearchResponse(),
+            importTracks: (_) => _handleNonSearchResponse(),
+            ack: () => _handleNonSearchResponse(),
+          );
+        } catch (_) {
+          if (mounted) {
+            setState(() {
+              _tracks
+                ..clear()
+                ..add(lofiTrack);
+              _isLoading = false;
+              _error = null;
+            });
+          }
+        }
+        return;
+      }
+
       final response = await ServiceLocator.pluginService.execute(
         pluginId: widget.pluginId,
         request: PluginRequest.contentResolver(
@@ -454,7 +540,10 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
   }
 
   Future<void> _loadMoreTracks() async {
-    if (_isLoadingMore || _nextPageToken == null) return;
+    if (_isLoadingMore) return;
+    if (_nextPageToken == null && _loadMoreError == null) return;
+
+    final tokenToFetch = _nextPageToken ?? '1';
 
     setState(() {
       _isLoadingMore = true;
@@ -468,7 +557,7 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
           ContentResolverCommand.search(
             query: widget.category.query,
             filter: ContentSearchFilter.track,
-            pageToken: _nextPageToken,
+            pageToken: tokenToFetch,
           ),
         ),
       ).timeout(const Duration(seconds: 15));
@@ -494,9 +583,12 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
           setState(() {
             _tracks.addAll(deduplicated);
             _isLoadingMore = false;
-            _nextPageToken = (results.nextPageToken == null || deduplicated.isEmpty)
-                ? null
-                : results.nextPageToken;
+            _loadMoreError = null;
+            if (newTracks.isEmpty || results.nextPageToken == null) {
+              _nextPageToken = null;
+            } else {
+              _nextPageToken = results.nextPageToken;
+            }
           });
         },
         trackDetails: (_) => setState(() => _isLoadingMore = false),
@@ -512,7 +604,12 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
           setState(() {
             _tracks.addAll(deduplicated);
             _isLoadingMore = false;
-            _nextPageToken = paged.nextPageToken;
+            _loadMoreError = null;
+            if (paged.items.isEmpty || paged.nextPageToken == null) {
+              _nextPageToken = null;
+            } else {
+              _nextPageToken = paged.nextPageToken;
+            }
           });
         },
         moreAlbums: (_) => setState(() => _isLoadingMore = false),
@@ -682,7 +779,7 @@ class _CategoryDetailScreenState extends State<_CategoryDetailScreen> {
                         }),
                         LoadMoreSongsTile(
                           isLoading: _isLoadingMore,
-                          hasMore: _nextPageToken != null,
+                          hasMore: _nextPageToken != null || _loadMoreError != null,
                           error: _loadMoreError,
                           currentCount: _tracks.length,
                           onTap: _loadMoreTracks,

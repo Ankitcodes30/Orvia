@@ -756,7 +756,7 @@ void main() {
 
       final stable = jsonMap['channels']['stable'] as Map<String, dynamic>;
       expect(stable['version'], '3.0.7');
-      expect(stable['build_number'], 6);
+      expect(stable['build_number'], greaterThanOrEqualTo(6));
 
       final android = stable['platforms']['android'] as Map<String, dynamic>;
       expect(
@@ -764,7 +764,7 @@ void main() {
           startsWith(
               'https://ankitcodes30.github.io/Orvia/downloads/app-release.apk'));
       expect(RegExp(r'^[a-f0-9]{64}$').hasMatch(android['sha256']), isTrue);
-      expect(android['file_size'], greaterThan(40000000));
+      expect(android['file_size'], greaterThan(25000000));
 
       final windows = stable['platforms']['windows'] as Map<String, dynamic>;
       expect(

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:easy_debounce/easy_debounce.dart';
 import 'package:Orvia/core/models/library_search_result.dart';
 import 'package:Orvia/core/models/exported.dart';
+import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 
 part 'library_search_state.dart';
@@ -55,6 +56,28 @@ class LibrarySearchCubit extends Cubit<LibrarySearchState> {
     try {
       final filteredPlaylists =
           _filterList(itemsState.playlists, query, (p) => p.playlistName);
+
+      // Search within liked albums so albums like "Mangal Rang" match directly
+      final cleanQuery = query.toLowerCase();
+      final matchingAlbums = itemsState.likedAlbums.where((a) {
+        final matchesTitle = a.title.toLowerCase().contains(cleanQuery);
+        final matchesArtist = a.artists
+            .any((art) => art.name.toLowerCase().contains(cleanQuery));
+        return matchesTitle || matchesArtist;
+      }).map((a) {
+        final artistNames = a.artists.isNotEmpty
+            ? a.artists.map((art) => art.name).join(', ')
+            : 'Album';
+        return PlaylistItemProperties(
+          playlistName: a.title,
+          storageKey: a.id,
+          coverImgUrl: a.thumbnail?.url,
+          subTitle: 'Album • $artistNames',
+          type: PlaylistType.album,
+        );
+      }).toList();
+
+      final combinedPlaylists = [...filteredPlaylists, ...matchingAlbums];
       final songResults = await _searchSongs(query);
 
       if (_currentQuery != query) return;
@@ -62,7 +85,7 @@ class LibrarySearchCubit extends Cubit<LibrarySearchState> {
       emit(LibrarySearchSuccess(
         query: query,
         songResults: songResults,
-        filteredPlaylists: filteredPlaylists,
+        filteredPlaylists: combinedPlaylists,
       ));
     } catch (e) {
       if (_currentQuery != query) return;

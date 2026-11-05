@@ -101,9 +101,11 @@ void main() {
     // -------------------------------------------------------------
     // 3.B. A.K. MUSIC WORLD VERIFIED INSTRUMENTALS
     // -------------------------------------------------------------
-    test('A.K. MUSIC WORLD catalogue contains all 12 verified channel uploads and excludes 404s', () {
+    test('A.K. MUSIC WORLD catalogue contains all 12 verified channel uploads, 7 shorts and excludes 404s', () {
       final tracks = CuratedPlaylistsService.getAkMusicWorldTracks();
-      expect(tracks.length, equals(12));
+      expect(tracks.length, equals(19));
+      expect(CuratedPlaylistsService.getAkMusicWorldSongsOnly().length, equals(12));
+      expect(CuratedPlaylistsService.getAkMusicWorldShortsOnly().length, equals(7));
 
       final ids = tracks.map((t) => t.id).toList();
       final expected12VideoIds = [

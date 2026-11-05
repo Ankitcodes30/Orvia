@@ -17,6 +17,7 @@ import 'package:responsive_framework/responsive_framework.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/banner/smart_banner_service.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
+import 'package:Orvia/screens/widgets/diwali_special_card.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -27,6 +28,20 @@ import 'package:iconsx_plus/iconsx_plus.dart';
 /// Chart carousel widget that displays charts from loaded chart provider plugins,
 /// promotes active Indian festivals during their configured promotion window,
 /// and rotates curated time-aware collections (Morning Bhakti, Gym Energy).
+bool _isExcludedCarouselChart(dynamic chart) {
+  final title = (chart.title ?? '').toString().trim().toLowerCase();
+  final id = (chart.id ?? '').toString().trim().toLowerCase();
+  if (title == 'india songs' ||
+      title.contains('india song') ||
+      id == 'india-songs' ||
+      id == 'india_songs' ||
+      id.contains('india-songs') ||
+      id.contains('india_songs')) {
+    return true;
+  }
+  return false;
+}
+
 class CaraouselWidget extends StatefulWidget {
   final VoidCallback? onFestiveTap;
 
@@ -112,7 +127,7 @@ class CaraouselWidgetState extends State<CaraouselWidget>
       if (bypassCache) {
         final settingsState = context.read<SettingsCubit>().state;
         final visibleIds = _chartBloc.state.charts
-            .where((c) => settingsState.chartMap[c.title] ?? true)
+            .where((c) => !_isExcludedCarouselChart(c) && (settingsState.chartMap[c.title] ?? true))
             .map((c) => c.id)
             .toSet();
         if (visibleIds.isNotEmpty) {
@@ -148,7 +163,7 @@ class CaraouselWidgetState extends State<CaraouselWidget>
         if (pluginId == null || chartState.charts.isEmpty) return;
         final settingsState = context.read<SettingsCubit>().state;
         final visibleIds = chartState.charts
-            .where((c) => settingsState.chartMap[c.title] ?? true)
+            .where((c) => !_isExcludedCarouselChart(c) && (settingsState.chartMap[c.title] ?? true))
             .map((c) => c.id)
             .toSet();
         if (visibleIds.isNotEmpty) {
@@ -174,8 +189,18 @@ class CaraouselWidgetState extends State<CaraouselWidget>
                   activeFestival != null && widget.onFestiveTap != null;
 
               // Filter out duplicate festival banner from smart banners if active festival slide is shown
-              final smartBanners =
-                  SmartBannerService.getActiveBanners().where((b) {
+              final rawSmartBanners = SmartBannerService.getActiveBanners();
+              final filteredBanners = rawSmartBanners.where((b) {
+                final id = b.id.toLowerCase();
+                final title = b.title.toLowerCase();
+                if (id == 'india_songs' ||
+                    id == 'india-songs' ||
+                    id.contains('india_songs') ||
+                    id.contains('india-songs') ||
+                    title == 'india songs' ||
+                    title.contains('india song')) {
+                  return false;
+                }
                 if (hasFestiveSlide &&
                     (b.destination == 'festival_special' ||
                         b.id.contains('navratri') ||
@@ -185,9 +210,24 @@ class CaraouselWidgetState extends State<CaraouselWidget>
                 return true;
               }).toList();
 
+              // UI Safeguard: Retain Creator's Choice if unexpectedly absent
+              if (!filteredBanners.any((b) => b.id == 'creators_choice')) {
+                filteredBanners.add(SmartBannerService.defaultCreatorsChoiceBanner);
+                filteredBanners.sort((a, b) => b.priority.compareTo(a.priority));
+              }
+
+              // Deduplicate by ID before rendering
+              final seenBannerIds = <String>{};
+              final smartBanners = <SmartBannerItem>[];
+              for (final b in filteredBanners) {
+                if (seenBannerIds.add(b.id)) {
+                  smartBanners.add(b);
+                }
+              }
+
               final settingsState = context.watch<SettingsCubit>().state;
               final visibleCharts = chartState.charts
-                  .where((c) => settingsState.chartMap[c.title] ?? true)
+                  .where((c) => !_isExcludedCarouselChart(c) && (settingsState.chartMap[c.title] ?? true))
                   .toList();
 
               final festiveCount = hasFestiveSlide ? 1 : 0;
@@ -198,67 +238,92 @@ class CaraouselWidgetState extends State<CaraouselWidget>
 
               return Padding(
                 padding: const EdgeInsets.only(top: 20),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: autoSlideCharts,
-                  builder: (context, autoPlay, child) {
-                    return CarouselSlider.builder(
-                      itemCount: totalCount,
-                      itemBuilder: (context, index, realIndex) {
-                        if (hasFestiveSlide && index == 0) {
-                          return _FestiveSpecialSlide(
-                            festival: activeFestival,
-                            onTap: widget.onFestiveTap!,
-                          );
-                        }
-                        final bannerIdx = index - festiveCount;
-                        if (bannerIdx >= 0 && bannerIdx < bannerCount) {
-                          return _SmartBannerSlide(
-                            banner: smartBanners[bannerIdx],
-                            onFestivalTap: widget.onFestiveTap,
-                          );
-                        }
-                        final chartIndex = bannerIdx - bannerCount;
-                        final chart = visibleCharts[chartIndex];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChartScreen(
-                                  pluginId:
-                                      _chartBloc.state.activePluginId ?? '',
-                                  chartId: chart.id,
-                                  chartTitle: chart.title,
-                                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
+                    final isTablet = ResponsiveBreakpoints.of(context).isTablet;
+                    final viewportFraction = isMobile
+                        ? 0.65
+                        : (isTablet ? 0.40 : 0.30);
+
+                    // Viewport-based card width constraints based on actual carousel width
+                    final carouselWidth = constraints.maxWidth.isFinite
+                        ? constraints.maxWidth
+                        : MediaQuery.of(context).size.width;
+                    final slotWidth = carouselWidth * viewportFraction;
+                    // Provide 4dp breathing room on each side (8dp total) so slides do not touch or clip
+                    final cardWidth = slotWidth > 16.0 ? (slotWidth - 8.0) : slotWidth;
+
+                    // Clamped height calculations to prevent vertical distortion in compact / tall modes
+                    final rawHeight = (isMobile || isTablet)
+                        ? (MediaQuery.of(context).size.height * 0.36).clamp(180.0, 340.0)
+                        : 250.0;
+                    final maxConstraintHeight = constraints.maxHeight.isFinite
+                        ? constraints.maxHeight
+                        : double.infinity;
+                    final carouselHeight = rawHeight.clamp(
+                        160.0,
+                        maxConstraintHeight.isFinite ? maxConstraintHeight : 400.0);
+                    final cardHeight = (carouselHeight - 10.0).clamp(150.0, carouselHeight);
+
+                    return ValueListenableBuilder<bool>(
+                      valueListenable: autoSlideCharts,
+                      builder: (context, autoPlay, child) {
+                        return CarouselSlider.builder(
+                          itemCount: totalCount,
+                          itemBuilder: (context, index, realIndex) {
+                            if (hasFestiveSlide && index == 0) {
+                              return _FestiveSpecialSlide(
+                                festival: activeFestival,
+                                onTap: widget.onFestiveTap!,
+                                cardWidth: cardWidth,
+                                cardHeight: cardHeight,
+                              );
+                            }
+                            final bannerIdx = index - festiveCount;
+                            if (bannerIdx >= 0 && bannerIdx < bannerCount) {
+                              return _SmartBannerSlide(
+                                banner: smartBanners[bannerIdx],
+                                onFestivalTap: widget.onFestiveTap,
+                                cardWidth: cardWidth,
+                                cardHeight: cardHeight,
+                              );
+                            }
+                            final chartIndex = bannerIdx - bannerCount;
+                            final chart = visibleCharts[chartIndex];
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ChartScreen(
+                                      pluginId:
+                                          _chartBloc.state.activePluginId ?? '',
+                                      chartId: chart.id,
+                                      chartTitle: chart.title,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: ChartWidget(
+                                chart: chart,
+                                pluginId: _chartBloc.state.activePluginId ?? '',
                               ),
                             );
                           },
-                          child: ChartWidget(
-                            chart: chart,
-                            pluginId: _chartBloc.state.activePluginId ?? '',
+                          options: CarouselOptions(
+                            height: carouselHeight,
+                            viewportFraction: viewportFraction,
+                            autoPlay: autoPlay,
+                            autoPlayInterval: const Duration(milliseconds: 2500),
+                            enlargeFactor: 0.2,
+                            initialPage: 0,
+                            pauseAutoPlayOnTouch: true,
+                            padEnds: true,
+                            enlargeCenterPage: isMobile,
                           ),
                         );
                       },
-                      options: CarouselOptions(
-                        height: ResponsiveBreakpoints.of(context).isMobile ||
-                                ResponsiveBreakpoints.of(context).isTablet
-                            ? MediaQuery.of(context).size.height * 0.36
-                            : 250,
-                        viewportFraction:
-                            ResponsiveBreakpoints.of(context).isMobile
-                                ? 0.65
-                                : ResponsiveBreakpoints.of(context).isTablet
-                                    ? 0.40
-                                    : 0.30,
-                        autoPlay: autoPlay,
-                        autoPlayInterval: const Duration(milliseconds: 2500),
-                        enlargeFactor: 0.2,
-                        initialPage: 0,
-                        pauseAutoPlayOnTouch: true,
-                        padEnds: true,
-                        enlargeCenterPage:
-                            ResponsiveBreakpoints.of(context).isMobile,
-                      ),
                     );
                   },
                 ),
@@ -271,43 +336,88 @@ class CaraouselWidgetState extends State<CaraouselWidget>
   }
 }
 
-class _FestiveSpecialSlide extends StatelessWidget {
+typedef _FestiveSpecialSlide = FestiveSpecialSlide;
+
+class FestiveSpecialSlide extends StatelessWidget {
   final FestivalEvent festival;
   final VoidCallback onTap;
+  final double? cardWidth;
+  final double? cardHeight;
 
-  const _FestiveSpecialSlide({
+  const FestiveSpecialSlide({
+    super.key,
     required this.festival,
     required this.onTap,
+    this.cardWidth,
+    this.cardHeight,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
-    final isTablet = ResponsiveBreakpoints.of(context).isTablet;
-
-    return GestureDetector(
-      onTap: () {
-        if (festival.id.contains('navratri') ||
-            festival.name.toLowerCase().contains('navratri')) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NavratriSpecialScreen()),
-          );
-          return;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isMobile = false;
+        bool isTablet = false;
+        try {
+          isMobile = ResponsiveBreakpoints.of(context).isMobile;
+          isTablet = ResponsiveBreakpoints.of(context).isTablet;
+        } catch (_) {
+          final w = MediaQuery.maybeOf(context)?.size.width ?? 360.0;
+          isMobile = w <= 450;
+          isTablet = w > 450 && w <= 800;
         }
-        onTap();
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: isMobile || isTablet
-              ? MediaQuery.of(context).size.height * 0.35
-              : MediaQuery.of(context).size.height * 0.25,
-          width: isMobile
-              ? MediaQuery.of(context).size.height * 0.3
-              : isTablet
-                  ? MediaQuery.of(context).size.width * 0.3
-                  : MediaQuery.of(context).size.width * 0.25,
+        final viewportFraction = isMobile
+            ? 0.65
+            : (isTablet ? 0.40 : 0.30);
+
+        final double effectiveWidth;
+        if (cardWidth != null && cardWidth! > 0) {
+          effectiveWidth = cardWidth!;
+        } else if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+          effectiveWidth = constraints.maxWidth > 16.0
+              ? (constraints.maxWidth - 8.0)
+              : constraints.maxWidth;
+        } else {
+          final slot = MediaQuery.of(context).size.width * viewportFraction;
+          effectiveWidth = slot > 16.0 ? (slot - 8.0) : slot;
+        }
+
+        final double effectiveHeight;
+        if (cardHeight != null && cardHeight! > 0) {
+          effectiveHeight = cardHeight!;
+        } else if (constraints.maxHeight.isFinite && constraints.maxHeight > 0) {
+          effectiveHeight = constraints.maxHeight;
+        } else {
+          effectiveHeight = (isMobile || isTablet)
+              ? (MediaQuery.of(context).size.height * 0.35).clamp(170.0, 320.0)
+              : 230.0;
+        }
+
+        return GestureDetector(
+          onTap: () {
+            if (festival.id.contains('diwali') ||
+                festival.name.toLowerCase().contains('diwali')) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DiwaliSpecialScreen()),
+              );
+              return;
+            }
+            if (festival.id.contains('navratri') ||
+                festival.name.toLowerCase().contains('navratri')) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NavratriSpecialScreen()),
+              );
+              return;
+            }
+            onTap();
+          },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: effectiveHeight,
+              width: effectiveWidth,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: const LinearGradient(
@@ -323,7 +433,7 @@ class _FestiveSpecialSlide extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (festival.id == 'diwali_2026')
+              if (festival.id.contains('diwali'))
                 const _DiwaliFestiveArtwork()
               else
                 LoadImageCached(
@@ -335,10 +445,16 @@ class _FestiveSpecialSlide extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Colors.black.withValues(alpha: 0.85),
-                    ],
+                    colors: festival.id.contains('diwali')
+                        ? [
+                            Colors.black.withValues(alpha: 0.25),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.15),
+                          ]
+                        : [
+                            Colors.black.withValues(alpha: 0.2),
+                            Colors.black.withValues(alpha: 0.85),
+                          ],
                   ),
                 ),
               ),
@@ -352,7 +468,9 @@ class _FestiveSpecialSlide extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF5722),
+                        color: festival.id.contains('diwali')
+                            ? const Color(0xFFFF9800)
+                            : const Color(0xFFFF5722),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
@@ -378,48 +496,81 @@ class _FestiveSpecialSlide extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          festival.bannerTitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          festival.bannerSubtitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Explore Specials',
-                              style: TextStyle(
-                                color: Colors.amber.shade300,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                    if (!festival.id.contains('diwali'))
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            festival.bannerTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
                             ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.arrow_downward_rounded,
-                                size: 14, color: Colors.amber.shade300),
-                          ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            festival.bannerSubtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Explore Specials',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.amber.shade300,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_downward_rounded,
+                                  size: 14, color: Colors.amber.shade300),
+                            ],
+                          ),
+                        ],
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Tap to listen',
+                                style: TextStyle(
+                                  color: Colors.amber.shade200,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Icon(MingCute.play_fill,
+                                  size: 10, color: Colors.amber.shade200),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
                   ],
                 ),
               ),
@@ -427,6 +578,8 @@ class _FestiveSpecialSlide extends StatelessWidget {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -436,52 +589,45 @@ class _DiwaliFestiveArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFB02E), Color(0xFFB83212), Color(0xFF39143F)],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned(
-            top: 18,
-            right: 18,
-            child: Icon(
-              Icons.auto_awesome,
-              size: 24,
-              color: Colors.amber.shade100.withValues(alpha: 0.9),
-            ),
-          ),
-          Positioned(
-            top: 48,
-            left: 25,
-            child: Icon(
-              Icons.auto_awesome,
-              size: 15,
-              color: Colors.amber.shade100.withValues(alpha: 0.8),
-            ),
-          ),
-          const Center(child: Text('🪔', style: TextStyle(fontSize: 78))),
-        ],
+    return Image.asset(
+      'assets/images/diwali_festive_banner.webp',
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      errorBuilder: (context, error, stackTrace) => Image.asset(
+        'assets/images/diwali_festive_banner.png',
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
       ),
     );
   }
 }
 
-class _SmartBannerSlide extends StatelessWidget {
+typedef _SmartBannerSlide = SmartBannerSlide;
+
+class SmartBannerSlide extends StatelessWidget {
   final SmartBannerItem banner;
   final VoidCallback? onFestivalTap;
+  final double? cardWidth;
+  final double? cardHeight;
 
-  const _SmartBannerSlide({
+  const SmartBannerSlide({
+    super.key,
     required this.banner,
     this.onFestivalTap,
+    this.cardWidth,
+    this.cardHeight,
   });
 
   void _openBanner(BuildContext context) {
+    if (banner.id.contains('diwali') ||
+        banner.title.toLowerCase().contains('diwali')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const DiwaliSpecialScreen()),
+      );
+      return;
+    }
+
     if (banner.id == 'navratri_special_2026' ||
         banner.title.toLowerCase().contains('navratri')) {
       Navigator.push(
@@ -667,22 +813,52 @@ class _SmartBannerSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
-    final isTablet = ResponsiveBreakpoints.of(context).isTablet;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isMobile = false;
+        bool isTablet = false;
+        try {
+          isMobile = ResponsiveBreakpoints.of(context).isMobile;
+          isTablet = ResponsiveBreakpoints.of(context).isTablet;
+        } catch (_) {
+          final w = MediaQuery.maybeOf(context)?.size.width ?? 360.0;
+          isMobile = w <= 450;
+          isTablet = w > 450 && w <= 800;
+        }
+        final viewportFraction = isMobile
+            ? 0.65
+            : (isTablet ? 0.40 : 0.30);
 
-    return GestureDetector(
-      onTap: () => _openBanner(context),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: isMobile || isTablet
-              ? MediaQuery.of(context).size.height * 0.35
-              : MediaQuery.of(context).size.height * 0.25,
-          width: isMobile
-              ? MediaQuery.of(context).size.height * 0.3
-              : isTablet
-                  ? MediaQuery.of(context).size.width * 0.3
-                  : MediaQuery.of(context).size.width * 0.25,
+        final double effectiveWidth;
+        if (cardWidth != null && cardWidth! > 0) {
+          effectiveWidth = cardWidth!;
+        } else if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+          effectiveWidth = constraints.maxWidth > 16.0
+              ? (constraints.maxWidth - 8.0)
+              : constraints.maxWidth;
+        } else {
+          final slot = MediaQuery.of(context).size.width * viewportFraction;
+          effectiveWidth = slot > 16.0 ? (slot - 8.0) : slot;
+        }
+
+        final double effectiveHeight;
+        if (cardHeight != null && cardHeight! > 0) {
+          effectiveHeight = cardHeight!;
+        } else if (constraints.maxHeight.isFinite && constraints.maxHeight > 0) {
+          effectiveHeight = constraints.maxHeight;
+        } else {
+          effectiveHeight = (isMobile || isTablet)
+              ? (MediaQuery.of(context).size.height * 0.35).clamp(170.0, 320.0)
+              : 230.0;
+        }
+
+        return GestureDetector(
+          onTap: () => _openBanner(context),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: effectiveHeight,
+              width: effectiveWidth,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
@@ -783,12 +959,16 @@ class _SmartBannerSlide extends StatelessWidget {
                               size: 18,
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              '${banner.tracks.length} tracks • Tap to explore',
-                              style: const TextStyle(
-                                color: Default_Theme.accentColor2,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            Expanded(
+                              child: Text(
+                                '${banner.tracks.length} tracks • Tap to explore',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Default_Theme.accentColor2,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -802,6 +982,8 @@ class _SmartBannerSlide extends StatelessWidget {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }

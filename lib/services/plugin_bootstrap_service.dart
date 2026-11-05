@@ -378,6 +378,23 @@ class PluginBootstrapService {
         log('Auto-selected search plugin: ${searchPlugin.manifest.id}',
             name: 'PluginBootstrap');
       }
+
+      final currentLyrics =
+          await settingsDao.getSettingStr(SettingKeys.lyricsPriority);
+      if (currentLyrics == null || currentLyrics.isEmpty || currentLyrics == '[]') {
+        final lyricsPlugins = available
+            .where((p) => p.pluginType == PluginType.lyricsProvider)
+            .map((p) => p.manifest.id)
+            .toList();
+        if (lyricsPlugins.isNotEmpty) {
+          await settingsDao.putSettingStr(
+            SettingKeys.lyricsPriority,
+            jsonEncode(lyricsPlugins),
+          );
+          log('Auto-selected lyrics priority: $lyricsPlugins',
+              name: 'PluginBootstrap');
+        }
+      }
     } catch (_) {}
   }
 

@@ -32,6 +32,10 @@ class SongCardWidget extends StatelessWidget {
   final VoidCallback? onPlayTap;
   final VoidCallback? onDelDownTap;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelectMode;
+  final bool isSelected;
+  final ValueChanged<bool?>? onSelectChanged;
   final Widget? trailing;
 
   const SongCardWidget({
@@ -47,6 +51,10 @@ class SongCardWidget extends StatelessWidget {
     this.onPlayTap,
     this.onTap,
     this.onDelDownTap,
+    this.onLongPress,
+    this.isSelectMode = false,
+    this.isSelected = false,
+    this.onSelectChanged,
     this.showCopyBtn = false,
     this.isWide = false,
     this.subtitleOverride,
@@ -80,6 +88,8 @@ class SongCardWidget extends StatelessWidget {
             final fallbackThumb = song.thumbnail.url.trim().isNotEmpty
                 ? song.thumbnail.url
                 : (albumThumb?.trim() ?? '');
+            final isShort = (song.url?.contains('/shorts/') ?? false) ||
+                (song.album?.title.toLowerCase().contains('short') ?? false);
 
             return AnimatedContainer(
               duration: const Duration(milliseconds: 350),
@@ -87,9 +97,11 @@ class SongCardWidget extends StatelessWidget {
               height: 66,
               margin: const EdgeInsets.symmetric(vertical: 2),
               decoration: BoxDecoration(
-                color: isCurrent
-                    ? Default_Theme.accentColor2.withValues(alpha: 0.08)
-                    : Colors.transparent,
+                color: isSelected
+                    ? Default_Theme.accentColor2.withValues(alpha: 0.18)
+                    : isCurrent
+                        ? Default_Theme.accentColor2.withValues(alpha: 0.08)
+                        : Colors.transparent,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Material(
@@ -100,14 +112,32 @@ class SongCardWidget extends StatelessWidget {
                       Default_Theme.primaryColor1.withValues(alpha: 0.06),
                   highlightColor:
                       Default_Theme.primaryColor1.withValues(alpha: 0.03),
-                  onTap: onTap,
-                  onLongPress: onOptionsTap,
+                  onTap: isSelectMode
+                      ? () => onSelectChanged?.call(!isSelected)
+                      : onTap,
+                  onLongPress: onLongPress ?? onOptionsTap,
                   onSecondaryTap: onOptionsTap,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                     child: Row(
                       children: [
-                        if (index != null || isCurrent)
+                        if (isSelectMode)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: Checkbox(
+                                value: isSelected,
+                                onChanged: onSelectChanged,
+                                activeColor: Default_Theme.accentColor2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (index != null || isCurrent)
                           SizedBox(
                             width: 36,
                             child: Center(
@@ -156,13 +186,41 @@ class SongCardWidget extends StatelessWidget {
                           child: SizedBox(
                             width: isWide ? 86 : 50,
                             height: 50,
-                            child: LoadImageCached(
-                              imageUrl: effectiveThumb,
-                              fallbackUrl: fallbackThumb,
-                              mediaId: song.id,
-                              placeholderUrl:
-                                  resolveSongPlaceholder(mediaId: song.id),
-                              fit: BoxFit.cover,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                LoadImageCached(
+                                  imageUrl: effectiveThumb,
+                                  fallbackUrl: fallbackThumb,
+                                  mediaId: song.id,
+                                  placeholderUrl:
+                                      resolveSongPlaceholder(mediaId: song.id),
+                                  fit: BoxFit.cover,
+                                ),
+                                if (isShort)
+                                  Positioned(
+                                    bottom: 3,
+                                    right: 3,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE50914)
+                                            .withValues(alpha: 0.9),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: const Text(
+                                        'SHORT',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 7.5,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
@@ -191,34 +249,75 @@ class SongCardWidget extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 child: Text(song.title),
                               ),
-                          const SizedBox(height: 3),
-                          if (subtitleOverride != null)
-                            Text(
-                              subtitleOverride!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Default_Theme.primaryColor2
-                                    .withValues(alpha: 0.65),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            )
-                          else
-                            TrackMetadataLinks(
-                              track: song,
-                              style: TextStyle(
-                                color: Default_Theme.primaryColor2
-                                    .withValues(alpha: 0.65),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    ),
+                              const SizedBox(height: 3),
+                              if (subtitleOverride != null)
+                                Text(
+                                  subtitleOverride!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Default_Theme.primaryColor2
+                                        .withValues(alpha: 0.65),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                )
+                              else if (isShort)
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4.5, vertical: 1),
+                                      margin: const EdgeInsets.only(right: 6),
+                                      decoration: BoxDecoration(
+                                        color: Default_Theme.accentColor2
+                                            .withValues(alpha: 0.18),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Default_Theme.accentColor2
+                                              .withValues(alpha: 0.4),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Short',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: Default_Theme.accentColor2,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: TrackMetadataLinks(
+                                        track: song,
+                                        style: TextStyle(
+                                          color: Default_Theme.primaryColor2
+                                              .withValues(alpha: 0.65),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                TrackMetadataLinks(
+                                  track: song,
+                                  style: TextStyle(
+                                    color: Default_Theme.primaryColor2
+                                        .withValues(alpha: 0.65),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
                     const SizedBox(width: 8),
 
                     // ── Actions ──

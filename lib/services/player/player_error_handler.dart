@@ -102,10 +102,8 @@ class PlayerErrorHandler {
         msg.contains('socket') ||
         msg.contains('abnormal eof') ||
         msg.contains('connection dropped') ||
-        msg.contains('network') ||
         msg.contains('http request failed') ||
         msg.contains('error sending request') ||
-        msg.contains('wasm execution error') ||
         msg.contains('connection refused') ||
         msg.contains('failed to resolve') ||
         msg.contains('dns') ||
@@ -120,7 +118,10 @@ class PlayerErrorHandler {
         msg.contains('format') ||
         msg.contains('unrecognized') ||
         msg.contains('decode') ||
-        msg.contains('demuxer')) {
+        msg.contains('demuxer') ||
+        msg.contains('wasm execution error') ||
+        msg.contains('no streams returned') ||
+        msg.contains('plugin')) {
       return PlayerErrorType.sourceError;
     } else if (msg.contains('permission') || msg.contains('access denied')) {
       return PlayerErrorType.permissionError;
@@ -240,7 +241,7 @@ class PlayerErrorHandler {
       case PlayerErrorType.networkDropped:
         return "You're offline. Connect to the internet to stream this song.";
       case PlayerErrorType.sourceError:
-        return 'Song format unsupported or corrupted.';
+        return 'Unable to play this track from current source.';
       case PlayerErrorType.playbackError:
         return 'Playback issue detected.';
       case PlayerErrorType.bufferingError:

@@ -5,7 +5,9 @@ import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/blocs/lyrics/lyrics_cubit.dart';
 import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/core/di/service_locator.dart';
+import 'package:Orvia/core/models/exported.dart' hide Lyrics;
 import 'package:Orvia/core/models/lyrics_models.dart';
+import 'package:Orvia/services/lyrics/lrclib_lyrics_service.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -104,7 +106,6 @@ class LyricsSearchDelegate extends SearchDelegate {
     final sanitizedQuery = sanitizeLyricsQueryText(q);
     if (sanitizedQuery.trim().isEmpty) return [];
     final pluginIds = await _getLyricsPluginIds();
-    if (pluginIds.isEmpty) return [];
 
     final results = <({String pluginId, plugin_models.LyricsMatch match})>[];
     for (final pluginId in pluginIds) {
@@ -122,6 +123,37 @@ class LyricsSearchDelegate extends SearchDelegate {
         log('Lyrics search failed for $pluginId: $e', name: 'LyricsSearch');
       }
     }
+
+    // Direct LRCLIB native search fallback
+    try {
+      final nativeMatches =
+          await LrclibLyricsService.search(query: sanitizedQuery);
+      for (final n in nativeMatches) {
+        final alreadyPresent = results.any((r) =>
+            r.match.title.toLowerCase() == n.title.toLowerCase() &&
+            r.match.artist.toLowerCase() == n.artist.toLowerCase());
+        if (!alreadyPresent) {
+          final durSec = double.tryParse(n.duration ?? '')?.round();
+          results.add((
+            pluginId: 'native.lrclib',
+            match: plugin_models.LyricsMatch(
+              id: n.id,
+              title: n.title,
+              artist: n.artist,
+              album: n.album,
+              durationMs:
+                  durSec != null ? BigInt.from(durSec * 1000) : null,
+              syncType: n.lyricsSynced != null && n.lyricsSynced!.isNotEmpty
+                  ? plugin_models.LyricsSyncType.line
+                  : plugin_models.LyricsSyncType.none,
+            ),
+          ));
+        }
+      }
+    } catch (e) {
+      log('Native LRCLIB search error: $e', name: 'LyricsSearch');
+    }
+
     return results;
   }
 
@@ -296,6 +328,31 @@ class _LyricsResultCardState extends State<_LyricsResultCard> {
     setState(() => _isApplying = true);
 
     try {
+      final targetMediaId = _targetMediaId();
+
+      if (widget.pluginId == 'native.lrclib') {
+        final lyrics = await LrclibLyricsService.fetchLyrics(
+          track: Track(
+            id: targetMediaId,
+            title: widget.match.title,
+            artists: [ArtistSummary(id: '', name: widget.match.artist)],
+            album: widget.match.album != null
+                ? AlbumSummary(id: '', title: widget.match.album!, artists: const [])
+                : null,
+            thumbnail: const Artwork(url: '', layout: ImageLayout.square),
+            isExplicit: false,
+            durationMs: widget.match.durationMs,
+          ),
+        );
+
+        if (lyrics != null && mounted) {
+          context.read<LyricsCubit>().setLyricsToDB(lyrics, targetMediaId);
+          SnackbarService.showMessage(l10n.lyricsSearchApplied);
+          widget.searchDelegate.close(context, null);
+          return;
+        }
+      }
+
       final response = await ServiceLocator.pluginService.execute(
         pluginId: widget.pluginId,
         request: PluginRequest.lyricsProvider(
@@ -304,7 +361,6 @@ class _LyricsResultCardState extends State<_LyricsResultCard> {
       );
 
       if (response is PluginResponse_LyricsById && mounted) {
-        final targetMediaId = _targetMediaId();
         final fetchedLyrics = pluginLyricsToLyrics(
           response.field0,
           artist: widget.match.artist,
@@ -555,13 +611,37 @@ class _LyricsPreviewModalState extends State<_LyricsPreviewModal> {
 
   Future<void> _fetchLyrics() async {
     try {
+      final targetMediaId = _targetMediaId();
+
+      if (widget.pluginId == 'native.lrclib') {
+        final lyrics = await LrclibLyricsService.fetchLyrics(
+          track: Track(
+            id: targetMediaId,
+            title: widget.match.title,
+            artists: [ArtistSummary(id: '', name: widget.match.artist)],
+            album: widget.match.album != null
+                ? AlbumSummary(id: '', title: widget.match.album!, artists: const [])
+                : null,
+            thumbnail: const Artwork(url: '', layout: ImageLayout.square),
+            isExplicit: false,
+            durationMs: widget.match.durationMs,
+          ),
+        );
+        if (mounted) {
+          setState(() {
+            _fetchedLyrics = lyrics;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
       final response = await _pluginService.execute(
         pluginId: widget.pluginId,
         request: PluginRequest.lyricsProvider(
             LyricsProviderCommand.getLyricsById(id: widget.match.id)),
       );
       if (response is PluginResponse_LyricsById && mounted) {
-        final targetMediaId = _targetMediaId();
         setState(() {
           _fetchedLyrics = pluginLyricsToLyrics(
             response.field0,

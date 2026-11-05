@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/services/db/dao/lyrics_dao.dart';
 import 'package:Orvia/services/db/dao/playlist_dao.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
@@ -108,18 +109,43 @@ class SmartTrackReplacementService {
         .map((c) => SmartTrackReplacementCandidate(
               track: c.track,
               pluginId: c.pluginId,
-              pluginName: pluginNameMap[c.pluginId] ?? c.pluginId,
+              pluginName: formatUserFriendlyPluginName(pluginNameMap[c.pluginId] ?? c.pluginId),
               confidence: c.confidence,
             ))
         .toList(growable: false);
   }
 
+  bool _hasReasonableTitleMatch(String originalTitle, String candidateTitle) {
+    final origClean = originalTitle.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    final candClean = candidateTitle.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+
+    final origWords = origClean
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 2 && !{'the', 'and', 'from', 'version', 'song', 'audio', 'soundtrack', 'remastered'}.contains(w))
+        .toSet();
+
+    final candWords = candClean
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 2)
+        .toSet();
+
+    if (origWords.isEmpty) return true;
+    final intersection = origWords.intersection(candWords);
+    return intersection.isNotEmpty || candClean.contains(origClean) || origClean.contains(candClean);
+  }
+
   Future<SmartTrackReplacementCandidate?> findBestReplacement(
     Track originalTrack,
   ) async {
-    final candidates = await searchCandidates(originalTrack, limit: 1);
+    final candidates = await searchCandidates(originalTrack, limit: 4);
     if (candidates.isEmpty) return null;
-    return candidates.first.confidence >= 0.45 ? candidates.first : null;
+    for (final candidate in candidates) {
+      if (candidate.confidence >= 0.70 &&
+          _hasReasonableTitleMatch(originalTrack.title, candidate.track.title)) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   // ── Apply ────────────────────────────────────────────────────────────────

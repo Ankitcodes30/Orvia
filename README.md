@@ -51,7 +51,12 @@
 
 - 🚫 **Ad-Free Experience:** Zero ads, zero tracking, zero interruptions.
 - 🦀 **Plugin System:** Secure, auto-updating `.bex` plugin system for endless music sources powered by Rust.
-- 📂 **Local Music:** Play your local offline audio seamlessly alongside online streams.
+- 📂 **Local Music & Collections:** Play your local offline audio seamlessly alongside online streams, organized into offline collections.
+- 🎨 **Dynamic Home Carousel & Time-Aware Banners:** Smart scheduling rotates tailored collections:
+  - 🌅 **Morning Bhakti:** 26 verified sacred chants, Hanuman Chalisa, and morning devotional hymns (active 6:00 AM – 10:30 AM).
+  - 🪔 **Diwali Festive Special:** Verified one-time 2026 festive experience featuring 19 curated Ram Bhajans and Lakshmi Puja hymns.
+  - ⚡ **Gym Energy:** High-BPM workout motivation and cardio hits.
+- 🔒 **Protected System Playlists:** **Creator's Choice** features 70 carefully curated melodies (38 classic selections + 32 exclusive YouTube tracks) safeguarded with database-level immutability against deletion, renaming, or modification.
 - 🎤 **Karaoke-Style Lyrics:** Time-synced lyrics with manual offset adjustment.
 - 🎛️ **Audio Equalizer:** Built-in equalizer and customizable crossfade transitions.
 - 🔄 **Smart Replace:** Auto-recovery finds working streams if a playlist track becomes unavailable.
@@ -80,7 +85,7 @@
 
 ## 📥 Download & Installation
 
-The latest official release is **v3.0.7** (Build `4`).
+The latest official release is **v3.0.7** (Build `7`).
 
 <p align="center">
   <a href="https://ankitcodes30.github.io/Orvia/">
@@ -111,25 +116,21 @@ Builds and packages are available via GitHub Releases and SourceForge mirrors.
 
 ---
 
-## 🔒 Release Integrity & SHA-256 Checksums
+## 🧪 Automated Testing & Quality Assurance
 
-Always verify the integrity of downloaded files before running or installing them:
+Orvia maintains a rigorous test suite covering UI components, database operations, background playback, and edge cases:
 
-| Package | Version | File Name | SHA-256 Checksum |
-|---|---|---|---|
-| **Android APK (ARM64-v8a)** | `v3.0.7` | `app-release.apk` | `0CE9C83FEDF850990579ED901412300B8A1B99576D30F94E50D03E0FB17AD713` |
-| **Windows x64 (Portable)** | `v3.0.7` | `Orvia-Windows.zip` | `307A824F1A409550676A431AA383372B156BCD66AA23AD14C339DCC6E85F0016` |
+- **Total Test Cases:** 537 automated unit and integration tests passing.
+- **Coverage Areas:**
+  - Creator's Choice immutability and DAO protection.
+  - Indian festival scheduling windows and timezone conversions.
+  - Multi-select context behavior and tab transitions.
+  - Database schema migrations and cross-provider track reconciliation.
+  - Windows update resilience and release manifest parsing.
 
-### How to Verify Checksums
-
-**Windows (PowerShell):**
-```powershell
-Get-FileHash -Algorithm SHA256 "Orvia-Windows.zip"
-```
-
-**Linux / macOS / Android (Termux):**
+To run the complete automated suite:
 ```bash
-sha256sum app-release.apk
+flutter test -j 4
 ```
 
 ---

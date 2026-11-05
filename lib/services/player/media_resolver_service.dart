@@ -1,6 +1,5 @@
 import 'dart:developer';
 
-import 'package:Orvia/core/events/global_event_bus.dart';
 import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/plugins/errors/plugin_exceptions.dart';
@@ -12,7 +11,6 @@ import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/services/player/stream_quality_selector.dart';
-import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 
 class ResolvedMediaSource {
@@ -84,9 +82,6 @@ class MediaResolverService {
           name: 'MediaResolverService',
         );
       } else {
-        GlobalEventBus.instance.emitError(
-          AppError.malformedMediaId(rawId: track.id),
-        );
         throw Exception(
           'Cannot resolve stream for "${track.title}" — '
           'malformed media ID: "${track.id}"',
@@ -101,51 +96,45 @@ class MediaResolverService {
       );
     }
 
+    var pluginId = parts.pluginId;
+    final loadedPlugins = _pluginService.getLoadedPlugins();
+    if (!loadedPlugins.contains(pluginId)) {
+      if (pluginId.contains('ytvideo') ||
+          pluginId.contains('youtube') ||
+          pluginId.contains('ytmusic')) {
+        final ytMatch = loadedPlugins.firstWhere(
+          (p) =>
+              p.contains('ytvideo') ||
+              p.contains('ytmusic') ||
+              p.contains('youtube'),
+          orElse: () => '',
+        );
+        if (ytMatch.isNotEmpty) {
+          log(
+            'Plugin "$pluginId" not loaded; routing to available YouTube resolver: "$ytMatch"',
+            name: 'MediaResolverService',
+          );
+          pluginId = ytMatch;
+        }
+      }
+    }
+
     log(
         'Resolving streams for "${track.title}" '
-        '(plugin: ${parts.pluginId}, id: ${parts.localId})',
+        '(plugin: $pluginId, id: ${parts.localId})',
         name: 'MediaResolverService');
 
     PluginResponse response;
     try {
       response = await _pluginService.execute(
-        pluginId: parts.pluginId,
+        pluginId: pluginId,
         request: PluginRequest.contentResolver(
           ContentResolverCommand.getStreams(id: parts.localId),
         ),
       );
     } on PluginException catch (e) {
-      if (e is PluginNotLoadedException) {
-        GlobalEventBus.instance.emitError(
-          AppError.pluginNotLoaded(pluginId: parts.pluginId, mediaId: track.id),
-        );
-      } else {
-        final sanitized = formatUserFriendlyPluginError(e.message);
-        final lower = e.message.toLowerCase();
-        final isNetwork = lower.contains('http request failed') ||
-            lower.contains('error sending request') ||
-            lower.contains('connection refused') ||
-            lower.contains('failed to resolve') ||
-            lower.contains('offline') ||
-            lower.contains('no internet') ||
-            lower.contains('wasm execution error') ||
-            lower.contains('broken pipe') ||
-            lower.contains('reset');
-        if (isNetwork) {
-          GlobalEventBus.instance.emitError(
-            const AppError.networkFailure(
-              message: "You're offline. Connect to the internet to stream this song.",
-            ),
-          );
-        } else {
-          GlobalEventBus.instance.emitError(
-            AppError.pluginError(
-              pluginId: parts.pluginId,
-              message: sanitized,
-            ),
-          );
-        }
-      }
+      log('Plugin execution error while resolving streams: $e',
+          name: 'MediaResolverService');
       rethrow;
     }
 

@@ -6,6 +6,7 @@ import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/services/db/dao/library_dao.dart';
 import 'package:Orvia/services/db/global_db.dart';
+import 'package:Orvia/services/db/mappers/collection_mapper.dart';
 import 'package:Orvia/services/db/mappers/media_item_mapper.dart';
 import 'package:Orvia/services/db/mappers/playlist_mapper.dart';
 import 'package:equatable/equatable.dart';
@@ -22,6 +23,11 @@ part 'library_items_state.dart';
 /// DB types leak into the state layer.
 class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   StreamSubscription? _playlistWatcher;
+  StreamSubscription? _savedCollectionsWatcher;
+  final _trackLikedController =
+      StreamController<({String trackId, bool isLiked})>.broadcast();
+  Stream<({String trackId, bool isLiked})> get trackLikedStream =>
+      _trackLikedController.stream;
   final PlaylistDAO _playlistDao;
   final LibraryDAO _libraryDao;
 
@@ -41,6 +47,9 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   Future<void> close() async {
     _playlistWatcher?.cancel();
     _playlistWatcher = null;
+    _savedCollectionsWatcher?.cancel();
+    _savedCollectionsWatcher = null;
+    _trackLikedController.close();
     try {
       await _initFuture;
     } catch (_) {}
@@ -71,6 +80,12 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
           _fetchPlaylists();
         }
       });
+      _savedCollectionsWatcher =
+          (await _libraryDao.watchSavedCollections()).listen((_) {
+        if (!isClosed) {
+          _fetchPlaylists();
+        }
+      });
     } catch (_) {}
   }
 
@@ -92,19 +107,86 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   /// Fetch all playlists (user + remote collections) and emit as domain items.
   Future<void> _fetchPlaylists() async {
     try {
+      await _playlistDao.ensureLikedSongsPlaylist();
       final allPlaylists = await _playlistDao.getAllPlaylists();
       allPlaylists.removeWhere((p) => _systemPlaylists.contains(p.name));
       allPlaylists.removeWhere((p) => _excludedFromLibraryOnly.contains(p.name));
       // Guard against orphan rows with an empty name or internal provider IDs.
-      allPlaylists.removeWhere((p) =>
-          p.name.trim().isEmpty ||
-          p.type == PlaylistTypeDB.artist ||
-          p.type == PlaylistTypeDB.album ||
-          p.name.startsWith('content-resolver.') ||
-          p.name.contains('::'));
+      allPlaylists.removeWhere((p) {
+        if (p.type == PlaylistTypeDB.artist) {
+          return true; // Artists live in favouriteArtists section
+        }
+        if (p.type == PlaylistTypeDB.album) {
+          return true; // Liked albums live exclusively in the dedicated 'Liked albums' collection
+        }
+        if (p.type == PlaylistTypeDB.userPlaylist) {
+          return p.name.trim().isEmpty ||
+              p.name.startsWith('content-resolver.') ||
+              p.name.contains('::');
+        }
+        // For remotePlaylist, ensure display title is non-empty
+        final title = playlistDBDisplayName(p).trim();
+        return title.isEmpty;
+      });
       final items = await _toItemProperties(allPlaylists);
+
+      // Ensure 'Liked' playlist row is titled 'Liked songs'
+      for (int i = 0; i < items.length; i++) {
+        if (items[i].playlistName == PlaylistDAO.likedPlaylist ||
+            items[i].storageKey == PlaylistDAO.likedPlaylist) {
+          items[i] = PlaylistItemProperties(
+            playlistName: PlaylistDAO.likedSongsPlaylist,
+            storageKey: items[i].storageKey,
+            coverImgUrl: items[i].coverImgUrl,
+            subTitle: items[i].subTitle,
+            type: items[i].type,
+            isPinned: items[i].isPinned,
+            sortOrder: items[i].sortOrder,
+            playlistId: items[i].playlistId,
+          );
+        }
+      }
+
+      final savedArtists = await _libraryDao.getSavedArtists();
+      final savedAlbums = await _libraryDao.getSavedAlbums();
+
+      // Inject Liked albums collection row directly under Liked songs
+      final likedAlbumsCover = savedAlbums.isNotEmpty
+          ? savedAlbums.first.thumbnail?.url
+          : null;
+      final albumCount = savedAlbums.length;
+      final albumSubtitle =
+          '$albumCount ${albumCount == 1 ? 'album' : 'albums'}';
+
+      final likedAlbumsItem = PlaylistItemProperties(
+        playlistName: 'Liked albums',
+        storageKey: 'liked_albums_collection',
+        coverImgUrl: likedAlbumsCover,
+        subTitle: albumSubtitle,
+        type: PlaylistType.album,
+        isPinned: true,
+        sortOrder: -1,
+        playlistId: -999,
+      );
+
+      final likedSongsIndex = items.indexWhere((p) =>
+          p.playlistName == PlaylistDAO.likedSongsPlaylist ||
+          p.playlistName == PlaylistDAO.likedPlaylist ||
+          p.storageKey == PlaylistDAO.likedSongsPlaylist ||
+          p.storageKey == PlaylistDAO.likedPlaylist);
+
+      if (likedSongsIndex >= 0) {
+        items.insert(likedSongsIndex + 1, likedAlbumsItem);
+      } else {
+        items.insert(0, likedAlbumsItem);
+      }
+
       if (isClosed) return;
-      emit(state.copyWith(playlists: items));
+      emit(state.copyWith(
+        playlists: items,
+        favouriteArtists: savedArtists,
+        likedAlbums: savedAlbums,
+      ));
     } catch (e) {
       log('Error fetching playlists: $e', name: 'LibraryItemsCubit');
       if (isClosed) return;
@@ -126,7 +208,7 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
           domainPlaylist.subtitle!.trim().isNotEmpty) {
         subtitle = domainPlaylist.subtitle!.trim();
       } else if (domainPlaylist.type == PlaylistType.userPlaylist) {
-        final trackCount = (await _playlistDao.getPlaylistTracks(p.id)).length;
+        final trackCount = await _playlistDao.getPlaylistTrackCount(p.id);
         subtitle = '$trackCount ${trackCount == 1 ? 'track' : 'tracks'}';
       }
 
@@ -157,6 +239,20 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
       return thumb.url;
     }
 
+    // For albums, try embedded album thumbnail.
+    if (playlist.type == PlaylistTypeDB.album &&
+        playlist.album?.thumbnail != null &&
+        playlist.album!.thumbnail!.url.isNotEmpty) {
+      return playlist.album!.thumbnail!.url;
+    }
+
+    // For remote playlists, try embedded remotePlaylist thumbnail.
+    if (playlist.type == PlaylistTypeDB.remotePlaylist &&
+        playlist.remotePlaylist?.thumbnail != null &&
+        playlist.remotePlaylist!.thumbnail!.url.isNotEmpty) {
+      return playlist.remotePlaylist!.thumbnail!.url;
+    }
+
     // For artists, try embedded artist thumbnail.
     if (playlist.type == PlaylistTypeDB.artist &&
         playlist.artists != null &&
@@ -184,28 +280,38 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   /// Create a new empty playlist.
   Future<void> createPlaylist(String name) async {
     await _playlistDao.createPlaylist(name);
+    await _fetchPlaylists();
     SnackbarService.showMessage("Playlist '$name' created!");
   }
 
+  bool _isProtectedPlaylist(String name) {
+    return CreatorsChoiceService.isCreatorsChoice(name) ||
+        name == PlaylistDAO.likedSongsPlaylist ||
+        name == PlaylistDAO.likedPlaylist ||
+        name == 'Liked albums';
+  }
+
   /// Delete a playlist by its Isar id.
-  void removePlaylistById(int playlistId) async {
+  Future<void> removePlaylistById(int playlistId) async {
     final playlist = await _playlistDao.getPlaylistById(playlistId);
-    if (playlist != null && CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+    if (playlist != null && _isProtectedPlaylist(playlist.name)) {
       log('Cannot remove protected playlist "${playlist.name}"', name: 'LibraryItemsCubit');
       return;
     }
-    _playlistDao.deletePlaylist(playlistId);
+    await _playlistDao.deletePlaylist(playlistId);
+    await _fetchPlaylists();
     SnackbarService.showMessage('Playlist removed');
   }
 
   /// Delete a playlist by name.
-  void removePlaylistByName(String name) {
-    if (CreatorsChoiceService.isCreatorsChoice(name)) {
+  Future<void> removePlaylistByName(String name) async {
+    if (_isProtectedPlaylist(name)) {
       log('Cannot remove protected playlist "$name"', name: 'LibraryItemsCubit');
       return;
     }
     if (name.isNotEmpty && name != 'Null') {
-      _playlistDao.deletePlaylistByName(name);
+      await _playlistDao.deletePlaylistByName(name);
+      await _fetchPlaylists();
       SnackbarService.showMessage('Playlist "$name" removed');
     }
   }
@@ -216,12 +322,12 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
     if (trimmed.isEmpty) return false;
     try {
       final playlist = await _playlistDao.getPlaylistById(playlistId);
-      if (playlist != null && CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+      if (playlist != null && _isProtectedPlaylist(playlist.name)) {
         log('Cannot rename protected playlist "${playlist.name}"', name: 'LibraryItemsCubit');
         return false;
       }
-      if (CreatorsChoiceService.isCreatorsChoice(trimmed)) {
-        SnackbarService.showMessage('Cannot rename to "${CreatorsChoiceService.playlistName}"');
+      if (_isProtectedPlaylist(trimmed)) {
+        SnackbarService.showMessage('Cannot rename to "$trimmed"');
         return false;
       }
       final existing = await _playlistDao.getPlaylistByName(trimmed);
@@ -272,6 +378,40 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
     }
   }
 
+  /// Add multiple [Track]s to a named playlist.
+  Future<void> addTracksToPlaylist(List<Track> tracks, String playlistName,
+      {bool showSnackbar = true}) async {
+    if (playlistName.isEmpty || CreatorsChoiceService.isCreatorsChoice(playlistName)) return;
+    try {
+      final playlist = await _playlistDao.getPlaylistByName(playlistName);
+      if (playlist == null) return;
+      await _playlistDao.addTracksToPlaylist(playlist.id, tracks);
+      if (showSnackbar) {
+        SnackbarService.showMessage('${tracks.length} songs added to $playlistName');
+      }
+    } catch (e) {
+      log('Failed to add tracks to "$playlistName": $e', name: 'LibraryItemsCubit');
+      if (showSnackbar) {
+        SnackbarService.showMessage('Failed to add to playlist: $e');
+      }
+    }
+  }
+
+  /// Add multiple tracks to Liked songs.
+  Future<void> likeTracks(List<Track> tracks, {bool showSnackbar = true}) async {
+    if (tracks.isEmpty) return;
+    try {
+      for (final t in tracks) {
+        await setTrackLiked(t, true);
+      }
+      if (showSnackbar) {
+        SnackbarService.showMessage('Added ${tracks.length} song${tracks.length == 1 ? '' : 's'} to Liked songs');
+      }
+    } catch (e) {
+      log('Failed to like tracks: $e', name: 'LibraryItemsCubit');
+    }
+  }
+
   /// Remove a [Track] from a named playlist.
   Future<void> removeFromPlaylist(Track track, String playlistName,
       {bool showSnackbar = true}) async {
@@ -306,7 +446,16 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
 
   /// Like or unlike a track.
   Future<void> setTrackLiked(Track track, bool liked) async {
-    await _playlistDao.setTrackLiked(track, liked);
+    try {
+      await _playlistDao.setTrackLiked(track, liked);
+      if (!_trackLikedController.isClosed) {
+        _trackLikedController.add((trackId: track.id, isLiked: liked));
+      }
+    } catch (e, stack) {
+      log('Error setting track liked (${track.id}): $e\n$stack',
+          name: 'LibraryItemsCubit');
+      rethrow;
+    }
   }
 
   /// Get all playlist names containing a given track.
@@ -328,19 +477,41 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
       {required ArtistSummary artist,
       required String sourceName,
       bool showSnackbar = true}) async {
-    await _libraryDao.saveArtist(artist, sourceName: sourceName);
-    if (showSnackbar) {
-      SnackbarService.showMessage('Artist "${artist.name}" saved to library');
+    try {
+      await _libraryDao.saveArtist(artist, sourceName: sourceName);
+      await _fetchPlaylists();
+      if (showSnackbar) {
+        SnackbarService.showMessage('Artist "${artist.name}" saved to library');
+      }
+    } catch (e, stack) {
+      log('Error saving artist "${artist.name}": $e\n$stack',
+          name: 'LibraryItemsCubit');
+      if (showSnackbar) {
+        SnackbarService.showMessage('Failed to save artist to library');
+      }
+      rethrow;
     }
   }
 
   Future<void> saveRemoteAlbum(
       {required AlbumSummary album,
       required String sourceName,
+      String? pluginId,
       bool showSnackbar = true}) async {
-    await _libraryDao.saveAlbum(album, sourceName: sourceName);
-    if (showSnackbar) {
-      SnackbarService.showMessage('Album "${album.title}" saved to library');
+    try {
+      await _libraryDao.saveAlbum(album,
+          sourceName: sourceName, pluginId: pluginId);
+      await _fetchPlaylists();
+      if (showSnackbar) {
+        SnackbarService.showMessage('Album "${album.title}" saved to library');
+      }
+    } catch (e, stack) {
+      log('Error saving album "${album.title}": $e\n$stack',
+          name: 'LibraryItemsCubit');
+      if (showSnackbar) {
+        SnackbarService.showMessage('Failed to save album to library');
+      }
+      rethrow;
     }
   }
 
@@ -348,10 +519,20 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
       {required PlaylistSummary playlist,
       required String sourceName,
       bool showSnackbar = true}) async {
-    await _libraryDao.saveRemotePlaylist(playlist, sourceName: sourceName);
-    if (showSnackbar) {
-      SnackbarService.showMessage(
-          'Playlist "${playlist.title}" saved to library');
+    try {
+      await _libraryDao.saveRemotePlaylist(playlist, sourceName: sourceName);
+      await _fetchPlaylists();
+      if (showSnackbar) {
+        SnackbarService.showMessage(
+            'Playlist "${playlist.title}" saved to library');
+      }
+    } catch (e, stack) {
+      log('Error saving playlist "${playlist.title}": $e\n$stack',
+          name: 'LibraryItemsCubit');
+      if (showSnackbar) {
+        SnackbarService.showMessage('Failed to save playlist to library');
+      }
+      rethrow;
     }
   }
 
@@ -362,9 +543,17 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
 
   /// Remove a saved remote collection by mediaId.
   Future<void> removeRemoteSaved(String mediaId, PlaylistType type) async {
-    final dbType = playlistTypeToPlaylistTypeDB(type);
-    await _libraryDao.removeByMediaId(mediaId, dbType);
-    SnackbarService.showMessage('Removed from library');
+    try {
+      final dbType = playlistTypeToPlaylistTypeDB(type);
+      await _libraryDao.removeByMediaId(mediaId, dbType);
+      await _fetchPlaylists();
+      SnackbarService.showMessage('Removed from library');
+    } catch (e, stack) {
+      log('Error removing saved item ($mediaId): $e\n$stack',
+          name: 'LibraryItemsCubit');
+      SnackbarService.showMessage('Failed to remove from library');
+      rethrow;
+    }
   }
 
   // ── Navigation target resolution ──────────────────────────────────────────

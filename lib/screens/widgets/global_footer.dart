@@ -2,6 +2,7 @@ import 'package:Orvia/blocs/player_overlay/player_overlay_cubit.dart';
 import 'package:Orvia/routes/app_router.dart';
 import 'package:Orvia/screens/widgets/player_overlay_wrapper.dart';
 import 'package:Orvia/screens/widgets/mini_player_widget.dart';
+import 'package:Orvia/screens/screen/offline_screen.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -195,6 +196,9 @@ class _AnimatedPageViewState extends State<_AnimatedPageView>
   void didUpdateWidget(_AnimatedPageView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.navigationShell.currentIndex != _previousIndex) {
+      if (_previousIndex == 4 && widget.navigationShell.currentIndex != 4) {
+        OfflineScreen.clearSelectionIfActive();
+      }
       _previousIndex = widget.navigationShell.currentIndex;
       _animationController.forward(from: 0.0);
     }
@@ -223,6 +227,9 @@ void _handleTabNavigation(
   StatefulNavigationShell navigationShell,
   int index,
 ) {
+  if (navigationShell.currentIndex == 4 && index != 4) {
+    OfflineScreen.clearSelectionIfActive();
+  }
   if (index == 0) {
     // 1. Pop any modal or dialog routes on root Navigator
     final rootNav = AppRouter.globalRouterKey.currentState;

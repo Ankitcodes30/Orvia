@@ -67,6 +67,41 @@ const List<VerifiedArtistData> kFeaturedIndianArtists = [
     name: 'Jaya Kishori',
     imageUrl: 'https://c.saavncdn.com/artists/Jaya_Kishori_000_20250527084717_500x500.jpg',
   ),
+  VerifiedArtistData(
+    id: '505312',
+    name: 'Mohammed Rafi',
+    imageUrl: 'https://c.saavncdn.com/artists/Mohammed_Rafi_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '468245',
+    name: 'Diljit Dosanjh',
+    imageUrl: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_005_20231025073054_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '455867',
+    name: 'Mukesh',
+    imageUrl: 'https://c.saavncdn.com/artists/Mukesh_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '455127',
+    name: 'Udit Narayan',
+    imageUrl: 'https://c.saavncdn.com/artists/Udit_Narayan_004_20241029065120_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '455166',
+    name: 'Asha Bhosle',
+    imageUrl: 'https://c.saavncdn.com/artists/Asha_Bhosle_002_20200212082318_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '455120',
+    name: 'Alka Yagnik',
+    imageUrl: 'https://c.saavncdn.com/artists/Alka_Yagnik_002_20220314192930_500x500.jpg',
+  ),
+  VerifiedArtistData(
+    id: '467616',
+    name: 'Falguni Pathak',
+    imageUrl: 'https://c.saavncdn.com/artists/Falguni_Pathak_002_20221004121508_500x500.jpg',
+  ),
 ];
 
 class FeaturedArtistsSection extends StatelessWidget {

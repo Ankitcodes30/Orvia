@@ -292,6 +292,18 @@ class _LoadImageCachedState extends State<LoadImageCached> {
   }
 
   Widget _buildImageContent() {
+    // ── 0. Try Flutter Asset Image (primary) ──
+    if (widget.imageUrl.trim().startsWith('assets/')) {
+      return Image.asset(
+        widget.imageUrl.trim(),
+        fit: widget.fit,
+        width: widget.width,
+        height: widget.height,
+        errorBuilder: (context, error, stackTrace) =>
+            _placeholderImage(_effectivePlaceholder, widget.fit),
+      );
+    }
+
     // ── 1. Try local file (primary) ──
     final primaryFile = _resolveLocalImageFile(widget.imageUrl);
     if (primaryFile != null) {
@@ -433,6 +445,10 @@ Future<ImageProvider> getImageProvider(
 
   if (isGenericProviderIcon(imageUrl)) {
     return AssetImage(effectivePlaceholder);
+  }
+
+  if (imageUrl.trim().startsWith('assets/')) {
+    return AssetImage(imageUrl.trim());
   }
 
   final localFile = _resolveLocalImageFile(imageUrl);

@@ -38,6 +38,7 @@ import 'package:Orvia/screens/widgets/featured_artists_section.dart';
 import 'package:Orvia/screens/widgets/indian_browse_categories.dart';
 import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
+import 'package:Orvia/screens/widgets/diwali_special_card.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/updater/in_app_update_manager.dart';
@@ -119,9 +120,16 @@ class _ExploreScreenState extends State<ExploreScreen>
         alignment: 0.08,
       );
     } else {
+      final active = FestivalService.getActiveOrUpcomingFestival();
+      final isDiwali = active?.id.contains('diwali') == true ||
+          active?.name.toLowerCase().contains('diwali') == true;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const NavratriSpecialScreen()),
+        MaterialPageRoute(
+          builder: (_) => isDiwali
+              ? const DiwaliSpecialScreen()
+              : const NavratriSpecialScreen(),
+        ),
       );
     }
   }
@@ -579,6 +587,14 @@ class _StructuredHomeSections extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (activeFestival != null) ...[
+          const SizedBox(height: 14),
+          if (activeFestival.id.contains('diwali') ||
+              activeFestival.name.toLowerCase().contains('diwali'))
+            DiwaliSpecialSection(key: festiveSectionKey)
+          else
+            NavratriSpecialSection(key: festiveSectionKey),
+        ],
         // 3. Trending Now — only once
         if (trending != null) ...[
           const SizedBox(height: 10),
@@ -621,18 +637,7 @@ class _StructuredHomeSections extends StatelessWidget {
         const SizedBox(height: 14),
         FeaturedArtistsSection(pluginId: pluginId),
 
-        // 8. Festive Special (Automatic 10-day promotion window)
-        if (activeFestival != null) ...[
-          const SizedBox(height: 14),
-          KeyedSubtree(
-            key: festiveSectionKey,
-            child: activeFestival.id == 'diwali_2026'
-                ? DiwaliSpecialSection(tracks: activeFestival.tracks)
-                : const SizedBox.shrink(),
-          ),
-        ],
-
-        // 9. Best of 90s and year-based collections (2025, 2026)
+        // 5. Decades & Year Collections (2025, 2026)
         const SizedBox(height: 14),
         YearCollectionsSection(pluginId: pluginId),
 

@@ -22,6 +22,7 @@ import 'package:Orvia/services/player/player_engine.dart';
 import 'package:Orvia/screens/widgets/like_widget.dart';
 import 'package:Orvia/screens/widgets/play_pause_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/utils/pallete_generator.dart';
@@ -308,18 +309,18 @@ class _CoverImageVolSliderState extends State<CoverImageVolSlider> {
         final lowResUrl =
             currentTrack.thumbnail.urlLow ?? currentTrack.thumbnail.url;
 
-        return SizedBox.expand(
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: 1.0,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final boxWidth = constraints.maxWidth;
-                  return GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onDoubleTapDown: (details) =>
-                        _onDoubleTapDown(details, boxWidth),
-                    onDoubleTap: _onDoubleTap,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final boxWidth = constraints.maxWidth;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onDoubleTapDown: (details) =>
+                  _onDoubleTapDown(details, boxWidth),
+              onDoubleTap: _onDoubleTap,
+              child: SizedBox.expand(
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
                       child: LoadImageCached(
@@ -331,11 +332,11 @@ class _CoverImageVolSliderState extends State<CoverImageVolSlider> {
                         fit: BoxFit.contain,
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -496,17 +497,34 @@ class _LikeButtonState extends State<_LikeButton> {
   String? _lastTrackId;
   bool _isLiked = false;
   StreamSubscription? _mediaSub;
+  StreamSubscription? _likeSub;
 
   @override
   void initState() {
     super.initState();
     final player = context.read<OrviaPlayerCubit>().orviaPlayer;
+    final libraryCubit = context.read<LibraryItemsCubit>();
+
     _mediaSub = player.mediaItem.listen((mi) {
       if (mi?.id != _lastTrackId) {
         _lastTrackId = mi?.id;
+        if (mounted) {
+          setState(() => _isLiked = false);
+        }
         _queryLikedState(mi);
       }
     });
+
+    _likeSub = libraryCubit.trackLikedStream.listen((event) {
+      final currentMedia = player.mediaItem.valueOrNull;
+      if (currentMedia != null &&
+          isMatchingTrackId(currentMedia.id, event.trackId)) {
+        if (mounted) {
+          setState(() => _isLiked = event.isLiked);
+        }
+      }
+    });
+
     _queryLikedState(player.mediaItem.valueOrNull);
   }
 
@@ -515,19 +533,25 @@ class _LikeButtonState extends State<_LikeButton> {
       if (mounted) setState(() => _isLiked = false);
       return;
     }
+    final targetId = mi.id;
     try {
       final liked = await context
           .read<LibraryItemsCubit>()
           .isTrackLiked(mediaItemToTrack(mi));
-      if (mounted) setState(() => _isLiked = liked);
+      if (mounted && _lastTrackId == targetId) {
+        setState(() => _isLiked = liked);
+      }
     } catch (_) {
-      if (mounted) setState(() => _isLiked = false);
+      if (mounted && _lastTrackId == targetId) {
+        setState(() => _isLiked = false);
+      }
     }
   }
 
   @override
   void dispose() {
     _mediaSub?.cancel();
+    _likeSub?.cancel();
     super.dispose();
   }
 
@@ -547,19 +571,31 @@ class _LikeButtonState extends State<_LikeButton> {
           isPlaying: isPlaying,
           isLiked: _isLiked,
           iconSize: 25,
-          onLiked: () {
-            context
-                .read<LibraryItemsCubit>()
-                .setTrackLiked(mediaItemToTrack(currentMedia), true);
-            setState(() => _isLiked = true);
-            SnackbarService.showMessage(l10n.playerLiked(currentMedia.title));
+          onLiked: () async {
+            try {
+              await context
+                  .read<LibraryItemsCubit>()
+                  .setTrackLiked(mediaItemToTrack(currentMedia), true);
+              if (mounted) {
+                setState(() => _isLiked = true);
+                SnackbarService.showMessage(l10n.playerLiked(currentMedia.title));
+              }
+            } catch (e) {
+              SnackbarService.showMessage('Failed to update favourite');
+            }
           },
-          onDisliked: () {
-            context
-                .read<LibraryItemsCubit>()
-                .setTrackLiked(mediaItemToTrack(currentMedia), false);
-            setState(() => _isLiked = false);
-            SnackbarService.showMessage(l10n.playerUnliked(currentMedia.title));
+          onDisliked: () async {
+            try {
+              await context
+                  .read<LibraryItemsCubit>()
+                  .setTrackLiked(mediaItemToTrack(currentMedia), false);
+              if (mounted) {
+                setState(() => _isLiked = false);
+                SnackbarService.showMessage(l10n.playerUnliked(currentMedia.title));
+              }
+            } catch (e) {
+              SnackbarService.showMessage('Failed to update favourite');
+            }
           },
         );
       },

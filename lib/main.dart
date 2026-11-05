@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io' as io;
 import 'package:Orvia/blocs/downloader/cubit/downloader_cubit.dart';
+import 'package:Orvia/blocs/offline/cubit/offline_organizer_cubit.dart';
+import 'package:Orvia/services/offline/offline_organizer_service.dart';
 import 'package:Orvia/blocs/global_events/global_events_cubit.dart';
 import 'package:Orvia/blocs/internet_connectivity/cubit/connectivity_cubit.dart';
 import 'package:Orvia/blocs/lastdotfm/lastdotfm_cubit.dart';
@@ -561,6 +563,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             settingsDao: SettingsDAO(DBProvider.db),
             pluginService: ServiceLocator.pluginService,
           ),
+          lazy: false,
         ),
         BlocProvider(
           create: (context) => LastdotfmCubit(
@@ -580,6 +583,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ),
             settingsDao: SettingsDAO(DBProvider.db),
             pluginService: ServiceLocator.pluginService,
+          ),
+          lazy: false,
+        ),
+        BlocProvider(
+          create: (context) => OfflineOrganizerCubit(
+            service: OfflineOrganizerService(
+              settingsDao: SettingsDAO(DBProvider.db),
+            ),
+            downloaderCubit: context.read<DownloaderCubit>(),
           ),
           lazy: false,
         ),

@@ -3,7 +3,7 @@ description: An Open source Free Music Player.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 3.0.7+6
+version: 3.0.7+7
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -132,6 +132,7 @@ flutter:
     - assets/icons/OrviaLogo_System.png
     - assets/icons/OrviaLogo_Master.png
     - assets/icons/AnkitLogo.png
+    - assets/images/
     
   fonts:
     - family: Unageo

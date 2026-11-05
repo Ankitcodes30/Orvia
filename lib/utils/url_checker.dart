@@ -21,7 +21,14 @@ enum UrlType {
 String? extractVideoId(String url) {
   try {
     final uri = Uri.parse(url);
-    if (uri.host.contains('youtube.com') || uri.host.contains('music.youtube.com')) {
+    if (uri.host.contains('youtube.com') ||
+        uri.host.contains('music.youtube.com')) {
+      if (uri.pathSegments.contains('shorts')) {
+        final shortsIndex = uri.pathSegments.indexOf('shorts');
+        if (shortsIndex + 1 < uri.pathSegments.length) {
+          return uri.pathSegments[shortsIndex + 1];
+        }
+      }
       return uri.queryParameters['v'];
     }
     if (uri.host == 'youtu.be') {

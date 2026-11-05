@@ -2,15 +2,27 @@ part of 'library_items_cubit.dart';
 
 sealed class LibraryItemsState extends Equatable {
   final List<PlaylistItemProperties> playlists;
+  final List<ArtistSummary> favouriteArtists;
+  final List<AlbumSummary> likedAlbums;
 
-  const LibraryItemsState({this.playlists = const []});
+  const LibraryItemsState({
+    this.playlists = const [],
+    this.favouriteArtists = const [],
+    this.likedAlbums = const [],
+  });
 
   @override
-  List<Object?> get props => [playlists];
+  List<Object?> get props => [playlists, favouriteArtists, likedAlbums];
 
-  LibraryItemsState copyWith({List<PlaylistItemProperties>? playlists}) {
+  LibraryItemsState copyWith({
+    List<PlaylistItemProperties>? playlists,
+    List<ArtistSummary>? favouriteArtists,
+    List<AlbumSummary>? likedAlbums,
+  }) {
     return LibraryItemsLoaded(
       playlists: playlists ?? this.playlists,
+      favouriteArtists: favouriteArtists ?? this.favouriteArtists,
+      likedAlbums: likedAlbums ?? this.likedAlbums,
     );
   }
 }
@@ -20,7 +32,11 @@ final class LibraryItemsLoading extends LibraryItemsState {}
 
 /// Data successfully loaded.
 final class LibraryItemsLoaded extends LibraryItemsState {
-  const LibraryItemsLoaded({required super.playlists});
+  const LibraryItemsLoaded({
+    required super.playlists,
+    super.favouriteArtists = const [],
+    super.likedAlbums = const [],
+  });
 }
 
 /// Error during data fetch.

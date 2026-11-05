@@ -19,9 +19,15 @@ import 'package:Orvia/plugins/blocs/content/content_event.dart';
 import 'package:Orvia/plugins/blocs/content/content_state.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_state.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/screens/widgets/album_card.dart';
 import 'package:Orvia/screens/widgets/artist_card.dart';
+import 'package:Orvia/blocs/downloader/cubit/downloader_cubit.dart';
+import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
+import 'package:Orvia/screens/widgets/multi_select_bar.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/playlist_card.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
@@ -60,6 +66,57 @@ class _SearchScreenState extends State<SearchScreen> {
   List<({String query, ContentSearchFilter filter})>
       _currentCombinedSuggestions = [];
 
+  // Multi-Select Mode
+  bool _isMultiSelect = false;
+  final Set<String> _selectedTrackIds = {};
+  List<Track> _lastTrackList = [];
+
+  void _exitMultiSelect() {
+    setState(() {
+      _isMultiSelect = false;
+      _selectedTrackIds.clear();
+    });
+  }
+
+  void _toggleSelectAll(List<Track> tracks) {
+    setState(() {
+      if (_selectedTrackIds.length == tracks.length) {
+        _selectedTrackIds.clear();
+      } else {
+        _selectedTrackIds.addAll(tracks.map((t) => t.id));
+      }
+    });
+  }
+
+  Future<void> _handleMultiLike(List<Track> tracks) async {
+    final selected = tracks.where((t) => _selectedTrackIds.contains(t.id)).toList();
+    if (selected.isEmpty) return;
+    await context.read<LibraryItemsCubit>().likeTracks(selected);
+    _exitMultiSelect();
+  }
+
+  Future<void> _handleMultiAddToPlaylist(List<Track> tracks) async {
+    final selected = tracks.where((t) => _selectedTrackIds.contains(t.id)).toList();
+    if (selected.isEmpty) return;
+    await showMultiTrackAddToPlaylistSheet(context, selected);
+    _exitMultiSelect();
+  }
+
+  Future<void> _handleMultiDownload(List<Track> tracks) async {
+    final selected = tracks.where((t) => _selectedTrackIds.contains(t.id)).toList();
+    if (selected.isEmpty) return;
+    final downloader = context.read<DownloaderCubit>();
+    int queued = 0;
+    for (final t in selected) {
+      if (!downloader.isDownloaded(t.id)) {
+        await downloader.downloadSong(t, showSnackbar: false);
+        queued++;
+      }
+    }
+    SnackbarService.showMessage('Added $queued song${queued == 1 ? '' : 's'} to download queue');
+    _exitMultiSelect();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,8 +138,15 @@ class _SearchScreenState extends State<SearchScreen> {
       final persistedId = context.read<SettingsCubit>().state.searchPluginId;
       final hasPersistedPlugin = persistedId.isNotEmpty &&
           resolvers.any((p) => p.manifest.id == persistedId);
-      final activeId =
-          hasPersistedPlugin ? persistedId : resolvers.first.manifest.id;
+      final activeId = hasPersistedPlugin
+          ? persistedId
+          : resolvers
+              .firstWhere(
+                (p) => p.manifest.id == kDefaultSaavnPluginId,
+                orElse: () => resolvers.first,
+              )
+              .manifest
+              .id;
 
       _activePluginIdNotifier.value = activeId;
       _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
@@ -223,6 +287,19 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Scaffold(
           backgroundColor: Default_Theme.themeColor,
           resizeToAvoidBottomInset: false,
+          bottomNavigationBar: _isMultiSelect
+              ? MultiSelectActionBar(
+                  selectedCount: _selectedTrackIds.length,
+                  totalCount: _lastTrackList.length,
+                  onToggleSelectAll: () => _toggleSelectAll(_lastTrackList),
+                  onClose: _exitMultiSelect,
+                  contextType: MultiSelectContext.discovery,
+                  onLike: () => _handleMultiLike(_lastTrackList),
+                  onAddToPlaylist: () =>
+                      _handleMultiAddToPlaylist(_lastTrackList),
+                  onDownload: () => _handleMultiDownload(_lastTrackList),
+                )
+              : null,
           body: Stack(
             children: [
               // Extracted Background Painter
@@ -297,6 +374,29 @@ class _SearchScreenState extends State<SearchScreen> {
                           _ContentSliver(
                             contentBloc: _contentBloc,
                             activePluginNotifier: _activePluginIdNotifier,
+                            isMultiSelect: _isMultiSelect,
+                            selectedTrackIds: _selectedTrackIds,
+                            onTrackToggle: (track) {
+                              setState(() {
+                                if (_selectedTrackIds.contains(track.id)) {
+                                  _selectedTrackIds.remove(track.id);
+                                  if (_selectedTrackIds.isEmpty) {
+                                    _isMultiSelect = false;
+                                  }
+                                } else {
+                                  _selectedTrackIds.add(track.id);
+                                }
+                              });
+                            },
+                            onTrackLongPress: (track) {
+                              setState(() {
+                                _isMultiSelect = true;
+                                _selectedTrackIds.add(track.id);
+                              });
+                            },
+                            onTracksLoaded: (tracks) {
+                              _lastTrackList = tracks;
+                            },
                           ),
                       ],
                     );
@@ -714,7 +814,7 @@ class _PluginChip extends StatelessWidget {
                     const SizedBox(width: 4),
                   ],
                   Text(
-                    plugin.name,
+                    formatUserFriendlyPluginName(plugin.name),
                     style: Default_Theme.secondoryTextStyleMedium.merge(
                       TextStyle(
                         color: isSelected
@@ -1246,9 +1346,21 @@ class _EntitySuggestionTile extends StatelessWidget {
 class _ContentSliver extends StatelessWidget {
   final ContentBloc contentBloc;
   final ValueNotifier<String?> activePluginNotifier;
+  final bool isMultiSelect;
+  final Set<String> selectedTrackIds;
+  final void Function(Track) onTrackToggle;
+  final void Function(Track) onTrackLongPress;
+  final void Function(List<Track>) onTracksLoaded;
 
-  const _ContentSliver(
-      {required this.contentBloc, required this.activePluginNotifier});
+  const _ContentSliver({
+    required this.contentBloc,
+    required this.activePluginNotifier,
+    required this.isMultiSelect,
+    required this.selectedTrackIds,
+    required this.onTrackToggle,
+    required this.onTrackLongPress,
+    required this.onTracksLoaded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1280,7 +1392,14 @@ class _ContentSliver extends StatelessWidget {
                     state.searchStatus == SearchStatus.loadingMore) &&
                 hasResults) {
               return _SliverSearchResults(
-                  state: state, activePluginNotifier: activePluginNotifier);
+                state: state,
+                activePluginNotifier: activePluginNotifier,
+                isMultiSelect: isMultiSelect,
+                selectedTrackIds: selectedTrackIds,
+                onTrackToggle: onTrackToggle,
+                onTrackLongPress: onTrackLongPress,
+                onTracksLoaded: onTracksLoaded,
+              );
             }
             if (state.searchStatus == SearchStatus.loaded &&
                 state.searchResults != null &&
@@ -1314,9 +1433,21 @@ class _ContentSliver extends StatelessWidget {
 class _SliverSearchResults extends StatelessWidget {
   final ContentState state;
   final ValueNotifier<String?> activePluginNotifier;
+  final bool isMultiSelect;
+  final Set<String> selectedTrackIds;
+  final void Function(Track) onTrackToggle;
+  final void Function(Track) onTrackLongPress;
+  final void Function(List<Track>) onTracksLoaded;
 
-  const _SliverSearchResults(
-      {required this.state, required this.activePluginNotifier});
+  const _SliverSearchResults({
+    required this.state,
+    required this.activePluginNotifier,
+    required this.isMultiSelect,
+    required this.selectedTrackIds,
+    required this.onTrackToggle,
+    required this.onTrackLongPress,
+    required this.onTracksLoaded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1377,6 +1508,12 @@ class _SliverSearchResults extends StatelessWidget {
             ),
           ),
         if (tracks.isNotEmpty) ...[
+          Builder(builder: (_) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onTracksLoaded(tracks);
+            });
+            return const SizedBox.shrink();
+          }),
           _sliverSectionHeader(
               '${AppLocalizations.of(context)!.searchTracks} (${tracks.length})'),
           SliverPadding(
@@ -1385,19 +1522,35 @@ class _SliverSearchResults extends StatelessWidget {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final track = tracks[index];
+                  final isSelected = selectedTrackIds.contains(track.id);
                   return Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                     child: SongCardWidget(
                       song: track,
-                      onTap: () => context
-                          .read<OrviaPlayerCubit>()
-                          .orviaPlayer
-                          .updateQueueTracks(
-                        [track],
-                        doPlay: true,
-                        queueTitle: 'Search',
-                      ),
+                      showOptions: !isMultiSelect,
+                      isSelectMode: isMultiSelect,
+                      isSelected: isSelected,
+                      onSelectChanged: (val) {
+                        onTrackToggle(track);
+                      },
+                      onLongPress: () {
+                        onTrackLongPress(track);
+                      },
+                      onTap: () {
+                        if (isMultiSelect) {
+                          onTrackToggle(track);
+                          return;
+                        }
+                        context
+                            .read<OrviaPlayerCubit>()
+                            .orviaPlayer
+                            .updateQueueTracks(
+                          [track],
+                          doPlay: true,
+                          queueTitle: 'Search',
+                        );
+                      },
                       onOptionsTap: () => showMoreBottomSheet(context, track,
                           showSinglePlay: true),
                     ),

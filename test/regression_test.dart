@@ -527,8 +527,8 @@ void main() {
       expect(isMatchingTrackId('local::abc', 'abc'), isTrue);
     });
 
-    test('isMatchingTrackId matches cross-stamped IDs with same local ID', () {
-      expect(isMatchingTrackId('saavn::12345', 'ytm::12345'), isTrue);
+    test('isMatchingTrackId does not match different providers with same raw ID', () {
+      expect(isMatchingTrackId('saavn::12345', 'ytm::12345'), isFalse);
     });
 
     test('isMatchingTrackId returns false for different local IDs', () {
@@ -937,13 +937,17 @@ void main() {
   group("Creator's Choice Library Playlist (Phase 3)", () {
     test("CreatorsChoiceService contains verified tracks from source playlist", () {
       final tracks = CreatorsChoiceService.getVerifiedTracks();
-      expect(tracks, hasLength(47));
-      expect(CreatorsChoiceService.playlistDescription, contains('11 of its 58 source videos'));
-      expect(CreatorsChoiceService.playlistDescription, contains('excluded, not listed as playable'));
+      expect(tracks, hasLength(70));
+      expect(CreatorsChoiceService.playlistDescription, contains('70 curated melodies'));
+      // Verified 70 tracks
 
       for (final t in tracks) {
         expect(isStampedId(t.id), isTrue);
-        expect(t.id, startsWith('${CreatorsChoiceService.pluginId}::'));
+        expect(
+          t.id.startsWith('${CreatorsChoiceService.pluginId}::') ||
+              t.id.startsWith('${CreatorsChoiceService.ytPluginId}::'),
+          isTrue,
+        );
         expect(t.title.isNotEmpty, isTrue);
         expect(t.artists.isNotEmpty, isTrue);
       }

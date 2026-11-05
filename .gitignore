@@ -42,6 +42,7 @@ flutter_analyze.log
 flutter_test_all.log
 flutter_test.log
 scratch/
+.asset_backups/
 
 
 # Flutter repo-specific

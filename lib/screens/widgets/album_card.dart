@@ -80,8 +80,9 @@ class _AlbumCardState extends State<AlbumCard> {
                         Hero(
                           tag: _heroTag,
                           child: LoadImageCached(
-                            imageUrl: widget.album.thumbnail!.urlHigh ??
-                                widget.album.thumbnail!.url,
+                            imageUrl: widget.album.thumbnail?.urlHigh ??
+                                widget.album.thumbnail?.url ??
+                                '',
                             fallbackUrl: widget.album.thumbnail?.url,
                             fit: BoxFit.contain,
                           ),

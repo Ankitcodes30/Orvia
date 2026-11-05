@@ -172,29 +172,120 @@ class TrackIdentity {
     ];
   }
 
-  /// Deduplicates [tracks] semantically (by title + artist) preserving original order.
+  /// Safely checks whether an artwork URL is well-formed, non-empty, and has an http/https scheme.
+  /// Runs purely via synchronous in-memory URI parsing without network requests.
+  static bool isValidArtworkUrl(String? url) {
+    if (url == null) return false;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+    final uri = Uri.tryParse(trimmed);
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+  }
+
+  /// Extracts a valid Artwork instance with a verified http/https URL, checking
+  /// url, urlHigh, and urlLow in descending priority order.
+  static Artwork? getValidArtwork(Artwork? art) {
+    if (art == null) return null;
+    if (isValidArtworkUrl(art.url)) return art;
+    if (isValidArtworkUrl(art.urlHigh)) {
+      return Artwork(
+        url: art.urlHigh!,
+        urlLow: art.urlLow,
+        urlHigh: art.urlHigh,
+        layout: art.layout,
+      );
+    }
+    if (isValidArtworkUrl(art.urlLow)) {
+      return Artwork(
+        url: art.urlLow!,
+        urlLow: art.urlLow,
+        urlHigh: art.urlHigh,
+        layout: art.layout,
+      );
+    }
+    return null;
+  }
+
+  /// Checks whether a [Track] has a valid, non-empty primary or album artwork URL.
+  static bool hasValidArtwork(Track track) {
+    return getValidArtwork(track.thumbnail) != null ||
+        getValidArtwork(track.album?.thumbnail) != null;
+  }
+
+  /// Deduplicates [tracks] semantically (by ID or title + artist) preserving original order.
+  ///
+  /// When duplicate tracks share the same semantic identity or ID:
+  /// - The first track's identity and metadata are preserved.
+  /// - If the first track lacks valid artwork but a duplicate has valid artwork,
+  ///   the valid artwork is retained to prevent missing-artwork regressions in live views.
+  /// - Valid artwork on the primary track is never replaced unnecessarily.
   static List<Track> deduplicateTracksSemantically(
     Iterable<Track> tracks, {
     Iterable<Track>? existingTracks,
   }) {
-    final seenKeys = <String>{};
-    final seenIds = <String>{};
+    final seenKeys = <String, int>{};
+    final seenIds = <String, int>{};
 
     if (existingTracks != null) {
       for (final t in existingTracks) {
-        if (t.id.isNotEmpty) seenIds.add(t.id);
-        seenKeys.add(computeSemanticKey(t));
+        if (t.id.isNotEmpty) seenIds[t.id] = -1;
+        seenKeys[computeSemanticKey(t)] = -1;
       }
     }
 
     final unique = <Track>[];
     for (final t in tracks) {
-      if (t.id.isNotEmpty && !seenIds.add(t.id)) {
-        continue;
-      }
       final key = computeSemanticKey(t);
-      if (seenKeys.add(key)) {
+      final idMatchIdx = t.id.isNotEmpty ? seenIds[t.id] : null;
+      final keyMatchIdx = seenKeys[key];
+      final existingIdx = idMatchIdx ?? keyMatchIdx;
+
+      if (existingIdx == null) {
+        final newIdx = unique.length;
+        if (t.id.isNotEmpty) seenIds[t.id] = newIdx;
+        seenKeys[key] = newIdx;
         unique.add(t);
+      } else if (existingIdx >= 0) {
+        final existingTrack = unique[existingIdx];
+        final existingDirectArt = getValidArtwork(existingTrack.thumbnail);
+        final duplicateDirectArt = getValidArtwork(t.thumbnail);
+        final existingAlbumArt = getValidArtwork(existingTrack.album?.thumbnail);
+        final duplicateAlbumArt = getValidArtwork(t.album?.thumbnail);
+
+        final shouldUpdateThumbnail = existingDirectArt == null &&
+            (duplicateDirectArt != null || duplicateAlbumArt != null);
+        final shouldUpdateAlbumArt = existingTrack.album != null &&
+            existingAlbumArt == null &&
+            duplicateAlbumArt != null;
+
+        if (shouldUpdateThumbnail || shouldUpdateAlbumArt) {
+          final effectiveThumbnail = shouldUpdateThumbnail
+              ? (duplicateDirectArt ?? duplicateAlbumArt!)
+              : existingTrack.thumbnail;
+
+          final updatedAlbum = shouldUpdateAlbumArt
+              ? AlbumSummary(
+                  id: existingTrack.album!.id,
+                  title: existingTrack.album!.title,
+                  artists: existingTrack.album!.artists,
+                  thumbnail: duplicateAlbumArt,
+                )
+              : existingTrack.album;
+
+          unique[existingIdx] = Track(
+            id: existingTrack.id,
+            title: existingTrack.title,
+            artists: existingTrack.artists,
+            album: updatedAlbum,
+            durationMs: existingTrack.durationMs,
+            thumbnail: effectiveThumbnail,
+            url: existingTrack.url,
+            isExplicit: existingTrack.isExplicit,
+            lyrics: existingTrack.lyrics,
+          );
+        }
       }
     }
     return unique;

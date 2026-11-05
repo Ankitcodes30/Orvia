@@ -48,6 +48,16 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
     final playerCubit = context.read<OrviaPlayerCubit>();
     _currentTrackId = playerCubit.orviaPlayer.currentTrackInfo.id;
 
+    final lyricsCubit = context.read<LyricsCubit>();
+    final currentTrack = playerCubit.orviaPlayer.currentTrackInfo;
+    if (currentTrack.id != 'Null') {
+      if (lyricsCubit.state is LyricsInitial ||
+          lyricsCubit.state.track.id != currentTrack.id ||
+          lyricsCubit.state is LyricsError) {
+        lyricsCubit.getLyrics(currentTrack);
+      }
+    }
+
     _loadPersistedOffset();
   }
 
@@ -152,7 +162,8 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
                       LyricsLoading() => const Center(
                           child: CircularProgressIndicator(
                               color: Default_Theme.accentColor2)),
-                      LyricsLoaded() => state.lyrics.parsedLyrics != null
+                      LyricsLoaded() => (state.lyrics.parsedLyrics != null &&
+                              state.lyrics.parsedLyrics!.lyrics.isNotEmpty)
                           ? FullscreenSyncedLyrics(
                               state: state,
                               positionNotifier: _positionNotifier,
@@ -165,9 +176,34 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
                               : SignBoardWidget(
                                   icon: MingCute.music_2_line,
                                   message: l10n.playerNoLyricsFound),
-                      LyricsError() => SignBoardWidget(
-                          icon: MingCute.music_2_line,
-                          message: l10n.playerNoLyricsFound),
+                      LyricsError() => Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SignBoardWidget(
+                                icon: MingCute.music_2_line,
+                                message: l10n.playerNoLyricsFound,
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Default_Theme.accentColor2.withAlpha(50),
+                                  foregroundColor: Default_Theme.accentColor2,
+                                  elevation: 0,
+                                ),
+                                onPressed: () {
+                                  final player = context.read<OrviaPlayerCubit>().orviaPlayer;
+                                  final track = player.currentTrackInfo;
+                                  if (track.id != 'Null') {
+                                    context.read<LyricsCubit>().getLyrics(track);
+                                  }
+                                },
+                                icon: const Icon(MingCute.refresh_3_line, size: 18),
+                                label: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
                       LyricsState() => const SizedBox.shrink(),
                     },
                   );

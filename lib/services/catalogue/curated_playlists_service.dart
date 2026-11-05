@@ -10,6 +10,39 @@ import 'package:Orvia/services/db/dao/playlist_dao.dart';
 class CuratedPlaylistsService {
   static const String pluginId = kDefaultSaavnPluginId;
 
+  static Track getVerifiedLofiTrack() => Track(
+        id: 'content-resolver.bloomfactory.ytvideo::ZGMr4kmKt5Q',
+        title:
+            'Na Tum Jano Na Hum - LoFi Chill Mix | The Keychangers| Kaho Na Pyaar Hai| Lucky Ali |Slowed & Reverb',
+        artists: const [
+          ArtistSummary(
+            id: '',
+            name: 'Saregama Music',
+            thumbnail: Artwork(
+              url: 'https://i.ytimg.com/vi/ZGMr4kmKt5Q/hqdefault.jpg',
+              layout: ImageLayout.square,
+            ),
+          ),
+        ],
+        album: const AlbumSummary(
+          id: '',
+          title: 'LoFi Chill Mix',
+          artists: [],
+          thumbnail: Artwork(
+            url: 'https://i.ytimg.com/vi/ZGMr4kmKt5Q/hqdefault.jpg',
+            layout: ImageLayout.square,
+          ),
+        ),
+        durationMs: BigInt.from(268 * 1000),
+        thumbnail: const Artwork(
+          url: 'https://i.ytimg.com/vi/ZGMr4kmKt5Q/hqdefault.jpg',
+          urlHigh: 'https://i.ytimg.com/vi/ZGMr4kmKt5Q/maxresdefault.jpg',
+          layout: ImageLayout.square,
+        ),
+        url: 'https://www.youtube.com/watch?v=ZGMr4kmKt5Q',
+        isExplicit: false,
+      );
+
   static Track _track({
     required String rawId,
     required String title,
@@ -77,9 +110,14 @@ class CuratedPlaylistsService {
       title: title,
       artists: [
         ArtistSummary(
-          id: '$ytPluginId::UC55Gz5tT6m3_rWd3l1_PjXw',
+          id: '$ytPluginId::@a.k.musicworld199',
           name: artist,
-          thumbnail: artwork,
+          thumbnail: const Artwork(
+            url: 'assets/icons/AnkitLogo.png',
+            urlLow: 'assets/icons/AnkitLogo.png',
+            urlHigh: 'assets/icons/AnkitLogo.png',
+            layout: ImageLayout.square,
+          ),
         ),
       ],
       album: AlbumSummary(
@@ -91,6 +129,50 @@ class CuratedPlaylistsService {
       durationMs: BigInt.from(durationSec * 1000),
       thumbnail: artwork,
       url: 'https://www.youtube.com/watch?v=$videoId',
+      isExplicit: false,
+    );
+  }
+
+  static Track _ytShort({
+    required String videoId,
+    required String title,
+    required String artist,
+    required String album,
+    required int durationSec,
+    required String imageUrl,
+  }) {
+    const ytPluginId = 'content-resolver.bloomfactory.ytvideo';
+    final compositeId = '$ytPluginId::$videoId';
+    final artwork = Artwork(
+      url: imageUrl,
+      urlLow: imageUrl,
+      urlHigh: imageUrl,
+      layout: ImageLayout.square,
+    );
+    return Track(
+      id: compositeId,
+      title: title,
+      artists: [
+        ArtistSummary(
+          id: '$ytPluginId::@a.k.musicworld199',
+          name: artist,
+          thumbnail: const Artwork(
+            url: 'assets/icons/AnkitLogo.png',
+            urlLow: 'assets/icons/AnkitLogo.png',
+            urlHigh: 'assets/icons/AnkitLogo.png',
+            layout: ImageLayout.square,
+          ),
+        ),
+      ],
+      album: AlbumSummary(
+        id: 'ak_music_world_shorts',
+        title: album,
+        artists: const [],
+        thumbnail: artwork,
+      ),
+      durationMs: BigInt.from(durationSec * 1000),
+      thumbnail: artwork,
+      url: 'https://youtube.com/shorts/$videoId',
       isExplicit: false,
     );
   }
@@ -653,31 +735,40 @@ class CuratedPlaylistsService {
 
   static final List<Track> _kVerifiedAkMusicWorldTracks = [
     _ytTrack(
-      videoId: 'Ha5QlyycMhM',
+      videoId: 'O9qpGTKEsYw',
       title:
-          'Har Shambhu song on piano || हर हर शंभू || शिवा महादेवा || A.K. MUSIC WORLD || Ankit kumbhare ||',
+          'Apna Bana Le Piya [Bhediya]  instrumental ringtone on piano || A.K. MUSIC WORLD ||',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 114,
-      imageUrl: 'https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg',
+      durationSec: 68,
+      imageUrl: 'https://i.ytimg.com/vi/O9qpGTKEsYw/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'OoOpaG0aoVM',
+      videoId: 'oYVgw3xGiaU',
       title:
-          'Lut gaye song on piano || Emraan Hashmi || Jubin N || Instrumental cover || A.K. MUSIC WORLD ||Ankit',
+          'Teri Baaton Mein Aisa Uljha Jiya piano cover || Shahid Kapoor || Kriti Sanon || A.K. MUSIC WORLD ||',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 176,
-      imageUrl: 'https://i.ytimg.com/vi/OoOpaG0aoVM/hqdefault.jpg',
+      durationSec: 66,
+      imageUrl: 'https://i.ytimg.com/vi/oYVgw3xGiaU/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'gWb64Q6HX40',
+      videoId: 'ZhmqU8jjgDY',
       title:
-          'Pirates Of The Caribbean Main Theme song || Pirates of the caribbean BGM on Piano by A.K MUSIC WORLD',
+          'Yadav Brand 2 ringtone || Rao Sahab || Elvish Yadav || Musical ringtone edit ||',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 80,
-      imageUrl: 'https://i.ytimg.com/vi/gWb64Q6HX40/hqdefault.jpg',
+      durationSec: 61,
+      imageUrl: 'https://i.ytimg.com/vi/ZhmqU8jjgDY/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'SkBKlP4eOBk',
+      title:
+          'Pasoori song || Ali Sethi  X  Shae Gill || Piano tutorial (cover) || A.K MUSIC WORLD:Ankit kumbhare',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Piano Covers',
+      durationSec: 105,
+      imageUrl: 'https://i.ytimg.com/vi/SkBKlP4eOBk/hqdefault.jpg',
     ),
     _ytTrack(
       videoId: 'N5PRDOKqSUs',
@@ -689,22 +780,13 @@ class CuratedPlaylistsService {
       imageUrl: 'https://i.ytimg.com/vi/N5PRDOKqSUs/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'MNhJ6obZvh8',
+      videoId: 'Pt-DdBr3anQ',
       title:
-          'Raataan Lambiyan song on piano by A.K. MUSIC WORLD : Shershaah | Tanishk_B. | Jubin | Asees |',
+          'Unexpected Piano Mashup | Nagin × Chap tilak × Mast Qalandar × Amarnath aane ko | A.K. MUSIC WORLD',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 125,
-      imageUrl: 'https://i.ytimg.com/vi/MNhJ6obZvh8/hqdefault.jpg',
-    ),
-    _ytTrack(
-      videoId: 'ZhmqU8jjgDY',
-      title:
-          'Yadav Brand 2 ringtone || Rao Sahab || Elvish Yadav || Musical ringtone edit ||',
-      artist: 'A.K. MUSIC WORLD',
-      album: 'A.K. Music World Piano Covers',
-      durationSec: 61,
-      imageUrl: 'https://i.ytimg.com/vi/ZhmqU8jjgDY/hqdefault.jpg',
+      durationSec: 201,
+      imageUrl: 'https://i.ytimg.com/vi/Pt-DdBr3anQ/hqdefault.jpg',
     ),
     _ytTrack(
       videoId: 'VVUJbVzVosY',
@@ -725,45 +807,116 @@ class CuratedPlaylistsService {
       imageUrl: 'https://i.ytimg.com/vi/v8M12-G3jFc/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'Pt-DdBr3anQ',
+      videoId: 'MNhJ6obZvh8',
       title:
-          'Unexpected Piano Mashup | Nagin × Chap tilak × Mast Qalandar × Amarnath aane ko | A.K. MUSIC WORLD',
+          'Raataan Lambiyan song on piano by A.K. MUSIC WORLD : Shershaah | Tanishk_B. | Jubin | Asees |',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 201,
-      imageUrl: 'https://i.ytimg.com/vi/Pt-DdBr3anQ/hqdefault.jpg',
+      durationSec: 125,
+      imageUrl: 'https://i.ytimg.com/vi/MNhJ6obZvh8/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'oYVgw3xGiaU',
+      videoId: 'gWb64Q6HX40',
       title:
-          'Teri Baaton Mein Aisa Uljha Jiya piano cover || Shahid Kapoor || Kriti Sanon || A.K. MUSIC WORLD ||',
+          'Pirates Of The Caribbean Main Theme song || Pirates of the caribbean BGM on Piano by A.K MUSIC WORLD',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 66,
-      imageUrl: 'https://i.ytimg.com/vi/oYVgw3xGiaU/hqdefault.jpg',
+      durationSec: 80,
+      imageUrl: 'https://i.ytimg.com/vi/gWb64Q6HX40/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'SkBKlP4eOBk',
+      videoId: 'OoOpaG0aoVM',
       title:
-          'Pasoori song || Ali Sethi  X  Shae Gill || Piano tutorial (cover) || A.K MUSIC WORLD:Ankit kumbhare',
+          'Lut gaye song on piano || Emraan Hashmi || Jubin N || Instrumental cover || A.K. MUSIC WORLD ||Ankit',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 105,
-      imageUrl: 'https://i.ytimg.com/vi/SkBKlP4eOBk/hqdefault.jpg',
+      durationSec: 176,
+      imageUrl: 'https://i.ytimg.com/vi/OoOpaG0aoVM/hqdefault.jpg',
     ),
     _ytTrack(
-      videoId: 'O9qpGTKEsYw',
+      videoId: 'Ha5QlyycMhM',
       title:
-          'Apna Bana Le Piya [Bhediya]  instrumental ringtone on piano || A.K. MUSIC WORLD ||',
+          'Har Shambhu song on piano || हर हर शंभू || शिवा महादेवा || A.K. MUSIC WORLD || Ankit kumbhare ||',
       artist: 'A.K. MUSIC WORLD',
       album: 'A.K. Music World Piano Covers',
-      durationSec: 68,
-      imageUrl: 'https://i.ytimg.com/vi/O9qpGTKEsYw/hqdefault.jpg',
+      durationSec: 114,
+      imageUrl: 'https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg',
     ),
   ];
 
-  static List<Track> getAkMusicWorldTracks() =>
+  static final List<Track> _kVerifiedAkMusicWorldShorts = [
+    _ytShort(
+      videoId: 'LAzc7IEs5PE',
+      title: 'Tere Hawaale || Instrumental cover || A.K. MUSIC WORLD',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 57,
+      imageUrl: 'https://i.ytimg.com/vi/LAzc7IEs5PE/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: 'IhEtDkqxMBE',
+      title: 'Khairiyat pucho || (Slowed + Instrumental)',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 51,
+      imageUrl: 'https://i.ytimg.com/vi/IhEtDkqxMBE/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: 'lQLNhijZBKA',
+      title: 'Phir aur kya chahiye || Instrumental cover || A.K. MUSIC WORLD',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 49,
+      imageUrl: 'https://i.ytimg.com/vi/lQLNhijZBKA/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: 'UM3yjqw1YOk',
+      title:
+          'Bairan -Banjaare Instrumental 🎹 | Piano Cover | Haryanvi Vibe #bairan | #shorts',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 34,
+      imageUrl: 'https://i.ytimg.com/vi/UM3yjqw1YOk/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: 'hOTAlKSIPtQ',
+      title:
+          'Mi Amor - Piano Cover || Sharn, 40k & the Paul || A.K. MUSIC WORLD ||',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 50,
+      imageUrl: 'https://i.ytimg.com/vi/hOTAlKSIPtQ/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: '5YPRXZJEJrs',
+      title:
+          'ANIMAL: Jamal Kudu(Abrar\'s Entry) | Bobby Deol Entry | bgm | Instrumental |',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 31,
+      imageUrl: 'https://i.ytimg.com/vi/5YPRXZJEJrs/hqdefault.jpg',
+    ),
+    _ytShort(
+      videoId: 'xxUEusRTklU',
+      title:
+          'Kal Chaudhavin ki raat thi || Jagjit Singh Ghazal || Instrumental Piano Cover || Ankit Kumbhare',
+      artist: 'A.K. MUSIC WORLD',
+      album: 'A.K. Music World Shorts',
+      durationSec: 82,
+      imageUrl: 'https://i.ytimg.com/vi/xxUEusRTklU/hqdefault.jpg',
+    ),
+  ];
+
+  static List<Track> getAkMusicWorldTracks() => deduplicate([
+        ..._kVerifiedAkMusicWorldTracks,
+        ..._kVerifiedAkMusicWorldShorts,
+      ]);
+
+  static List<Track> getAkMusicWorldSongsOnly() =>
       deduplicate(_kVerifiedAkMusicWorldTracks);
+
+  static List<Track> getAkMusicWorldShortsOnly() =>
+      deduplicate(_kVerifiedAkMusicWorldShorts);
 
   static List<Track> getInstrumentalTracks() =>
       deduplicate(_kVerifiedInstrumentalTracks);

@@ -66,9 +66,10 @@ class _GlobalEventListenerState extends State<GlobalEventListener> {
     log('App error: $error', name: 'GlobalEventListener');
     switch (error) {
       case PluginNotLoadedError(:final pluginId):
-        _throttledSnackbar('Plugin "$pluginId" is not loaded.');
-      case MalformedMediaIdError(:final rawId):
-        _throttledSnackbar('Malformed media ID: $rawId');
+        final name = formatUserFriendlyPluginName(pluginId);
+        _throttledSnackbar('$name is currently unavailable.');
+      case MalformedMediaIdError():
+        _throttledSnackbar('Unable to load this track.');
       case PluginErrorEvent(:final message):
         _throttledSnackbar(formatUserFriendlyPluginError(message));
       case NetworkFailureError(:final message):
@@ -80,30 +81,36 @@ class _GlobalEventListenerState extends State<GlobalEventListener> {
     switch (event) {
       case PluginManagerEvent_PluginLoadFailed(:final id, :final error):
         log('Plugin load failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" failed to load: ${formatUserFriendlyPluginError(error)}');
+        final name = formatUserFriendlyPluginName(id);
+        _throttledSnackbar('$name failed to load: ${formatUserFriendlyPluginError(error)}');
       case PluginManagerEvent_PluginUnloadFailed(:final id, :final error):
         log('Plugin unload failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" failed to unload.');
+        final name = formatUserFriendlyPluginName(id);
+        _throttledSnackbar('$name failed to unload.');
       case PluginManagerEvent_PluginInstallFailed(:final id, :final error):
         log('Plugin install failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" install failed: ${formatUserFriendlyPluginError(error)}');
+        final name = formatUserFriendlyPluginName(id);
+        _throttledSnackbar('$name install failed: ${formatUserFriendlyPluginError(error)}');
       case PluginManagerEvent_PluginDeleteFailed(:final id, :final error):
         log('Plugin delete failed: $id — $error', name: 'GlobalEventListener');
-        _throttledSnackbar('Plugin "$id" delete failed.');
+        final name = formatUserFriendlyPluginName(id);
+        _throttledSnackbar('$name delete failed.');
       case PluginManagerEvent_Error(:final message):
         log('Plugin system error: $message', name: 'GlobalEventListener');
         _throttledSnackbar(formatUserFriendlyPluginError(message));
       case PluginManagerEvent_PluginInstalled(:final id):
         if (mounted) {
+          final name = formatUserFriendlyPluginName(id);
           _throttledSnackbar(
-              AppLocalizations.of(context)!.pluginSnackbarInstalled(id));
+              AppLocalizations.of(context)!.pluginSnackbarInstalled(name));
         }
       case PluginManagerEvent_PluginLoaded(:final id):
         log('Plugin loaded: $id', name: 'GlobalEventListener');
       case PluginManagerEvent_PluginDeleted(:final id):
         if (mounted) {
+          final name = formatUserFriendlyPluginName(id);
           _throttledSnackbar(
-              AppLocalizations.of(context)!.pluginSnackbarDeleted(id));
+              AppLocalizations.of(context)!.pluginSnackbarDeleted(name));
         }
       default:
         break;

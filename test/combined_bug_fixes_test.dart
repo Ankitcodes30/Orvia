@@ -455,7 +455,7 @@ void main() {
       final allowedBannerIds = {
         'morning_bhakti',
         'gym_energy',
-        'diwali_festive_2026',
+        'creators_choice',
       };
 
       for (final banner in banners) {
@@ -518,7 +518,7 @@ void main() {
       // 2026-11-12 00:00:00 IST == 2026-11-11 18:30:00 UTC
 
       final diwaliBanner = SmartBannerItem(
-        id: 'diwali_festive_2026',
+        id: 'creators_choice',
         title: 'Diwali Festive Special',
         subtitle: 'Festival of Lights',
         badge: 'DIWALI',
