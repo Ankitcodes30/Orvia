@@ -267,6 +267,218 @@ final List<Track> kVerifiedDevotionalPlaylistTracks = [
   ),
 ];
 
+/// Curated Morning Bhakti collection with verified devotional tracks & mantras
+final List<Track> kMorningBhaktiTracks = [
+  _buildBhaktiTrack(
+    id: "7CwLvXc6",
+    title: "Shree Hanuman Chalisa",
+    artist: "Hariharan, Traditional",
+    albumTitle: "Shree Hanuman Chalisa (Hanuman Ashtak)",
+    durationMs: 582000,
+    imgUrl: "https://c.saavncdn.com/256/Shree-Hanuman-Chalisa-Hanuman-Ashtak-Hindi-1992-20260324161030-500x500.webp",
+  ),
+  _buildBhaktiTrack(
+    id: "Br3sv0l4",
+    title: "Dulhaniya Re",
+    artist: "Shahnaaz Akhtar",
+    albumTitle: "Dulhaniya Re",
+    durationMs: 858000,
+    imgUrl: "https://c.saavncdn.com/580/Dulhaniya-Re-Hindi-2023-20250511164359-500x500.jpg",
+  ),
+  _buildBhaktiTrack(
+    id: "__MfaQW6",
+    title: "Aalha Ki Dhwaja Nahin Aayi",
+    artist: "Shahnaz Akhtar",
+    albumTitle: "Maiyya Pav Paijaniya",
+    durationMs: 787000,
+    imgUrl: "https://c.saavncdn.com/066/Maiya-Paav-Paijaniya-Vol-1-Hindi-2009-20260608212622-500x500.jpg",
+  ),
+  _buildBhaktiTrack(
+    id: "r5yioR-M",
+    title: "Bigdi Meri Bana De Oo Sherawali Maiya",
+    artist: "Lakhbir Singh Lakkha",
+    albumTitle: "Bigdi Meri Bana De",
+    durationMs: 417000,
+    imgUrl: "https://c.saavncdn.com/034/Beta-Bulaye-Hindi-1998-20230807153827-500x500.jpg",
+  ),
+  _buildBhaktiTrack(
+    id: "6o2XH_yQ",
+    title: "Nach Rahi Hai Kali Angana Mein",
+    artist: "Sandeep Karosiya",
+    albumTitle: "Nach Rahi Hai Kali Angana Mein",
+    durationMs: 391000,
+    imgUrl: "https://c.saavncdn.com/311/Nach-Rahi-Hai-Kali-Angana-Mein-Hindi-2025-20251007144002-500x500.jpg",
+  ),
+  _buildBhaktiTrack(
+    id: "Ft5IeMlT",
+    title: "Angna Padharo Maharani",
+    artist: "Manish Agrawal",
+    albumTitle: "Angna Padharo Maharani",
+    durationMs: 568000,
+    imgUrl: "https://c.saavncdn.com/734/Angna-Padharo-Maharani-Hindi-2023-20260420210240-500x500.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "Ha5QlyycMhM",
+    title: "Har Shambhu (Piano Devotional)",
+    artist: "A.K. MUSIC WORLD",
+    albumTitle: "A.K. Music World Piano Covers",
+    durationMs: 114000,
+    imgUrl: "https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "SMv8gp3I4Ao",
+    title: "शिव स्तुति: आशुतोष शशाँक शेखर (Shiv Stuti)",
+    artist: "HM Bhakti sagar",
+    albumTitle: "Shiv Stuti",
+    durationMs: 1012000,
+    imgUrl: "https://i.ytimg.com/vi/SMv8gp3I4Ao/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "bd8I6Ss5GNA",
+    title: "Shiv Swarnamala Stuti",
+    artist: "Harish Sagane, Religious India",
+    albumTitle: "Shiv Swarnamala Stuti",
+    durationMs: 362000,
+    imgUrl: "https://i.ytimg.com/vi/bd8I6Ss5GNA/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "G_4b9m6boTw",
+    title: "Namami Shamishan",
+    artist: "Harish Sagane, Religious India",
+    albumTitle: "Namami Shamishan",
+    durationMs: 336000,
+    imgUrl: "https://i.ytimg.com/vi/G_4b9m6boTw/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "kj7L8eEOTZE",
+    title: "राम सिया राम | Ram Siya Ram Bhajan",
+    artist: "NMF BHAKTI",
+    albumTitle: "Ram Siya Ram Bhajan",
+    durationMs: 360000,
+    imgUrl: "https://i.ytimg.com/vi/kj7L8eEOTZE/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "9w9SVujBfxo",
+    title: "MAIYA TERI JAI JAIKAAR",
+    artist: "Arijit Singh, Jeet Gannguli, T-Series",
+    albumTitle: "Maiya Teri Jai Jaikaar",
+    durationMs: 276000,
+    imgUrl: "https://i.ytimg.com/vi/9w9SVujBfxo/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "30YNd5fEGMo",
+    title: "Narayan Mil Jayega",
+    artist: "Jubin Nautiyal, Payal Dev, T-Series",
+    albumTitle: "Narayan Mil Jayega",
+    durationMs: 300000,
+    imgUrl: "https://i.ytimg.com/vi/30YNd5fEGMo/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "Njyx5ZuwEHI",
+    title: "Har Har Gange",
+    artist: "Arijit Singh, T-Series",
+    albumTitle: "Batti Gul Meter Chalu",
+    durationMs: 197000,
+    imgUrl: "https://i.ytimg.com/vi/Njyx5ZuwEHI/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "4CKpFcQdJXk",
+    title: "अयि गिरिनन्दिनि - महिषासुर मर्दिनी स्तोत्र",
+    artist: "Madhubanti Bagchi, Tilak Bhakti Sangrah",
+    albumTitle: "Mahishasura Mardini Stotram",
+    durationMs: 362000,
+    imgUrl: "https://i.ytimg.com/vi/4CKpFcQdJXk/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "VAdQcL_Xgoc",
+    title: "Maine Tere Hi Bharose Hanuman",
+    artist: "PSS MUSIC",
+    albumTitle: "Hanuman Ansh",
+    durationMs: 470000,
+    imgUrl: "https://i.ytimg.com/vi/VAdQcL_Xgoc/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "eL-iQ3VHxwA",
+    title: "Adharam Madhuram Lofi - Krishna Bhajan",
+    artist: "Khusi Ki Dhun",
+    albumTitle: "Krishna Bhajan",
+    durationMs: 269000,
+    imgUrl: "https://i.ytimg.com/vi/eL-iQ3VHxwA/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "4DkNCgUXbig",
+    title: "Parvati Boli Shankar Se - O Bholenath Ji",
+    artist: "Hansraj Raghuwanshi, NAV Records",
+    albumTitle: "Parvati Boli Shankar Se",
+    durationMs: 439000,
+    imgUrl: "https://i.ytimg.com/vi/4DkNCgUXbig/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "Tl4bQBfOtbg",
+    title: "Ram Siya Ram (Adipurush)",
+    artist: "Sachet-Parampara, Manoj Muntashir, T-Series",
+    albumTitle: "Adipurush",
+    durationMs: 250000,
+    imgUrl: "https://i.ytimg.com/vi/Tl4bQBfOtbg/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "ne3Mjg1M-Uo",
+    title: "श्री कृष्णा गोविंद हरे मुरारी",
+    artist: "Spiritual Mantra",
+    albumTitle: "Krishna Bhajan",
+    durationMs: 341000,
+    imgUrl: "https://i.ytimg.com/vi/ne3Mjg1M-Uo/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "gdKm1fZzMgI",
+    title: "Om Tryambakam Yajamahe (Mahamrityunjaya Mantra)",
+    artist: "Rajshri Soul",
+    albumTitle: "Shiva Maha Mantra",
+    durationMs: 181000,
+    imgUrl: "https://i.ytimg.com/vi/gdKm1fZzMgI/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "2yhvCgpNJiA",
+    title: "Om Namo Bhagavate Vasudevaya",
+    artist: "Mahavtar Narsimha, Ishtar Music",
+    albumTitle: "Mahavtar Narsimha",
+    durationMs: 205000,
+    imgUrl: "https://i.ytimg.com/vi/2yhvCgpNJiA/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "mXNudXlAEjw",
+    title: "शिव स्तुति: | Powerful Shiva Mantra",
+    artist: "ShivOhm",
+    albumTitle: "Shiv Stuti",
+    durationMs: 400000,
+    imgUrl: "https://i.ytimg.com/vi/mXNudXlAEjw/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "GePN4-Cajvk",
+    title: "Vedic Chanting",
+    artist: "Manish Vyas",
+    albumTitle: "Vedic Chanting",
+    durationMs: 275000,
+    imgUrl: "https://i.ytimg.com/vi/GePN4-Cajvk/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "JX1_7HZGfeA",
+    title: "KRISHANAYA VASUDEVAYA 108 Times",
+    artist: "Meditative India",
+    albumTitle: "Krishna Mantra",
+    durationMs: 3647000,
+    imgUrl: "https://i.ytimg.com/vi/JX1_7HZGfeA/hqdefault.jpg",
+  ),
+  _buildBhaktiYtTrack(
+    videoId: "GEVvyIrQZnA",
+    title: "GAYATRI MANTRA 108 Times CHANTING",
+    artist: "Meditative India",
+    albumTitle: "Gayatri Mantra",
+    durationMs: 4567000,
+    imgUrl: "https://i.ytimg.com/vi/GEVvyIrQZnA/hqdefault.jpg",
+  ),
+];
+
 /// Verified Hanuman Ji tracks with valid artwork & playable IDs
 final List<Track> kVerifiedHanumanTracks = [
   _buildBhaktiTrack(
@@ -456,6 +668,11 @@ const List<BhaktiCategory> kBhaktiCategories = [
     tag: 'Curated',
   ),
   BhaktiCategory(
+    name: 'Morning Bhakti',
+    query: 'Morning Bhakti Hanuman Chalisa Aarti',
+    tag: 'Curated',
+  ),
+  BhaktiCategory(
     name: 'Radha–Krishna',
     query: 'Radha Krishna Bhajans Kirtan',
     tag: 'Deity',
@@ -587,6 +804,7 @@ class _BhaktiSpiritualSectionState extends State<BhaktiSpiritualSection> {
       ...kVerifiedBhaktiTracks,
       ...kVerifiedDevotionalPlaylistTracks,
     ];
+    _bhaktiCache['Morning Bhakti'] = List.of(kMorningBhaktiTracks);
     _bhaktiCache['Hanuman Ji'] = List.of(kVerifiedHanumanTracks);
     _bhaktiCache['Ganesh Ji'] = List.of(kVerifiedGaneshTracks);
     _bhaktiCache['Ram Ji'] = List.of(kVerifiedRamTracks);
@@ -634,7 +852,9 @@ class _BhaktiSpiritualSectionState extends State<BhaktiSpiritualSection> {
         search: (results) {
           final tracks = <Track>[];
           // Prepend verified tracks for curated and deity categories
-          if (cat.name == 'Mata Rani & Mahakali Special' ||
+          if (cat.name == 'Morning Bhakti') {
+            tracks.addAll(kMorningBhaktiTracks);
+          } else if (cat.name == 'Mata Rani & Mahakali Special' ||
               cat.name.contains('Durga') ||
               cat.name.contains('Mahakali')) {
             tracks.addAll(kVerifiedBhaktiTracks);

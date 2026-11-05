@@ -3,6 +3,47 @@
   "updated_at": "2026-10-18T00:00:00Z",
   "banners": [
     {
+      "id": "creators_choice",
+      "title": "Creator's Choice",
+      "subtitle": "Where Melodies Meet Memories.",
+      "badge": "CREATOR'S CHOICE",
+      "imageUrl": "https://ankitcodes30.github.io/Orvia/assets/creators_choice_banner.webp",
+      "gradientColors": [
+        "#2C1B4D",
+        "#673AB7",
+        "#8E24AA"
+      ],
+      "activeHours": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "priority": 95,
+      "destination": "creators_choice",
+      "tracks": []
+    },
+    {
       "id": "morning_bhakti",
       "title": "Morning Bhakti",
       "subtitle": "Sacred Chants & A.K. Music World Piano",
@@ -78,6 +119,158 @@
           "album": "A.K. Music World Piano Covers",
           "durationSec": 114,
           "imageUrl": "https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg"
+        },
+        {
+          "videoId": "SMv8gp3I4Ao",
+          "title": "शिव स्तुति: आशुतोष शशाँक शेखर (Shiv Stuti)",
+          "artist": "HM Bhakti sagar",
+          "album": "Shiv Stuti",
+          "durationSec": 1012,
+          "imageUrl": "https://i.ytimg.com/vi/SMv8gp3I4Ao/hqdefault.jpg"
+        },
+        {
+          "videoId": "bd8I6Ss5GNA",
+          "title": "Shiv Swarnamala Stuti",
+          "artist": "Harish Sagane, Religious India",
+          "album": "Shiv Swarnamala Stuti",
+          "durationSec": 362,
+          "imageUrl": "https://i.ytimg.com/vi/bd8I6Ss5GNA/hqdefault.jpg"
+        },
+        {
+          "videoId": "G_4b9m6boTw",
+          "title": "Namami Shamishan",
+          "artist": "Harish Sagane, Religious India",
+          "album": "Namami Shamishan",
+          "durationSec": 336,
+          "imageUrl": "https://i.ytimg.com/vi/G_4b9m6boTw/hqdefault.jpg"
+        },
+        {
+          "videoId": "kj7L8eEOTZE",
+          "title": "राम सिया राम | Ram Siya Ram Bhajan",
+          "artist": "NMF BHAKTI",
+          "album": "Ram Siya Ram Bhajan",
+          "durationSec": 360,
+          "imageUrl": "https://i.ytimg.com/vi/kj7L8eEOTZE/hqdefault.jpg"
+        },
+        {
+          "videoId": "9w9SVujBfxo",
+          "title": "MAIYA TERI JAI JAIKAAR",
+          "artist": "Arijit Singh, Jeet Gannguli, T-Series",
+          "album": "Maiya Teri Jai Jaikaar",
+          "durationSec": 276,
+          "imageUrl": "https://i.ytimg.com/vi/9w9SVujBfxo/hqdefault.jpg"
+        },
+        {
+          "videoId": "30YNd5fEGMo",
+          "title": "Narayan Mil Jayega",
+          "artist": "Jubin Nautiyal, Payal Dev, T-Series",
+          "album": "Narayan Mil Jayega",
+          "durationSec": 300,
+          "imageUrl": "https://i.ytimg.com/vi/30YNd5fEGMo/hqdefault.jpg"
+        },
+        {
+          "videoId": "Njyx5ZuwEHI",
+          "title": "Har Har Gange",
+          "artist": "Arijit Singh, T-Series",
+          "album": "Batti Gul Meter Chalu",
+          "durationSec": 197,
+          "imageUrl": "https://i.ytimg.com/vi/Njyx5ZuwEHI/hqdefault.jpg"
+        },
+        {
+          "videoId": "4CKpFcQdJXk",
+          "title": "अयि गिरिनन्दिनि - महिषासुर मर्दिनी स्तोत्र",
+          "artist": "Madhubanti Bagchi, Tilak Bhakti Sangrah",
+          "album": "Mahishasura Mardini Stotram",
+          "durationSec": 362,
+          "imageUrl": "https://i.ytimg.com/vi/4CKpFcQdJXk/hqdefault.jpg"
+        },
+        {
+          "videoId": "VAdQcL_Xgoc",
+          "title": "Maine Tere Hi Bharose Hanuman",
+          "artist": "PSS MUSIC",
+          "album": "Hanuman Ansh",
+          "durationSec": 470,
+          "imageUrl": "https://i.ytimg.com/vi/VAdQcL_Xgoc/hqdefault.jpg"
+        },
+        {
+          "videoId": "eL-iQ3VHxwA",
+          "title": "Adharam Madhuram Lofi - Krishna Bhajan",
+          "artist": "Khusi Ki Dhun",
+          "album": "Krishna Bhajan",
+          "durationSec": 269,
+          "imageUrl": "https://i.ytimg.com/vi/eL-iQ3VHxwA/hqdefault.jpg"
+        },
+        {
+          "videoId": "4DkNCgUXbig",
+          "title": "Parvati Boli Shankar Se - O Bholenath Ji",
+          "artist": "Hansraj Raghuwanshi, NAV Records",
+          "album": "Parvati Boli Shankar Se",
+          "durationSec": 439,
+          "imageUrl": "https://i.ytimg.com/vi/4DkNCgUXbig/hqdefault.jpg"
+        },
+        {
+          "videoId": "Tl4bQBfOtbg",
+          "title": "Ram Siya Ram (Adipurush)",
+          "artist": "Sachet-Parampara, Manoj Muntashir, T-Series",
+          "album": "Adipurush",
+          "durationSec": 250,
+          "imageUrl": "https://i.ytimg.com/vi/Tl4bQBfOtbg/hqdefault.jpg"
+        },
+        {
+          "videoId": "ne3Mjg1M-Uo",
+          "title": "श्री कृष्णा गोविंद हरे मुरारी",
+          "artist": "Spiritual Mantra",
+          "album": "Krishna Bhajan",
+          "durationSec": 341,
+          "imageUrl": "https://i.ytimg.com/vi/ne3Mjg1M-Uo/hqdefault.jpg"
+        },
+        {
+          "videoId": "gdKm1fZzMgI",
+          "title": "Om Tryambakam Yajamahe (Mahamrityunjaya Mantra)",
+          "artist": "Rajshri Soul",
+          "album": "Shiva Maha Mantra",
+          "durationSec": 181,
+          "imageUrl": "https://i.ytimg.com/vi/gdKm1fZzMgI/hqdefault.jpg"
+        },
+        {
+          "videoId": "2yhvCgpNJiA",
+          "title": "Om Namo Bhagavate Vasudevaya",
+          "artist": "Mahavtar Narsimha, Ishtar Music",
+          "album": "Mahavtar Narsimha",
+          "durationSec": 205,
+          "imageUrl": "https://i.ytimg.com/vi/2yhvCgpNJiA/hqdefault.jpg"
+        },
+        {
+          "videoId": "mXNudXlAEjw",
+          "title": "शिव स्तुति: | Powerful Shiva Mantra",
+          "artist": "ShivOhm",
+          "album": "Shiv Stuti",
+          "durationSec": 400,
+          "imageUrl": "https://i.ytimg.com/vi/mXNudXlAEjw/hqdefault.jpg"
+        },
+        {
+          "videoId": "GePN4-Cajvk",
+          "title": "Vedic Chanting",
+          "artist": "Manish Vyas",
+          "album": "Vedic Chanting",
+          "durationSec": 275,
+          "imageUrl": "https://i.ytimg.com/vi/GePN4-Cajvk/hqdefault.jpg"
+        },
+        {
+          "videoId": "JX1_7HZGfeA",
+          "title": "KRISHANAYA VASUDEVAYA 108 Times",
+          "artist": "Meditative India",
+          "album": "Krishna Mantra",
+          "durationSec": 3647,
+          "imageUrl": "https://i.ytimg.com/vi/JX1_7HZGfeA/hqdefault.jpg"
+        },
+        {
+          "videoId": "GEVvyIrQZnA",
+          "title": "GAYATRI MANTRA 108 Times CHANTING",
+          "artist": "Meditative India",
+          "album": "Gayatri Mantra",
+          "durationSec": 4567,
+          "imageUrl": "https://i.ytimg.com/vi/GEVvyIrQZnA/hqdefault.jpg"
         }
       ]
     },
@@ -252,49 +445,6 @@
           "imageUrl": "https://i.ytimg.com/vi/Jyst8oIHOAY/hqdefault.jpg"
         }
       ]
-    },
-    {
-      "id": "diwali_festive_2026",
-      "title": "Diwali Festive Special",
-      "subtitle": "A festival of lights, devotion & celebration",
-      "badge": "DIWALI • 2026",
-      "imageUrl": "",
-      "gradientColors": [
-        "#6D1B00",
-        "#B84A00",
-        "#3B123B"
-      ],
-      "activeHours": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23
-      ],
-      "startDate": "2026-11-05T00:00:00+05:30",
-      "endDate": "2026-11-12T00:00:00+05:30",
-      "priority": 100,
-      "destination": "festival_special",
-      "tracks": []
     }
   ]
 }

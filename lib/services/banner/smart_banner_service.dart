@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/plugins/utils/media_id.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 
 class SmartBannerItem {
   final String id;
@@ -210,26 +211,52 @@ class SmartBannerService {
     'night_calm',
     'whats_hot',
     'navratri_special_2026',
+    'india_songs',
+    'india-songs',
+    'india_songs_hotw',
+    'india-songs-hotw',
+    'diwali_festive_2026',
+    'diwali_2026',
   };
+
+  static SmartBannerItem get defaultCreatorsChoiceBanner => _defaultBanners.firstWhere(
+        (b) => b.id == 'creators_choice',
+      );
 
   /// Returns banners eligible at [testTime], with date windows compared as instants.
   static List<SmartBannerItem> getActiveBanners({DateTime? testTime}) {
     final now = testTime ?? DateTime.now();
     final hour = now.hour;
 
-    final allBanners = _cachedRemoteBanners ?? _defaultBanners;
+    final baseList = _cachedRemoteBanners ?? _defaultBanners;
+    final allBanners = List<SmartBannerItem>.from(baseList);
+
+    // Core service guarantee: ensure Creator's Choice is present in candidate pool
+    if (!allBanners.any((b) => b.id == 'creators_choice')) {
+      allBanners.add(defaultCreatorsChoiceBanner);
+    }
+
     final eligible = allBanners
         .where((b) => !kDisallowedBannerIds.contains(b.id))
         .where((b) => b.isEligibleAt(hour, now))
         .toList();
 
+    // Deduplicate by banner ID (keeping first occurrence)
+    final seen = <String>{};
+    final uniqueEligible = <SmartBannerItem>[];
+    for (final banner in eligible) {
+      if (seen.add(banner.id)) {
+        uniqueEligible.add(banner);
+      }
+    }
+
     // Sort by priority descending (higher number = higher priority)
-    eligible.sort((a, b) => b.priority.compareTo(a.priority));
+    uniqueEligible.sort((a, b) => b.priority.compareTo(a.priority));
 
     // Ensure fallback banner if list would otherwise be empty, but NEVER force
     // a dated festival banner or a time-restricted banner (like Morning Bhakti)
     // outside its scheduled window.
-    if (eligible.isEmpty && allBanners.isNotEmpty) {
+    if (uniqueEligible.isEmpty && allBanners.isNotEmpty) {
       try {
         final fallback = allBanners.firstWhere(
           (b) =>
@@ -239,11 +266,17 @@ class SmartBannerService {
               b.id != 'morning_bhakti' &&
               b.activeHours.length == 24,
         );
-        eligible.add(fallback);
+        uniqueEligible.add(fallback);
       } catch (_) {}
     }
 
-    return List.unmodifiable(eligible);
+    // Final safety guarantee: Creator's Choice must never be dropped
+    if (!uniqueEligible.any((b) => b.id == 'creators_choice')) {
+      uniqueEligible.add(defaultCreatorsChoiceBanner);
+      uniqueEligible.sort((a, b) => b.priority.compareTo(a.priority));
+    }
+
+    return List.unmodifiable(uniqueEligible);
   }
 
   /// Refreshes remote banner configuration in background without blocking UI.
@@ -274,13 +307,48 @@ class SmartBannerService {
                   return _defaultBanners
                       .firstWhere((def) => def.id == 'gym_energy');
                 }
+                // Guarantee Creator's Choice retains verified tracks & local asset fallback
+                if (b.id == 'creators_choice') {
+                  final def = defaultCreatorsChoiceBanner;
+                  return SmartBannerItem(
+                    id: def.id,
+                    title: b.title.isNotEmpty ? b.title : def.title,
+                    subtitle: b.subtitle.isNotEmpty ? b.subtitle : def.subtitle,
+                    badge: b.badge.isNotEmpty ? b.badge : def.badge,
+                    imageUrl: (b.imageUrl.isNotEmpty && !b.imageUrl.startsWith('assets/'))
+                        ? b.imageUrl
+                        : def.imageUrl,
+                    gradientColors: b.gradientColors.isNotEmpty
+                        ? b.gradientColors
+                        : def.gradientColors,
+                    tracks: b.tracks.isNotEmpty ? b.tracks : def.tracks,
+                    activeHours: def.activeHours,
+                    priority: b.priority > 0 ? b.priority : def.priority,
+                    destination: def.destination,
+                  );
+                }
                 return b;
               })
               .where((b) => b.tracks.isNotEmpty || b.destination != null)
               .toList();
-          _cachedRemoteBanners = parsed;
+
+          // Deduplicate by ID
+          final seenIds = <String>{};
+          final deduplicated = <SmartBannerItem>[];
+          for (final banner in parsed) {
+            if (seenIds.add(banner.id)) {
+              deduplicated.add(banner);
+            }
+          }
+
+          // Core guarantee: If remote response omits creators_choice, preserve/inject defaultCreatorsChoiceBanner
+          if (!deduplicated.any((b) => b.id == 'creators_choice')) {
+            deduplicated.add(defaultCreatorsChoiceBanner);
+          }
+
+          _cachedRemoteBanners = deduplicated;
           _lastRefreshTime = now;
-          log('Successfully refreshed remote banners (${parsed.length} items)',
+          log('Successfully refreshed remote banners (${deduplicated.length} items)',
               name: 'SmartBannerService');
         }
       }
@@ -422,7 +490,162 @@ class SmartBannerService {
       durationSec: 114,
       imageUrl: 'https://i.ytimg.com/vi/Ha5QlyycMhM/hqdefault.jpg',
     ),
+    _ytTrack(
+      videoId: 'SMv8gp3I4Ao',
+      title: 'शिव स्तुति: आशुतोष शशाँक शेखर (Shiv Stuti)',
+      artist: 'HM Bhakti sagar',
+      album: 'Shiv Stuti',
+      durationSec: 1012,
+      imageUrl: 'https://i.ytimg.com/vi/SMv8gp3I4Ao/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'bd8I6Ss5GNA',
+      title: 'Shiv Swarnamala Stuti',
+      artist: 'Harish Sagane, Religious India',
+      album: 'Shiv Swarnamala Stuti',
+      durationSec: 362,
+      imageUrl: 'https://i.ytimg.com/vi/bd8I6Ss5GNA/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'G_4b9m6boTw',
+      title: 'Namami Shamishan',
+      artist: 'Harish Sagane, Religious India',
+      album: 'Namami Shamishan',
+      durationSec: 336,
+      imageUrl: 'https://i.ytimg.com/vi/G_4b9m6boTw/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'kj7L8eEOTZE',
+      title: 'राम सिया राम | Ram Siya Ram Bhajan',
+      artist: 'NMF BHAKTI',
+      album: 'Ram Siya Ram Bhajan',
+      durationSec: 360,
+      imageUrl: 'https://i.ytimg.com/vi/kj7L8eEOTZE/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: '9w9SVujBfxo',
+      title: 'MAIYA TERI JAI JAIKAAR',
+      artist: 'Arijit Singh, Jeet Gannguli, T-Series',
+      album: 'Maiya Teri Jai Jaikaar',
+      durationSec: 276,
+      imageUrl: 'https://i.ytimg.com/vi/9w9SVujBfxo/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: '30YNd5fEGMo',
+      title: 'Narayan Mil Jayega',
+      artist: 'Jubin Nautiyal, Payal Dev, T-Series',
+      album: 'Narayan Mil Jayega',
+      durationSec: 300,
+      imageUrl: 'https://i.ytimg.com/vi/30YNd5fEGMo/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'Njyx5ZuwEHI',
+      title: 'Har Har Gange',
+      artist: 'Arijit Singh, T-Series',
+      album: 'Batti Gul Meter Chalu',
+      durationSec: 197,
+      imageUrl: 'https://i.ytimg.com/vi/Njyx5ZuwEHI/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: '4CKpFcQdJXk',
+      title: 'अयि गिरिनन्दिनि - महिषासुर मर्दिनी स्तोत्र',
+      artist: 'Madhubanti Bagchi, Tilak Bhakti Sangrah',
+      album: 'Mahishasura Mardini Stotram',
+      durationSec: 362,
+      imageUrl: 'https://i.ytimg.com/vi/4CKpFcQdJXk/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'VAdQcL_Xgoc',
+      title: 'Maine Tere Hi Bharose Hanuman',
+      artist: 'PSS MUSIC',
+      album: 'Hanuman Ansh',
+      durationSec: 470,
+      imageUrl: 'https://i.ytimg.com/vi/VAdQcL_Xgoc/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'eL-iQ3VHxwA',
+      title: 'Adharam Madhuram Lofi - Krishna Bhajan',
+      artist: 'Khusi Ki Dhun',
+      album: 'Krishna Bhajan',
+      durationSec: 269,
+      imageUrl: 'https://i.ytimg.com/vi/eL-iQ3VHxwA/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: '4DkNCgUXbig',
+      title: 'Parvati Boli Shankar Se - O Bholenath Ji',
+      artist: 'Hansraj Raghuwanshi, NAV Records',
+      album: 'Parvati Boli Shankar Se',
+      durationSec: 439,
+      imageUrl: 'https://i.ytimg.com/vi/4DkNCgUXbig/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'Tl4bQBfOtbg',
+      title: 'Ram Siya Ram (Adipurush)',
+      artist: 'Sachet-Parampara, Manoj Muntashir, T-Series',
+      album: 'Adipurush',
+      durationSec: 250,
+      imageUrl: 'https://i.ytimg.com/vi/Tl4bQBfOtbg/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'ne3Mjg1M-Uo',
+      title: 'श्री कृष्णा गोविंद हरे मुरारी',
+      artist: 'Spiritual Mantra',
+      album: 'Krishna Bhajan',
+      durationSec: 341,
+      imageUrl: 'https://i.ytimg.com/vi/ne3Mjg1M-Uo/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'gdKm1fZzMgI',
+      title: 'Om Tryambakam Yajamahe (Mahamrityunjaya Mantra)',
+      artist: 'Rajshri Soul',
+      album: 'Shiva Maha Mantra',
+      durationSec: 181,
+      imageUrl: 'https://i.ytimg.com/vi/gdKm1fZzMgI/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: '2yhvCgpNJiA',
+      title: 'Om Namo Bhagavate Vasudevaya',
+      artist: 'Mahavtar Narsimha, Ishtar Music',
+      album: 'Mahavtar Narsimha',
+      durationSec: 205,
+      imageUrl: 'https://i.ytimg.com/vi/2yhvCgpNJiA/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'mXNudXlAEjw',
+      title: 'शिव स्तुति: | Powerful Shiva Mantra',
+      artist: 'ShivOhm',
+      album: 'Shiv Stuti',
+      durationSec: 400,
+      imageUrl: 'https://i.ytimg.com/vi/mXNudXlAEjw/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'GePN4-Cajvk',
+      title: 'Vedic Chanting',
+      artist: 'Manish Vyas',
+      album: 'Vedic Chanting',
+      durationSec: 275,
+      imageUrl: 'https://i.ytimg.com/vi/GePN4-Cajvk/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'JX1_7HZGfeA',
+      title: 'KRISHANAYA VASUDEVAYA 108 Times',
+      artist: 'Meditative India',
+      album: 'Krishna Mantra',
+      durationSec: 3647,
+      imageUrl: 'https://i.ytimg.com/vi/JX1_7HZGfeA/hqdefault.jpg',
+    ),
+    _ytTrack(
+      videoId: 'GEVvyIrQZnA',
+      title: 'GAYATRI MANTRA 108 Times CHANTING',
+      artist: 'Meditative India',
+      album: 'Gayatri Mantra',
+      durationSec: 4567,
+      imageUrl: 'https://i.ytimg.com/vi/GEVvyIrQZnA/hqdefault.jpg',
+    ),
   ];
+
+  static List<Track> get morningBhaktiTracks =>
+      List.unmodifiable(_morningBhaktiTracks);
 
   /// C. Gym Energy & Cardio (18 Verified Distinct Playable Source Tracks)
   static final List<Track> _gymEnergyTracks = [
@@ -574,22 +797,20 @@ class SmartBannerService {
 
   static final List<SmartBannerItem> _defaultBanners = [
     SmartBannerItem(
-      id: 'diwali_festive_2026',
-      title: 'Diwali Festive Special',
-      subtitle: 'A festival of lights, devotion & celebration',
-      badge: 'DIWALI • 2026',
-      imageUrl: '',
+      id: 'creators_choice',
+      title: "Creator's Choice",
+      subtitle: "Where Melodies Meet Memories.",
+      badge: "CREATOR'S CHOICE",
+      imageUrl: 'assets/images/creators_choice_banner.webp',
       gradientColors: const [
-        Color(0xFF6D1B00),
-        Color(0xFFB84A00),
-        Color(0xFF3B123B)
+        Color(0xFF2C1B4D),
+        Color(0xFF673AB7),
+        Color(0xFF8E24AA),
       ],
-      tracks: const [],
+      tracks: CreatorsChoiceService.getVerifiedTracks(),
+      destination: 'creators_choice',
       activeHours: List.generate(24, (hour) => hour),
-      priority: 100,
-      startDate: DateTime.utc(2026, 11, 4, 18, 30),
-      endDate: DateTime.utc(2026, 11, 11, 18, 30),
-      destination: 'festival_special',
+      priority: 95,
     ),
     // 1. Morning Bhakti (6:00 AM inclusive to 10:30 AM exclusive)
     SmartBannerItem(
