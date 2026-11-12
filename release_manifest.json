@@ -5,19 +5,25 @@
   "channels": {
     "stable": {
       "version": "3.0.7",
-      "build_number": 7,
-      "release_notes": "Diwali Festive Special with recomposed widescreen artwork & 19-track curated collection; expanded Creator's Choice featuring 70 hand-picked tracks & playlist protection; Morning Bhakti with 26 devotional tracks (6:00-10:30 AM); offline multi-selection fix across tabs; fluid desktop responsive layout; verified in-place update stability and data preservation.",
-      "published_at": "2026-11-05T20:30:00Z",
+      "build_number": 8,
+      "release_notes": "Creator's Choice 70-track curated catalogue refresh (Tere Sang Yaara, Tere Naina, Bin Tere, Samjhawan, Dildara); Diwali 2026 & Morning Bhakti curated updates; production Ed25519 signed update manifest verification (SEC-05); Android and Windows stability and security improvements.",
+      "published_at": "2026-11-12T06:35:00Z",
       "platforms": {
         "android": {
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk",
-          "sha256": "f32b5089f196a53044c71a6f03805c43fd9bfc3fb4b1b22dbbe38ae3160313d5",
-          "file_size": 66279669
+          "sha256": "31d297e8c04938666a76b5a9d4b541046a8e829a983e7878d9765832c23d41ae",
+          "file_size": 66457568,
+          "signature": "80f3c1ef640b804ee4293021558b0c8b4f3f1012f79b51cc2ac00b11520c836bd665c809f4acc87844ef225663603cb96b35972016b20c17df3a47cef467e80a",
+          "signature_algorithm": "ed25519",
+          "key_id": "orvia-prod-2026-v1"
         },
         "windows": {
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip",
-          "sha256": "b8c8ed48721e9b72b6d63ee4be80a0cc7fefe372ca21769184367c1567795de3",
-          "file_size": 39290275
+          "sha256": "bc87eb35123f49c7512519ef50ae6d8bc72129227afe0fc3a621e31d48b90cfa",
+          "file_size": 39657894,
+          "signature": "9e47e9c620a68e43b820a6df954d7dcaaaa1bcecb7fd9c1b8a5c41fdae1e88ace277dee0c6c45ed93f0f03d2478906d006e3a51b535d5f624556919f26c3010d",
+          "signature_algorithm": "ed25519",
+          "key_id": "orvia-prod-2026-v1"
         }
       }
     }
