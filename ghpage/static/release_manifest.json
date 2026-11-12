@@ -6,14 +6,14 @@
     "stable": {
       "version": "3.0.7",
       "build_number": 8,
-      "release_notes": "Creator's Choice 70-track curated catalogue refresh (Tere Sang Yaara, Tere Naina, Bin Tere, Samjhawan, Dildara); Diwali 2026 & Morning Bhakti curated updates; production Ed25519 signed update manifest verification (SEC-05); Android and Windows stability and security improvements.",
-      "published_at": "2026-11-12T06:35:00Z",
+      "release_notes": "Creator's Choice 70-track curated catalogue refresh (Tere Sang Yaara, Tere Naina, Bin Tere, Samjhawan, Dildara); Diwali 2026 & Morning Bhakti curated updates; production Ed25519 signed update manifest verification (SEC-05); Android and Windows stability and security improvements; resilient APK downloader with automatic resumption.",
+      "published_at": "2026-11-12T17:10:00Z",
       "platforms": {
         "android": {
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk",
-          "sha256": "31d297e8c04938666a76b5a9d4b541046a8e829a983e7878d9765832c23d41ae",
-          "file_size": 66457568,
-          "signature": "80f3c1ef640b804ee4293021558b0c8b4f3f1012f79b51cc2ac00b11520c836bd665c809f4acc87844ef225663603cb96b35972016b20c17df3a47cef467e80a",
+          "sha256": "e0f9fa4c463835700957cefa1a7c5bc9cecb36297bb2ad8d17f5979afddd7754",
+          "file_size": 54513981,
+          "signature": "925fb31cbed411d80dd44efb9ae84752f324422943173d78e2d2c8006aefa05ce7343b1eba320c8745c35b14f988ee6c776c09db4a09db661baed57449a24408",
           "signature_algorithm": "ed25519",
           "key_id": "orvia-prod-2026-v1"
         },
@@ -21,7 +21,7 @@
           "download_url": "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip",
           "sha256": "bc87eb35123f49c7512519ef50ae6d8bc72129227afe0fc3a621e31d48b90cfa",
           "file_size": 39657894,
-          "signature": "9e47e9c620a68e43b820a6df954d7dcaaaa1bcecb7fd9c1b8a5c41fdae1e88ace277dee0c6c45ed93f0f03d2478906d006e3a51b535d5f624556919f26c3010d",
+          "signature": "8f9d7646bd4afaf0d4c029c956b47750f9f10f9b0c634a35855714173ecf810843afed49c3f95e72462d9b76e9e02190dd6f012b32f1ee467bc531a1ec6a380c",
           "signature_algorithm": "ed25519",
           "key_id": "orvia-prod-2026-v1"
         }

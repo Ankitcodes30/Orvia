@@ -522,6 +522,13 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
   String _statusMessage = '';
   String _errorMessage = '';
   File? _downloadedFile;
+  DownloadCancellationToken? _downloadToken;
+
+  @override
+  void dispose() {
+    _downloadToken?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -740,7 +747,10 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: widget.onDismiss,
+            onPressed: () {
+              _downloadToken?.cancel();
+              widget.onDismiss();
+            },
             child:
                 const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
@@ -950,10 +960,19 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
       final destFile = File(p.join(
           tempDir.path, 'orvia_update_${widget.result.newVersion}.$ext'));
 
+      _downloadToken?.cancel();
+      final token = DownloadCancellationToken();
+      _downloadToken = token;
+
+      final expectedSize =
+          widget.result.manifest?.getChannel()?.currentPlatformRelease?.fileSize;
+
       final verifiedFile =
           await OrviaUpdateService.instance.downloadAndVerifyFile(
         downloadUrl: downloadUrl,
         expectedSha256: expectedSha,
+        expectedFileSize: expectedSize,
+        cancellationToken: token,
         destinationFile: destFile,
         onProgress: (received, total) {
           if (mounted) {
@@ -968,8 +987,19 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
         },
       );
 
+      if (!mounted || token.isCancelled) return;
       _downloadedFile = verifiedFile;
       _proceedWithInstallation(verifiedFile);
+    } on DownloadCancelledException {
+      log('Update download cancelled by user', name: 'InAppUpdateDialog');
+    } on DownloadStorageException catch (e) {
+      if (mounted) {
+        setState(() {
+          _state = _DialogState.error;
+          _errorMessage = e.message;
+        });
+      }
+      log('Download storage error: $e', name: 'InAppUpdateDialog');
     } on IntegrityCheckException catch (e) {
       if (mounted) {
         setState(() {

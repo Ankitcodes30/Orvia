@@ -12,7 +12,7 @@
 			icon: 'fa-brands fa-android',
 			name: 'Android APK',
 			href: androidDownloadLink,
-			size: '63.4 MB · Direct Download'
+			size: '52.0 MB · Direct Download'
 		},
 		{
 			platform: 'windows',
@@ -76,8 +76,8 @@
 			<h4><i class="fa-solid fa-circle-check text-green"></i> Release v3.0.7+8 Verified Notes & SHA-256</h4>
 			<p class="install-tip"><i class="fa-solid fa-circle-info"></i> Release v3.0.7+8 binaries are verified and served directly. Checksums below match the exact published packages.</p>
 			<div class="checksum-row">
-				<strong>Android Release APK (v3.0.7+8 · 63.4 MB):</strong>
-				<code>31D297E8C04938666A76B5A9D4B541046A8E829A983E7878D9765832C23D41AE</code>
+				<strong>Android Release APK (v3.0.7+8 · 52.0 MB):</strong>
+				<code>E0F9FA4C463835700957CEFA1A7C5BC9CECB36297BB2AD8D17F5979AFDDD7754</code>
 				<p class="install-tip"><i class="fa-solid fa-certificate"></i> Signing: Official Production Release Key (CN=Ankit Kumbhare, O=Orvia).</p>
 				<p class="install-tip"><i class="fa-solid fa-gear"></i> Android Install: Enable "Install unknown apps" from browser settings if prompted.</p>
 			</div>
