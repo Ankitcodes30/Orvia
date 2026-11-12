@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:Orvia/services/orvia_updater_tools.dart';
 import 'package:Orvia/services/updater/app_version.dart';
 import 'package:Orvia/services/updater/in_app_update_manager.dart';
+import 'package:Orvia/services/updater/manifest_signature_verifier.dart';
 import 'package:Orvia/services/updater/orvia_update_service.dart';
 import 'package:Orvia/services/updater/release_manifest.dart';
 
@@ -374,6 +375,18 @@ void main() {
   });
 
   group('OrviaUpdateService Update Checking & Security Enforcement', () {
+    late UpdateSecurityProfile previousProfile;
+
+    setUp(() {
+      previousProfile = ManifestSignatureVerifier.activeProfile;
+      ManifestSignatureVerifier.activeProfile =
+          UpdateSecurityProfile.transitional;
+    });
+
+    tearDown(() {
+      ManifestSignatureVerifier.activeProfile = previousProfile;
+    });
+
     const manifestJson = '''
 {
   "schema_version": 1,
@@ -744,6 +757,18 @@ void main() {
   });
 
   group('v3.0.5 Release Manifest & In-App Update Flow Validation', () {
+    late UpdateSecurityProfile previousProfile;
+
+    setUp(() {
+      previousProfile = ManifestSignatureVerifier.activeProfile;
+      ManifestSignatureVerifier.activeProfile =
+          UpdateSecurityProfile.transitional;
+    });
+
+    tearDown(() {
+      ManifestSignatureVerifier.activeProfile = previousProfile;
+    });
+
     test(
         'local version.json has valid schema, platforms, and 64-char SHA256 checksums',
         () {
@@ -1210,6 +1235,112 @@ void main() {
           r'C:\Program Files\Orvia',
         );
       });
+    });
+  });
+
+  group('Production 3.0.7+8 Signed Manifest Verification', () {
+    test(
+        'production verifier accepts signed version.json for android and windows',
+        () {
+      expect(
+        ManifestSignatureVerifier.activeProfile,
+        UpdateSecurityProfile.production,
+      );
+
+      final file = File('version.json');
+      expect(file.existsSync(), isTrue);
+      final manifest = ReleaseManifest.parse(file.readAsStringSync());
+      final stable = manifest.stable!;
+      expect(stable.version, '3.0.7');
+      expect(stable.buildNumber, 8);
+      expect(manifest.minSupportedVersion, '3.0.0');
+
+      for (final platformKey in ['android', 'windows']) {
+        final platform = stable.platforms[platformKey]!;
+        final res = ManifestSignatureVerifier.verifyPlatformSignature(
+          appName: manifest.appName,
+          channel: stable.name,
+          version: stable.version,
+          buildNumber: stable.buildNumber,
+          platformKey: platformKey,
+          platform: platform,
+          publishedAt: stable.publishedAt,
+        );
+        expect(res.status, SignatureVerificationStatus.verified);
+        expect(res.isApproved, isTrue);
+        expect(res.keyId, 'orvia-prod-2026-v1');
+      }
+    });
+
+    test(
+        'OrviaUpdateService accepts signed 3.0.7+8 manifest under production profile',
+        () async {
+      final rawManifest = File('version.json').readAsStringSync();
+      final client = MockClient((_) async => http.Response(rawManifest, 200));
+      final service = OrviaUpdateService(client: client);
+
+      final upgradeCheck = await service.checkForUpdates(
+        manifestUrlOverride: 'https://localhost/version.json',
+        currentVersionOverride: '3.0.7',
+        currentBuildOverride: '7',
+      );
+      expect(upgradeCheck.status, UpdateStatus.updateAvailable);
+      expect(upgradeCheck.newVersion, '3.0.7');
+      expect(upgradeCheck.newBuild, '8');
+
+      final currentCheck = await service.checkForUpdates(
+        manifestUrlOverride: 'https://localhost/version.json',
+        currentVersionOverride: '3.0.7',
+        currentBuildOverride: '8',
+      );
+      expect(currentCheck.status, UpdateStatus.upToDate);
+    });
+
+    test('tampered signed manifest and invalid signature are rejected', () async {
+      final jsonMap =
+          jsonDecode(File('version.json').readAsStringSync()) as Map<String, dynamic>;
+      final stable =
+          (jsonMap['channels'] as Map<String, dynamic>)['stable'] as Map<String, dynamic>;
+      final platforms = stable['platforms'] as Map<String, dynamic>;
+
+      // 1. Tamper sha256 on both platforms
+      final tampered = jsonDecode(jsonEncode(jsonMap)) as Map<String, dynamic>;
+      final tPlatforms =
+          ((tampered['channels'] as Map<String, dynamic>)['stable']
+              as Map<String, dynamic>)['platforms'] as Map<String, dynamic>;
+      (tPlatforms['android'] as Map<String, dynamic>)['sha256'] = '0' * 64;
+      (tPlatforms['windows'] as Map<String, dynamic>)['sha256'] = '0' * 64;
+
+      final tamperedService = OrviaUpdateService(
+        client: MockClient((_) async => http.Response(jsonEncode(tampered), 200)),
+      );
+      final tamperedRes = await tamperedService.checkForUpdates(
+        manifestUrlOverride: 'https://localhost/version.json',
+        currentVersionOverride: '3.0.7',
+        currentBuildOverride: '7',
+      );
+      expect(tamperedRes.status, UpdateStatus.checkFailed);
+      expect(tamperedRes.source, 'signature_verification_failed');
+
+      // 2. Replace signature with invalid 128-hex string
+      final badSig = jsonDecode(jsonEncode(jsonMap)) as Map<String, dynamic>;
+      final bPlatforms =
+          ((badSig['channels'] as Map<String, dynamic>)['stable']
+              as Map<String, dynamic>)['platforms'] as Map<String, dynamic>;
+      (bPlatforms['android'] as Map<String, dynamic>)['signature'] = 'a' * 128;
+      (bPlatforms['windows'] as Map<String, dynamic>)['signature'] = 'a' * 128;
+
+      final badSigService = OrviaUpdateService(
+        client: MockClient((_) async => http.Response(jsonEncode(badSig), 200)),
+      );
+      final badSigRes = await badSigService.checkForUpdates(
+        manifestUrlOverride: 'https://localhost/version.json',
+        currentVersionOverride: '3.0.7',
+        currentBuildOverride: '7',
+      );
+      expect(badSigRes.status, UpdateStatus.checkFailed);
+      expect(badSigRes.source, 'signature_verification_failed');
+      expect(platforms.containsKey('android'), isTrue);
     });
   });
 }

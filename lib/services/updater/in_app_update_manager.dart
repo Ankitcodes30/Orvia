@@ -123,19 +123,44 @@ class InAppUpdateManager {
     updateDir.createSync();
     final stagingDir = Directory(p.join(updateDir.path, 'staging'));
     stagingDir.createSync(recursive: true);
+    final canonicalStaging = p.canonicalize(stagingDir.path);
 
-    // 1. Extract ZIP
+    // 1. Extract ZIP with strict Zip Slip protection (CWE-22)
     final bytes = await zipFile.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
     for (final file in archive) {
       final filename = file.name;
+      if (filename.trim().isEmpty) continue;
+
+      // Reject path traversal attempts, absolute paths, alternate data streams, or UNC drives
+      if (filename.contains('\x00') ||
+          filename.contains(':') ||
+          filename.startsWith('/') ||
+          filename.startsWith('\\') ||
+          filename.contains(r'\\')) {
+        updateDir.deleteSync(recursive: true);
+        throw FileSystemException(
+          'Security Exception: Malicious ZIP entry with invalid characters or absolute/UNC path: $filename',
+        );
+      }
+
       final outPath = p.join(stagingDir.path, filename);
+      final canonicalOut = p.canonicalize(outPath);
+
+      if (!p.isWithin(canonicalStaging, canonicalOut) || canonicalOut == canonicalStaging) {
+        updateDir.deleteSync(recursive: true);
+        throw FileSystemException(
+          'Security Exception: Malicious ZIP entry attempted path traversal outside staging directory: $filename',
+          outPath,
+        );
+      }
+
       if (file.isFile) {
-        final outFile = File(outPath);
+        final outFile = File(canonicalOut);
         outFile.parent.createSync(recursive: true);
         outFile.writeAsBytesSync(file.content as List<int>);
       } else {
-        Directory(outPath).createSync(recursive: true);
+        Directory(canonicalOut).createSync(recursive: true);
       }
     }
 

@@ -78,7 +78,7 @@ class LastFmAPI {
   static String? sessionKey;
   static String? username;
   static bool initialized = false;
-  static const String apiUrl = 'http://ws.audioscrobbler.com/2.0/';
+  static const String apiUrl = 'https://ws.audioscrobbler.com/2.0/';
   static const String userStation = "https://www.last.fm/player/station/user/";
   static const Map<String, String> userStationEndpoints = {
     "recommended": "/recommended",
@@ -231,7 +231,7 @@ class LastFmAPI {
 
     try {
       final response =
-          await http.get(Uri.http('ws.audioscrobbler.com', '/2.0/', params));
+          await http.get(Uri.https('ws.audioscrobbler.com', '/2.0/', params));
       Map<String, dynamic> responseData = jsonDecode(response.body);
 
       if (responseData.containsKey('token')) {
@@ -249,7 +249,7 @@ class LastFmAPI {
     if (apiKey == null) {
       throw Exception("LastFM API not initialized.");
     }
-    return 'http://www.last.fm/api/auth/?api_key=$apiKey&token=$token';
+    return 'https://www.last.fm/api/auth/?api_key=$apiKey&token=$token';
   }
 
   static Future<Map<String, String>> fetchSessionKey(String token) async {

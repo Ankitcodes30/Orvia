@@ -155,6 +155,16 @@ class CreatorsChoiceService {
         await playlistDao.removeTrackFromPlaylist(existing.id, '$pluginId::MpNsN4UT', allowSystem: true);
         await playlistDao.removeTrackFromPlaylist(existing.id, 'MpNsN4UT', allowSystem: true);
 
+        // Remove old Tere Sang Yaara - Aakanksha Sharma Version if present
+        await playlistDao.removeTrackFromPlaylist(existing.id, '$pluginId::Ndof-bg0', allowSystem: true);
+        await playlistDao.removeTrackFromPlaylist(existing.id, 'Ndof-bg0', allowSystem: true);
+
+        // Remove old Jaadui (non-T-Series), Tere Naina, Vaaroon, and Tainu Khabar Nahi (non-Zee) if present
+        for (final rId in ['U_-LFOuj', '_uKO18JI', 'PTNX7k-6', 'PS5hORkK']) {
+          await playlistDao.removeTrackFromPlaylist(existing.id, '$pluginId::$rId', allowSystem: true);
+          await playlistDao.removeTrackFromPlaylist(existing.id, rId, allowSystem: true);
+        }
+
         // 2. Read existing tracks and avoid adding duplicates
         final existingTracks = await playlistDao.getPlaylistTracks(existing.id);
         final existingMediaIds = existingTracks.map((t) => t.mediaId).toSet();
@@ -185,9 +195,9 @@ class CreatorsChoiceService {
     _track(rawId: 'bIAmZceU', title: 'I Am In Love', artist: 'Pritam, KK, Dominique', album: 'Once Upon A Time In Mumbaai', durationSec: 285, imageUrl: 'https://c.saavncdn.com/512/Once-Upon-A-Time-In-Mumbaai-Hindi-2010-20241223141749-500x500.webp'),
     _track(rawId: '0rYr57cr', title: 'Saathiyaa', artist: 'Shreya Ghoshal, Ajay Gogavale, Ajay-Atul', album: 'Singham', durationSec: 310, imageUrl: 'https://c.saavncdn.com/470/Singham-Hindi-2011-20221211220044-500x500.webp'),
     _track(rawId: 'Xd9NQgRm', title: 'Jitni Dafa', artist: 'Yasser Desai', album: 'Parmanu', durationSec: 222, imageUrl: 'https://c.saavncdn.com/718/Parmanu-Hindi-2018-20250617070209-500x500.webp'),
-    _track(rawId: 'Ndof-bg0', title: 'Tere Sang Yaara - Aakanksha Sharma Version', artist: 'Manoj Muntashir, Aakanksha Sharma', album: 'Rustom', durationSec: 240, imageUrl: 'https://c.saavncdn.com/340/Rustom-Hindi-2018-20250617070806-500x500.webp'),
+    _ytTrack(videoId: 'gIOea2pgfIo', title: 'Tere Sang Yaara - Full Video | Rustom | Akshay Kumar & Ileana D\'cruz | Arko | Manoj M', artist: 'Atif Aslam, Arko', album: 'Rustom', durationSec: 294, imageUrl: 'https://i.ytimg.com/vi/gIOea2pgfIo/hqdefault.jpg'),
     _track(rawId: 'AK3icrxP', title: 'Dil Meri Na Sune (Sameer Khan Version)', artist: 'Manoj Muntashir, Sameer Khan, Himesh Reshammiya', album: 'Genius', durationSec: 236, imageUrl: 'https://c.saavncdn.com/994/Genius-Hindi-2018-20250728123019-500x500.webp'),
-    _track(rawId: 'U_-LFOuj', title: 'Jaadui', artist: 'Pritam, Jubin Nautiyal, Amitabh Bhattacharya', album: 'Tu Jhoothi Main Makkaar', durationSec: 222, imageUrl: 'https://c.saavncdn.com/903/Tu-Jhoothi-Main-Makkaar-Hindi-2023-20230316165419-500x500.webp'),
+    _ytTrack(videoId: 'pGuc4hPhiKw', title: 'Bin Tere - Lyrical Song | I Hate Luv Storys | Sonam Kapoor, Imran Khan | Vishal & Shekhar', artist: 'Vishal & Shekhar', album: 'I Hate Luv Storys', durationSec: 331, imageUrl: 'https://i.ytimg.com/vi/pGuc4hPhiKw/hqdefault.jpg'),
     _track(rawId: 'UleloXwf', title: 'Channa Ve', artist: 'Akhil Sachdeva, Mansheel Gujral', album: 'Bhoot - Part One: The Haunted Ship', durationSec: 211, imageUrl: 'https://c.saavncdn.com/006/Bhoot-Part-One-The-Haunted-Ship-Hindi-2020-20200212161346-500x500.webp'),
     _track(rawId: 'KvSHdENF', title: 'Aankhon Se Batana', artist: 'Dikshant', album: 'Indie Campus Chill Hits', durationSec: 221, imageUrl: 'https://c.saavncdn.com/084/Indie-Campus-Chill-Hits-Hindi-2024-20240627120630-500x500.webp'),
     _track(rawId: 'pdAQnMhS', title: 'Soulmate', artist: 'Badshah, Arijit Singh', album: 'Arijit Singh X Badshah The Biggest Songs 2024', durationSec: 214, imageUrl: 'https://c.saavncdn.com/638/Arijit-Singh-X-Badshah-The-Biggest-Songs-2024-Hindi-2024-20240410215733-500x500.webp'),
@@ -206,14 +216,14 @@ class CreatorsChoiceService {
     _track(rawId: '-p_SOUtI', title: 'Arziyaan', artist: 'Raj-Prakash, Vikrant Bhartiya, Aishwarya Majmudar', album: 'Jigariyaa', durationSec: 287, imageUrl: 'https://c.saavncdn.com/830/Jigariyaa-Hindi-2014-500x500.jpg'),
     _track(rawId: '-ArsLWuq', title: 'Mann Jogiya', artist: 'Arijit Singh, Ishita Vishwakarma', album: 'Pyaar Hai Toh Hai', durationSec: 265, imageUrl: 'https://c.saavncdn.com/781/Pyaar-Hai-Toh-Hai-Hindi-2023-20260302133559-500x500.webp'),
     _track(rawId: '3zFgrvoE', title: 'Maiyya Mainu', artist: 'Sachet Tandon', album: 'Jersey', durationSec: 231, imageUrl: 'https://c.saavncdn.com/799/Jersey-Hindi-2021-20220412145401-500x500.webp'),
-    _track(rawId: '_uKO18JI', title: 'Tere Naina', artist: 'Shankar Mahadevan, Shreya Ghoshal', album: 'Chandni Chowk To China', durationSec: 255, imageUrl: 'https://c.saavncdn.com/532/Chandni-Chowk-To-China-Hindi-2008-20221122102840-500x500.webp'),
+    _ytTrack(videoId: 'Km5AQkh58DU', title: 'Tere Naina -  8K/4K Music Video | Shahrukh Khan | Kajol | My Name is Khan | Shafqat Amanat Ali', artist: 'Shafqat Amanat Ali', album: 'My Name is Khan', durationSec: 285, imageUrl: 'https://i.ytimg.com/vi/Km5AQkh58DU/hqdefault.jpg'),
     _track(rawId: 'UuGteRjX', title: 'Main Rahoon Ya Na Rahoon', artist: 'Armaan Malik', album: 'Main Rahoon Ya Na Rahoon', durationSec: 310, imageUrl: 'https://c.saavncdn.com/395/Main-Rahoon-Ya-Na-Rahoon-Hindi-2015-500x500.jpg'),
     _track(rawId: '1EvZOLZA', title: 'Tera Zikr', artist: 'Darshan Raval', album: 'Tera Zikr', durationSec: 210, imageUrl: 'https://c.saavncdn.com/820/Tera-Zikr-Hindi-2017-20171108125619-500x500.webp'),
     _track(rawId: '9_-n9cPL', title: 'Main Rang Sharbaton Ka (Reprise)', artist: 'Arijit Singh, Pritam', album: 'Phata Poster Nikhla Hero', durationSec: 277, imageUrl: 'https://c.saavncdn.com/330/Phata-Poster-Nikhla-Hero-Hindi-2013-20260907165855-500x500.webp'),
-    _track(rawId: 'PTNX7k-6', title: 'Vaaroon Forever (From “Mirzapur The Movie”)', artist: 'Anand Bhaskar, Romy, Shreya Ghoshal, Ginny Diwan', album: 'Vaaroon Forever (From “Mirzapur The Movie”)', durationSec: 252, imageUrl: 'https://c.saavncdn.com/381/Vaaroon-Forever-From-Mirzapur-The-Movie-Hindi-2026-20260817160523-500x500.webp'),
+    _ytTrack(videoId: 'H2f7MZaw3Yo', title: 'Arijit Singh, Shreya Ghoshal - Samjhawan - Lyric video | Alia B, Varun D | Humpty Sharma Ki Dulhania', artist: 'Arijit Singh, Shreya Ghoshal', album: 'Humpty Sharma Ki Dulhania', durationSec: 265, imageUrl: 'https://i.ytimg.com/vi/H2f7MZaw3Yo/hqdefault.jpg'),
     _track(rawId: 'qZtKBMZ_', title: 'Apna Bana Le', artist: 'Sachin-Jigar, Arijit Singh', album: 'Bhediya', durationSec: 261, imageUrl: 'https://c.saavncdn.com/815/Bhediya-Hindi-2023-20230927155213-500x500.webp'),
     _track(rawId: 'wfTj8NYC', title: 'Tera Mera Rishta - New Version (From "Awarapan 2")', artist: 'Mithoon, Pritam, Sayeed Quadri, Saaj Bhatt, Subodhh Sharma', album: 'Awarapan 2', durationSec: 365, imageUrl: 'https://c.saavncdn.com/820/Awarapan-2-Hindi-2026-20260929184517-500x500.webp'),
-    _track(rawId: 'PS5hORkK', title: 'Tainu Khabar Nahi', artist: 'Sachin-Jigar, Arijit Singh, Amitabh Bhattacharya', album: 'Heartbeats Bollywood', durationSec: 188, imageUrl: 'https://c.saavncdn.com/195/Heartbeats-Bollywood-Hindi-2026-20260813104641-500x500.webp'),
+    _ytTrack(videoId: 'gQ5qVtoLMk4', title: 'Lyrical Video: Dildara Song | Ra.One | ShahRukh Khan, Kareena Kapoor', artist: 'Shafqat Amanat Ali, Vishal & Shekhar', album: 'Ra.One', durationSec: 270, imageUrl: 'https://i.ytimg.com/vi/gQ5qVtoLMk4/hqdefault.jpg'),
     _track(rawId: '9rUwCeSH', title: 'Mehrama', artist: 'Pritam, Darshan Raval, Antara Mitra', album: 'Love Aaj Kal', durationSec: 249, imageUrl: 'https://c.saavncdn.com/862/Love-Aaj-Kal-Hindi-2020-20200214140423-500x500.webp'),
     _track(rawId: '10rKWWH_', title: 'Saanware', artist: 'Akhil Sachdeva, Kartik Dev', album: 'Saanware', durationSec: 195, imageUrl: 'https://c.saavncdn.com/447/Saanware-Hindi-2024-20240209043139-500x500.webp'),
     _ytTrack(videoId: '09fnyp7aAPk', title: 'Finding Her x Dooron Dooron - Mashup (Full Version) | Kushagra | Paresh Pahuja', artist: 'Shubhadip Dey', album: '', durationSec: 222, imageUrl: 'https://i.ytimg.com/vi/09fnyp7aAPk/hqdefault.jpg'),

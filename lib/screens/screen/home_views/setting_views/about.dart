@@ -84,7 +84,7 @@ class About extends StatelessWidget {
                     const Spacer(),
                     // Footer moved to bottom of screen
                     const SizedBox(height: 12),
-                    _buildFooter(l10n),
+                    _buildFooter(context, l10n),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -270,7 +270,7 @@ class About extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(AppLocalizations l10n) {
+  Widget _buildFooter(BuildContext context, AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       child: Center(
@@ -301,7 +301,41 @@ class About extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: 14),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () async {
+                    String version = '';
+                    try {
+                      final packageInfo = await PackageInfo.fromPlatform();
+                      version = 'v${packageInfo.version}+${packageInfo.buildNumber}';
+                    } catch (_) {}
+                    if (!context.mounted) return;
+                    showLicensePage(
+                      context: context,
+                      applicationName: 'Orvia',
+                      applicationVersion: version.isNotEmpty ? version : null,
+                      applicationIcon: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: _buildOrviaLogo(),
+                      ),
+                    );
+                  },
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.description_outlined,
+                          color: kSecondaryTextColor, size: 15),
+                      SizedBox(width: 6),
+                      Text('Licenses',
+                          style: TextStyle(
+                              color: kSecondaryTextColor,
+                              fontSize: 12,
+                              fontFamily: 'Gilroy')),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
                 FutureBuilder<PackageInfo>(
                   future: PackageInfo.fromPlatform(),
                   builder: (context, snapshot) {

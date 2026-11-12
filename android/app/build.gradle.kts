@@ -105,6 +105,10 @@ android {
     }
 }
 
+tasks.matching { it.name.contains("NativeDebugMetadata") }.configureEach {
+    enabled = false
+}
+
 flutter {
     source = "../.."
 }

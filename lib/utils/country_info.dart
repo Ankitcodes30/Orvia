@@ -15,7 +15,6 @@ class CountryInfoService {
     Uri.parse('https://ipwho.is/'),
     Uri.parse('https://api.country.is/'),
     Uri.parse('https://ipapi.co/json/'),
-    Uri.parse('http://ip-api.com/json'),
   ];
 
   const CountryInfoService._();

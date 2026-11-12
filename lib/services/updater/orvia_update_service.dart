@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -10,6 +11,7 @@ import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/updater/app_version.dart';
+import 'package:Orvia/services/updater/manifest_signature_verifier.dart';
 import 'package:Orvia/services/updater/release_manifest.dart';
 
 /// Distinct update states.
@@ -127,6 +129,8 @@ class OrviaUpdateService {
     String? currentVersionOverride,
     String? currentBuildOverride,
     Duration timeout = defaultTimeout,
+    bool enforceSignatures = false,
+    List<TrustedPublicKey>? customTrustStore,
   }) async {
     // 1. Resolve local installed version
     String localVersion = currentVersionOverride ?? '';
@@ -361,6 +365,31 @@ class OrviaUpdateService {
     final downloadUrl = platformRelease?.downloadUrl;
     final sha256 = platformRelease?.sha256;
 
+    // Cryptographic signature check for platform release
+    if (platformRelease != null) {
+      final sigResult = ManifestSignatureVerifier.verifyPlatformSignature(
+        appName: manifest.appName,
+        channel: channel.name,
+        version: channel.version,
+        buildNumber: channel.buildNumber,
+        platformKey: ReleaseChannel.currentPlatformKey,
+        platform: platformRelease,
+        publishedAt: channel.publishedAt,
+        enforceSignatures: enforceSignatures,
+        customTrustStore: customTrustStore,
+      );
+      if (!sigResult.isApproved) {
+        return UpdateCheckResult(
+          status: UpdateStatus.checkFailed,
+          currentVersion: localVersion,
+          currentBuild: localBuild,
+          errorMessage: sigResult.message,
+          source: 'signature_verification_failed',
+          manifest: manifest,
+        );
+      }
+    }
+
     // 10. Application update comparison
     // Uses compareAppRelease to evaluate SemVer precedence while honoring Android build numbers
     final isNewer = remoteAppVersion.isAppUpdateOver(currentAppVersion, checkBuildNumber: true);
@@ -430,8 +459,10 @@ class OrviaUpdateService {
       throw ArgumentError('Invalid expected SHA-256 checksum: $expectedSha256');
     }
 
-    if (destinationFile.existsSync()) {
-      destinationFile.deleteSync();
+    // Atomic download promotion: stream into temporary part file first
+    final tempPartFile = File('${destinationFile.path}.part_${DateTime.now().microsecondsSinceEpoch}');
+    if (tempPartFile.existsSync()) {
+      tempPartFile.deleteSync();
     }
     destinationFile.parent.createSync(recursive: true);
 
@@ -448,19 +479,20 @@ class OrviaUpdateService {
     }
 
     if (response.statusCode != 200) {
-      if (destinationFile.existsSync()) destinationFile.deleteSync();
+      if (tempPartFile.existsSync()) tempPartFile.deleteSync();
       throw HttpException('Failed to download file: HTTP ${response.statusCode}', uri: uri);
     }
 
     final totalBytes = response.contentLength ?? -1;
     int receivedBytes = 0;
-    final sink = destinationFile.openWrite();
-    final byteChunks = <int>[];
+    final sink = tempPartFile.openWrite();
+    final digestSink = AccumulatorSink<Digest>();
+    final hashInput = sha256.startChunkedConversion(digestSink);
 
     try {
       await for (final chunk in response.stream) {
         sink.add(chunk);
-        byteChunks.addAll(chunk);
+        hashInput.add(chunk);
         receivedBytes += chunk.length;
         if (onProgress != null) {
           onProgress(receivedBytes, totalBytes);
@@ -468,22 +500,29 @@ class OrviaUpdateService {
       }
       await sink.flush();
       await sink.close();
+      hashInput.close();
     } catch (e) {
       await sink.close();
-      if (destinationFile.existsSync()) destinationFile.deleteSync();
+      if (tempPartFile.existsSync()) tempPartFile.deleteSync();
       rethrow;
     }
 
-    // Verify SHA-256
-    final actualDigest = sha256.convert(byteChunks).toString().toLowerCase();
+    // Verify SHA-256 (streaming digest, peak RAM bounded to ~64KB chunk)
+    final actualDigest = digestSink.events.single.toString().toLowerCase();
     if (actualDigest != cleanedExpectedSha) {
-      if (destinationFile.existsSync()) destinationFile.deleteSync();
+      if (tempPartFile.existsSync()) tempPartFile.deleteSync();
       throw IntegrityCheckException(
         'Downloaded file SHA-256 mismatch!\n'
         'Expected: $cleanedExpectedSha\n'
         'Actual:   $actualDigest',
       );
     }
+
+    // Atomic promotion: promote validated artifact to final destination
+    if (destinationFile.existsSync()) {
+      destinationFile.deleteSync();
+    }
+    tempPartFile.renameSync(destinationFile.path);
 
     return destinationFile;
   }

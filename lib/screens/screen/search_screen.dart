@@ -135,21 +135,11 @@ class _SearchScreenState extends State<SearchScreen> {
     final pluginState = context.read<PluginBloc>().state;
     final resolvers = pluginState.loadedContentResolvers;
     if (resolvers.isNotEmpty) {
-      final persistedId = context.read<SettingsCubit>().state.searchPluginId;
-      final hasPersistedPlugin = persistedId.isNotEmpty &&
-          resolvers.any((p) => p.manifest.id == persistedId);
-      final activeId = hasPersistedPlugin
-          ? persistedId
-          : resolvers
-              .firstWhere(
-                (p) => p.manifest.id == kDefaultSaavnPluginId,
-                orElse: () => resolvers.first,
-              )
-              .manifest
-              .id;
-
-      _activePluginIdNotifier.value = activeId;
-      _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
+      final activeId = _resolveActivePluginId(resolvers);
+      if (activeId != null) {
+        _activePluginIdNotifier.value = activeId;
+        _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
+      }
     }
 
     if (widget.searchQuery.isNotEmpty) {
@@ -158,6 +148,34 @@ class _SearchScreenState extends State<SearchScreen> {
     } else if (widget.prefillQuery.isNotEmpty) {
       _textEditingController.text = widget.prefillQuery;
     }
+  }
+
+  String? _resolveActivePluginId(List<PluginInfo> resolvers) {
+    if (resolvers.isEmpty) {
+      return null;
+    }
+
+    final currentId = _activePluginIdNotifier.value;
+    if (currentId != null &&
+        resolvers.any((p) => p.manifest.id == currentId)) {
+      return currentId;
+    }
+
+    final persistedId = context.read<SettingsCubit>().state.searchPluginId;
+    if (persistedId.isNotEmpty &&
+        resolvers.any((p) => p.manifest.id == persistedId)) {
+      return persistedId;
+    }
+
+    final saavnPlugin = resolvers.cast<PluginInfo?>().firstWhere(
+      (p) => p?.manifest.id == kDefaultSaavnPluginId,
+      orElse: () => null,
+    );
+    if (saavnPlugin != null) {
+      return kDefaultSaavnPluginId;
+    }
+
+    return resolvers.first.manifest.id;
   }
 
   @override
@@ -214,8 +232,24 @@ class _SearchScreenState extends State<SearchScreen> {
   void _performSearch(
       {required String query, required ContentSearchFilter filter}) {
     final normalizedQuery = _normalizeSearchQuery(query);
-    if (normalizedQuery.isEmpty || _activePluginIdNotifier.value == null)
+    if (normalizedQuery.isEmpty) {
       return;
+    }
+
+    var activeId = _activePluginIdNotifier.value;
+    if (activeId == null) {
+      final resolvers = context.read<PluginBloc>().state.loadedContentResolvers;
+      activeId = _resolveActivePluginId(resolvers);
+      if (activeId != null) {
+        _activePluginIdNotifier.value = activeId;
+        _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
+      }
+    }
+
+    if (activeId == null) {
+      _setSearchFieldText(normalizedQuery);
+      return;
+    }
 
     context
         .read<SearchSuggestionBloc>()
@@ -223,7 +257,11 @@ class _SearchScreenState extends State<SearchScreen> {
     _setSearchFieldText(normalizedQuery);
     _filterNotifier.value = filter;
     _closeSuggestionPanel();
-    _contentBloc.add(SearchContent(query: normalizedQuery, filter: filter));
+    _contentBloc.add(SearchContent(
+      query: normalizedQuery,
+      filter: filter,
+      pluginId: activeId,
+    ));
   }
 
   void _doSearch(String query) =>
@@ -264,20 +302,35 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<PluginBloc, PluginState>(
-      listenWhen: (prev, curr) =>
-          prev.loadedContentResolvers.isEmpty &&
-          curr.loadedContentResolvers.isNotEmpty &&
-          _activePluginIdNotifier.value == null,
+      listenWhen: (prev, curr) {
+        if (curr.loadedContentResolvers.isEmpty) return false;
+        if (_activePluginIdNotifier.value == null) return true;
+        final currentValid = curr.loadedContentResolvers
+            .any((p) => p.manifest.id == _activePluginIdNotifier.value);
+        if (!currentValid) return true;
+        final persistedId = context.read<SettingsCubit>().state.searchPluginId;
+        if (persistedId.isEmpty &&
+            _activePluginIdNotifier.value != kDefaultSaavnPluginId &&
+            curr.loadedContentResolvers
+                .any((p) => p.manifest.id == kDefaultSaavnPluginId)) {
+          return true;
+        }
+        return false;
+      },
       listener: (context, pluginState) {
         final resolvers = pluginState.loadedContentResolvers;
-        final persistedId = context.read<SettingsCubit>().state.searchPluginId;
-        final hasPersistedPlugin = persistedId.isNotEmpty &&
-            resolvers.any((p) => p.manifest.id == persistedId);
-        final activeId =
-            hasPersistedPlugin ? persistedId : resolvers.first.manifest.id;
+        final activeId = _resolveActivePluginId(resolvers);
+        if (activeId != null) {
+          final changed = _activePluginIdNotifier.value != activeId;
+          _activePluginIdNotifier.value = activeId;
+          _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
 
-        _activePluginIdNotifier.value = activeId;
-        _contentBloc.add(SetActiveContentPlugin(pluginId: activeId));
+          final pendingQuery = _textEditingController.text.trim();
+          if (pendingQuery.isNotEmpty &&
+              (_contentBloc.state.searchResults == null || changed)) {
+            _performSearch(query: pendingQuery, filter: _filterNotifier.value);
+          }
+        }
       },
       child: GestureDetector(
         onTap: () {
@@ -470,6 +523,7 @@ class _FloatingSearchBarSliver extends StatelessWidget {
                     child: TextField(
                       controller: textEditingController,
                       focusNode: searchFocusNode,
+                      textInputAction: TextInputAction.search,
                       style: TextStyle(
                         color:
                             Default_Theme.primaryColor1.withValues(alpha: 0.95),
@@ -531,40 +585,54 @@ class _FloatingSearchBarSliver extends StatelessWidget {
   }
 
   Widget _buildAnimatedSearchLeadingIcon() {
-    return BlocBuilder<ContentBloc, ContentState>(
-      bloc: contentBloc,
-      buildWhen: (previous, current) =>
-          previous.searchStatus != current.searchStatus,
-      builder: (context, state) {
-        final isLoading = state.searchStatus == SearchStatus.loading ||
-            state.searchStatus == SearchStatus.loadingMore;
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 240),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) {
-            final rotation = Tween<double>(begin: 0.82, end: 1).animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutBack));
-            return FadeTransition(
-                opacity: animation,
-                child: RotationTransition(turns: rotation, child: child));
-          },
-          child: isLoading
-              ? SizedBox(
-                  key: const ValueKey('search-loading'),
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color:
-                          Default_Theme.primaryColor1.withValues(alpha: 0.5)),
-                )
-              : Icon(MingCute.search_2_line,
-                  key: const ValueKey('search-idle'),
-                  color: Default_Theme.primaryColor1.withValues(alpha: 0.5),
-                  size: 20),
-        );
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        final query = textEditingController.text.trim();
+        if (query.isNotEmpty) {
+          onSearchRequested(query: query, filter: ContentSearchFilter.all);
+        }
       },
+      child: Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: BlocBuilder<ContentBloc, ContentState>(
+          bloc: contentBloc,
+          buildWhen: (previous, current) =>
+              previous.searchStatus != current.searchStatus,
+          builder: (context, state) {
+            final isLoading = state.searchStatus == SearchStatus.loading ||
+                state.searchStatus == SearchStatus.loadingMore;
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final rotation = Tween<double>(begin: 0.82, end: 1).animate(
+                    CurvedAnimation(
+                        parent: animation, curve: Curves.easeOutBack));
+                return FadeTransition(
+                    opacity: animation,
+                    child: RotationTransition(turns: rotation, child: child));
+              },
+              child: isLoading
+                  ? SizedBox(
+                      key: const ValueKey('search-loading'),
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color:
+                              Default_Theme.primaryColor1.withValues(alpha: 0.5)),
+                    )
+                  : Icon(MingCute.search_2_line,
+                      key: const ValueKey('search-idle'),
+                      color:
+                          Default_Theme.primaryColor1.withValues(alpha: 0.5),
+                      size: 20),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -1366,19 +1434,22 @@ class _ContentSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ConnectivityCubit, ConnectivityState>(
       builder: (context, connState) {
-        if (connState == ConnectivityState.disconnected) {
-          return SliverFillRemaining(
-              hasScrollBody: false,
-              child: SignBoardWidget(
-                  icon: MingCute.wifi_off_line,
-                  message: AppLocalizations.of(context)!.emptyNoInternet));
-        }
-
         return BlocBuilder<ContentBloc, ContentState>(
           bloc: contentBloc,
           builder: (context, state) {
             final hasResults = state.searchResults != null &&
                 state.searchResults!.items.isNotEmpty;
+
+            if (connState == ConnectivityState.disconnected &&
+                !hasResults &&
+                state.searchStatus != SearchStatus.loading &&
+                state.searchStatus != SearchStatus.loadingMore) {
+              return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: SignBoardWidget(
+                      icon: MingCute.wifi_off_line,
+                      message: AppLocalizations.of(context)!.emptyNoInternet));
+            }
 
             if (state.searchStatus == SearchStatus.loading && !hasResults) {
               return const SliverFillRemaining(
@@ -1508,12 +1579,14 @@ class _SliverSearchResults extends StatelessWidget {
             ),
           ),
         if (tracks.isNotEmpty) ...[
-          Builder(builder: (_) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              onTracksLoaded(tracks);
-            });
-            return const SizedBox.shrink();
-          }),
+          SliverToBoxAdapter(
+            child: Builder(builder: (_) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                onTracksLoaded(tracks);
+              });
+              return const SizedBox.shrink();
+            }),
+          ),
           _sliverSectionHeader(
               '${AppLocalizations.of(context)!.searchTracks} (${tracks.length})'),
           SliverPadding(

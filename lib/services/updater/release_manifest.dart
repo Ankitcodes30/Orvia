@@ -8,11 +8,17 @@ class ReleasePlatform {
   final String downloadUrl;
   final String sha256;
   final int? fileSize;
+  final String? signature;
+  final String? signatureAlgorithm;
+  final String? keyId;
 
   const ReleasePlatform({
     required this.downloadUrl,
     required this.sha256,
     this.fileSize,
+    this.signature,
+    this.signatureAlgorithm,
+    this.keyId,
   });
 
   factory ReleasePlatform.fromJson(Map<String, dynamic> json) {
@@ -46,10 +52,17 @@ class ReleasePlatform {
       size = int.tryParse(json['file_size'].toString());
     }
 
+    final sig = json['signature']?.toString().trim();
+    final sigAlg = json['signature_algorithm']?.toString().trim();
+    final key = json['key_id']?.toString().trim();
+
     return ReleasePlatform(
       downloadUrl: rawUrl.trim(),
       sha256: cleanedSha,
       fileSize: size,
+      signature: (sig != null && sig.isNotEmpty) ? sig : null,
+      signatureAlgorithm: (sigAlg != null && sigAlg.isNotEmpty) ? sigAlg : null,
+      keyId: (key != null && key.isNotEmpty) ? key : null,
     );
   }
 
@@ -57,6 +70,9 @@ class ReleasePlatform {
         'download_url': downloadUrl,
         'sha256': sha256,
         if (fileSize != null) 'file_size': fileSize,
+        if (signature != null) 'signature': signature,
+        if (signatureAlgorithm != null) 'signature_algorithm': signatureAlgorithm,
+        if (keyId != null) 'key_id': keyId,
       };
 }
 
@@ -78,19 +94,18 @@ class ReleaseChannel {
     required this.platforms,
   });
 
+  /// Current host platform identifier string.
+  static String get currentPlatformKey {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isLinux) return 'linux';
+    if (Platform.isMacOS) return 'macos';
+    return 'windows';
+  }
+
   /// Retrieve the release asset corresponding to the current host operating system.
   ReleasePlatform? get currentPlatformRelease {
-    String platformKey = 'windows';
-    if (Platform.isAndroid) {
-      platformKey = 'android';
-    } else if (Platform.isLinux) {
-      platformKey = 'linux';
-    } else if (Platform.isMacOS) {
-      platformKey = 'macos';
-    } else if (Platform.isWindows) {
-      platformKey = 'windows';
-    }
-    return platforms[platformKey] ?? platforms['all'] ?? platforms['default'];
+    final key = currentPlatformKey;
+    return platforms[key] ?? platforms['all'] ?? platforms['default'];
   }
 
   factory ReleaseChannel.fromJson(String channelName, Map<String, dynamic> json) {

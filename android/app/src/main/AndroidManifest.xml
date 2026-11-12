@@ -16,7 +16,8 @@
     <application
         android:label="Orvia"
         android:name="${applicationName}"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_cfg"
         android:icon="@mipmap/ic_launcher">
 
         <meta-data
