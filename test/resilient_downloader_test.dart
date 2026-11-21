@@ -736,6 +736,118 @@ void main() {
       expect(sha256.convert(out.readAsBytesSync()).toString(), payloadSha256);
       expect(listPartFiles(tempDir), isEmpty);
     });
+
+    test(
+        '15. HTTP 416 Range Not Satisfiable deletes stale partial file and restarts from byte 0',
+        () async {
+      const split = 48 * 1024;
+      int callCount = 0;
+      String? attempt1Range;
+      String? attempt2Range;
+
+      final client = MockClient.streaming((request, bodyStream) async {
+        callCount++;
+        if (callCount == 1) {
+          // Attempt 1: Simulate interrupted download leaving a partial file
+          final controller = StreamController<List<int>>();
+          () async {
+            controller.add(payloadBytes.sublist(0, split));
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+            controller.addError(
+              http.ClientException('Connection closed while receiving data'),
+            );
+            await controller.close();
+          }();
+          return http.StreamedResponse(
+            controller.stream,
+            200,
+            contentLength: payloadBytes.length,
+            headers: {'etag': '"etag-v1"'},
+          );
+        }
+
+        if (callCount == 2) {
+          // Attempt 2: Client sends Range header for remaining bytes, server returns 416
+          attempt1Range = request.headers['range'];
+          return http.StreamedResponse(
+            Stream<List<int>>.value(<int>[]),
+            416,
+            contentLength: 0,
+            headers: {'content-range': 'bytes */${payloadBytes.length}'},
+          );
+        }
+
+        // Attempt 3: Downloader must have purged stale .part file, reset offset to 0,
+        // and issued full GET without Range header
+        attempt2Range = request.headers['range'];
+        return http.StreamedResponse(
+          Stream<List<int>>.value(payloadBytes),
+          200,
+          contentLength: payloadBytes.length,
+          headers: {'etag': '"etag-v2"'},
+        );
+      });
+
+      final service = OrviaUpdateService(client: client);
+      final dest = File(p.join(tempDir.path, 'recovered_416.apk'));
+
+      final out = await service.downloadAndVerifyFile(
+        downloadUrl: testUrl,
+        expectedSha256: payloadSha256,
+        expectedFileSize: payloadBytes.length,
+        initialBackoff: Duration.zero,
+        destinationFile: dest,
+      );
+
+      expect(callCount, 3);
+      expect(attempt1Range, 'bytes=$split-');
+      expect(attempt2Range, isNull); // Reset to byte 0 without Range header
+      expect(out.existsSync(), isTrue);
+      expect(out.lengthSync(), payloadBytes.length);
+      expect(sha256.convert(out.readAsBytesSync()).toString(), payloadSha256);
+      expect(listPartFiles(tempDir), isEmpty);
+    });
+
+    test(
+        '16. persistent HTTP 416 cleans up partial files and never promotes incomplete APK',
+        () async {
+      int callCount = 0;
+      final partFile = File(p.join(tempDir.path, 'exhausted_416.apk.part'));
+      partFile.writeAsBytesSync(payloadBytes.sublist(0, 1024));
+
+      final client = MockClient.streaming((request, bodyStream) async {
+        callCount++;
+        return http.StreamedResponse(
+          Stream<List<int>>.value(<int>[]),
+          416,
+          contentLength: 0,
+          headers: {'content-range': 'bytes */${payloadBytes.length}'},
+        );
+      });
+
+      final service = OrviaUpdateService(client: client);
+      final dest = File(p.join(tempDir.path, 'exhausted_416.apk'));
+
+      await expectLater(
+        service.downloadAndVerifyFile(
+          downloadUrl: testUrl,
+          expectedSha256: payloadSha256,
+          expectedFileSize: payloadBytes.length,
+          maxRetries: 2,
+          initialBackoff: Duration.zero,
+          destinationFile: dest,
+        ),
+        throwsA(isA<HttpException>().having(
+          (e) => e.message,
+          'message',
+          contains('416'),
+        )),
+      );
+
+      expect(callCount, 3); // initial attempt (0) + 2 retries = 3 calls
+      expect(dest.existsSync(), isFalse); // Never promoted
+      expect(listPartFiles(tempDir), isEmpty); // Cleaned up
+    });
   });
 }
 

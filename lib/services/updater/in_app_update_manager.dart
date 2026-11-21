@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/services/updater/orvia_update_service.dart';
@@ -319,18 +320,19 @@ if "!EXPECTED_VER!"=="" (
     goto UPDATE_FAILED
 )
 set "STAGED_VER="
-for /f "usebackq tokens=*" %%V in (`powershell.exe -NoProfile -Command "(Get-Item -LiteralPath \$env:SRC_DIR\\orvia.exe).VersionInfo.ProductVersion" 2^>nul`) do set "STAGED_VER=%%V"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[System.IO.File]::WriteAllText('!UPDATE_DIR!\\staged_ver.txt', (Get-Item -LiteralPath '!SRC_DIR!\\orvia.exe').VersionInfo.ProductVersion)" >nul 2>&1
+if exist "!UPDATE_DIR!\\staged_ver.txt" set /p STAGED_VER=<"!UPDATE_DIR!\\staged_ver.txt"
 if not "!STAGED_VER!"=="!EXPECTED_VER!" (
     echo [%DATE% %TIME%] ERROR: staged executable version mismatch. Expected: [!EXPECTED_VER!], Found: [!STAGED_VER!] >> "!LOG_FILE!"
     goto UPDATE_FAILED
 )
 
 :: 2. Wait for running application to terminate
-echo Waiting for Orvia process (!TARGET_PID!) to exit...
+echo [%DATE% %TIME%] Waiting for Orvia process (!TARGET_PID!) to exit... >> "!LOG_FILE!"
 set /a WAIT_COUNT=0
 :WAIT_PROCESS
 if "!TARGET_PID!"=="0" goto DO_COPY
-tasklist /FI "PID eq !TARGET_PID!" 2>nul | findstr /i "!TARGET_PID!" >nul
+tasklist /FI "PID eq !TARGET_PID!" /NH 2>nul | findstr /V /I "INFO:" | findstr /i "!TARGET_PID!" >nul
 if !ERRORLEVEL! equ 0 (
     set /a WAIT_COUNT+=1
     if !WAIT_COUNT! geq 20 (
@@ -409,7 +411,8 @@ if !ERRORLEVEL! neq 0 (
 )
 
 set "ACTUAL_VER="
-for /f "usebackq tokens=*" %%V in (`powershell.exe -NoProfile -Command "(Get-Item -LiteralPath \$env:APP_EXE).VersionInfo.ProductVersion" 2^>nul`) do set "ACTUAL_VER=%%V"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[System.IO.File]::WriteAllText('!UPDATE_DIR!\\actual_ver.txt', (Get-Item -LiteralPath '!APP_EXE!').VersionInfo.ProductVersion)" >nul 2>&1
+if exist "!UPDATE_DIR!\\actual_ver.txt" set /p ACTUAL_VER=<"!UPDATE_DIR!\\actual_ver.txt"
 echo [%DATE% %TIME%] Verifying installed version. Expected: [!EXPECTED_VER!], Found: [!ACTUAL_VER!] >> "!LOG_FILE!"
 if not "!ACTUAL_VER!"=="!EXPECTED_VER!" (
     echo [%DATE% %TIME%] ERROR: Installed executable version mismatch. >> "!LOG_FILE!"
@@ -468,7 +471,7 @@ exit /b 1
     if (autoExitOnSuccess) {
       await Process.start(
         'cmd.exe',
-        ['/c', scriptFile.path],
+        ['/c', 'start', '""', '/min', scriptFile.path],
         mode: ProcessStartMode.detached,
       );
 
@@ -864,6 +867,11 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
   }
 
   Widget _buildErrorState() {
+    final downloadUrl = widget.result.downloadUrl;
+    final hasValidDownloadUrl = downloadUrl != null &&
+        downloadUrl.trim().isNotEmpty &&
+        downloadUrl.startsWith('https://');
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -907,15 +915,34 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
           ),
         ),
         const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             TextButton(
               onPressed: widget.onDismiss,
               child:
                   const Text('Cancel', style: TextStyle(color: Colors.white70)),
             ),
-            const SizedBox(width: 8),
+            if (hasValidDownloadUrl)
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final uri = Uri.tryParse(downloadUrl);
+                  if (uri != null) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+                label: const Text('Browser Download'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+              ),
             FilledButton(
               onPressed: _startDownloadFlow,
               style: FilledButton.styleFrom(
@@ -1011,9 +1038,19 @@ class _InAppUpdateDialogState extends State<_InAppUpdateDialog> {
       log('Integrity check failed: $e', name: 'InAppUpdateDialog');
     } catch (e) {
       if (mounted) {
+        final errStr = e.toString();
+        String userFriendly;
+        if (errStr.contains('Connection closed while receiving data') ||
+            errStr.contains('ClientException') ||
+            errStr.contains('SocketException')) {
+          userFriendly =
+              'Connection interrupted while downloading update. Tap Retry to resume or use Browser Download.';
+        } else {
+          userFriendly = 'Failed to download update: $errStr';
+        }
         setState(() {
           _state = _DialogState.error;
-          _errorMessage = 'Failed to download update: ${e.toString()}';
+          _errorMessage = userFriendly;
         });
       }
       log('Download error: $e', name: 'InAppUpdateDialog');
