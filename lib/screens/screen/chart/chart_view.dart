@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:ui';
 
 import 'package:Orvia/blocs/add_to_playlist/cubit/add_to_playlist_cubit.dart';
@@ -18,10 +19,10 @@ import 'package:Orvia/screens/widgets/chart_list_tile.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/services/meta_resolver/chart_item_resolver.dart';
-import 'package:Orvia/services/meta_resolver/cross_plugin_resolver.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -85,9 +86,9 @@ class _ChartScreenBody extends StatefulWidget {
 }
 
 class _ChartScreenBodyState extends State<_ChartScreenBody> {
-  final ChartItemResolver _resolver = ChartItemResolver(
-      resolver:
-          CrossPluginResolver(pluginService: ServiceLocator.pluginService));
+  final ChartItemResolver _resolver = ChartItemResolver.create(
+    ServiceLocator.pluginService,
+  );
   static const double _kResolverConfidenceThreshold = 65.0;
   final Map<String, ChartResolveActionStatus> _actionStatuses = {};
   final Map<String, int> _actionTokens = {};
@@ -150,8 +151,8 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
     });
   }
 
-  /// Resolves a chart item. Returns the resolved track, or null on failure.
-  Future<Track?> _resolveChartItem(
+  /// Resolves a chart item. Returns the resolved result, or null on failure.
+  Future<ChartResolveResult?> _resolveChartItem(
     BuildContext context,
     ChartItem chartItem, {
     required String noResolverMessage,
@@ -171,10 +172,16 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
     ];
 
     if (resolverIds.isEmpty) {
-      SnackbarService.showMessage(noResolverMessage);
-      if (fallbackOnNoResolver) {
-        _fallbackSearch(context, chartItem);
-      }
+      SnackbarService.showMessage(
+        noResolverMessage,
+        action: fallbackOnNoResolver
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+      );
       return null;
     }
 
@@ -186,10 +193,17 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
     if (!context.mounted) return null;
 
     if (result == null) {
-      SnackbarService.showMessage(failureMessage);
-      if (fallbackOnFailure) {
-        _fallbackSearch(context, chartItem);
-      }
+      SnackbarService.showMessage(
+        failureMessage,
+        action: fallbackOnFailure
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+        duration: const Duration(seconds: 4),
+      );
       return null;
     }
 
@@ -200,42 +214,116 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
     );
 
     if (!passByScore && !passByStrongTrackMatch) {
-      SnackbarService.showMessage(failureMessage);
-      if (fallbackOnFailure) {
-        _fallbackSearch(context, chartItem);
-      }
+      SnackbarService.showMessage(
+        failureMessage,
+        action: fallbackOnFailure
+            ? SnackBarAction(
+                label: 'Search',
+                textColor: Default_Theme.accentColor2,
+                onPressed: () => _fallbackSearch(context, chartItem),
+              )
+            : null,
+        duration: const Duration(seconds: 4),
+      );
       return null;
     }
 
-    return result.resolvedTrack;
+    return result;
   }
 
-  /// Resolves a chart item, plays if successful, else falls back to search.
+  /// Resolves a chart item and starts playback. Loads all album tracks if available.
   Future<void> _resolveAndPlay(
       BuildContext context, ChartItem chartItem, String actionKey) async {
     final token = _beginResolveAction(actionKey);
     if (token == null) {
       return;
     }
-    final l10n = AppLocalizations.of(context)!;
-    final track = await _resolveChartItem(
-      context,
-      chartItem,
-      noResolverMessage: l10n.chartNoResolver,
-      failureMessage: l10n.chartResolveFailed,
-      fallbackOnNoResolver: true,
-    );
-    if (track == null || !context.mounted) {
-      _resetResolveAction(actionKey, token);
-      return;
+    bool completed = false;
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final result = await _resolveChartItem(
+        context,
+        chartItem,
+        noResolverMessage: l10n.chartNoResolver,
+        failureMessage: l10n.chartResolveFailed,
+        fallbackOnNoResolver: true,
+      );
+      if (result == null || !context.mounted) {
+        return;
+      }
+
+      if (chartItem.item is MediaItem_Album &&
+          (result.albumTracks == null || result.albumTracks!.isEmpty)) {
+        SnackbarService.showMessage('Unable to load album tracks');
+        return;
+      }
+
+      final playlistTracks =
+          (result.albumTracks != null && result.albumTracks!.isNotEmpty)
+              ? result.albumTracks!
+              : [result.resolvedTrack];
+
+      final playlistTitle = chartItem.item.whenOrNull(
+            album: (a) => a.title,
+            playlist: (p) => p.title,
+          ) ??
+          result.albumTracks?.firstOrNull?.album?.title ??
+          widget.chartTitle;
+
+      if (chartItem.item is MediaItem_Track) {
+        final chartItems = context.read<ChartBloc>().state.chartItems;
+        final chartTracks = <Track>[];
+        int startIdx = 0;
+        final targetKey = chartItemActionIdentity(chartItem);
+        for (final item in chartItems) {
+          final t = item.item.whenOrNull(track: (t) => t);
+          if (t != null) {
+            if (chartItemActionIdentity(item) == targetKey ||
+                t.id == result.resolvedTrack.id ||
+                isMatchingTrackId(t.id, result.resolvedTrack.id) ||
+                t.title.trim().toLowerCase() ==
+                    result.resolvedTrack.title.trim().toLowerCase()) {
+              startIdx = chartTracks.length;
+              chartTracks.add(result.resolvedTrack);
+            } else {
+              chartTracks.add(t);
+            }
+          }
+        }
+
+        if (chartTracks.length > 1) {
+          context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
+                Playlist(tracks: chartTracks, title: widget.chartTitle),
+                idx: startIdx,
+                doPlay: true,
+                isFromPlaylist: false,
+              );
+        } else {
+          context.read<OrviaPlayerCubit>().orviaPlayer.updateQueueTracks(
+                [result.resolvedTrack],
+                doPlay: true,
+                queueTitle: widget.chartTitle,
+              );
+        }
+      } else {
+        context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
+              Playlist(tracks: playlistTracks, title: playlistTitle),
+              idx: 0,
+              doPlay: true,
+              isFromPlaylist: true,
+            );
+      }
+
+      completed = true;
+      await _completeResolveAction(actionKey, token);
+    } catch (e, stack) {
+      log('Error during chart item playback resolution: $e',
+          name: 'ChartScreen', stackTrace: stack);
+    } finally {
+      if (!completed) {
+        _resetResolveAction(actionKey, token);
+      }
     }
-
-    context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
-          Playlist(tracks: [track], title: widget.chartTitle),
-          doPlay: true,
-        );
-
-    await _completeResolveAction(actionKey, token);
   }
 
   /// Resolves and shows add-to-playlist if confident.
@@ -245,34 +333,43 @@ class _ChartScreenBodyState extends State<_ChartScreenBody> {
     if (token == null) {
       return;
     }
-    final l10n = AppLocalizations.of(context)!;
-    final track = await _resolveChartItem(
-      context,
-      chartItem,
-      noResolverMessage: l10n.chartNoResolverAdd,
-      failureMessage: l10n.chartNoMatch,
-    );
-    if (track == null || !context.mounted) {
-      _resetResolveAction(actionKey, token);
-      return;
+    bool completed = false;
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final result = await _resolveChartItem(
+        context,
+        chartItem,
+        noResolverMessage: l10n.chartNoResolverAdd,
+        failureMessage: l10n.chartNoMatch,
+      );
+      if (result == null || !context.mounted) {
+        return;
+      }
+
+      setState(() {
+        _actionStatuses[actionKey] = ChartResolveActionStatus.success;
+      });
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!context.mounted || _actionTokens[actionKey] != token) {
+        return;
+      }
+
+      context.read<AddToPlaylistCubit>().setTrack(result.resolvedTrack);
+      context.pushNamed(RoutePaths.addToPlaylistScreen);
+      completed = true;
+      unawaited(_completeResolveAction(
+        actionKey,
+        token,
+        hold: const Duration(milliseconds: 1200),
+      ));
+    } catch (e, stack) {
+      log('Error during chart item add resolution: $e',
+          name: 'ChartScreen', stackTrace: stack);
+    } finally {
+      if (!completed) {
+        _resetResolveAction(actionKey, token);
+      }
     }
-
-    setState(() {
-      _actionStatuses[actionKey] = ChartResolveActionStatus.success;
-    });
-    await Future.delayed(const Duration(milliseconds: 350));
-    if (!context.mounted || _actionTokens[actionKey] != token) {
-      return;
-    }
-
-    context.read<AddToPlaylistCubit>().setTrack(track);
-    context.pushNamed(RoutePaths.addToPlaylistScreen);
-
-    unawaited(_completeResolveAction(
-      actionKey,
-      token,
-      hold: const Duration(milliseconds: 1200),
-    ));
   }
 
   void _fallbackSearch(BuildContext context, ChartItem chartItem) {
@@ -983,35 +1080,105 @@ String resolveEffectiveChartDescription(String title) {
 (String, String, String) extractItemInfo(ChartItem chartItem) {
   return chartItem.item.when(
     track: (track) {
-      final url = track.thumbnail.urlHigh ?? track.thumbnail.url;
+      final candidates = [
+        track.thumbnail.urlHigh,
+        track.thumbnail.url,
+        track.thumbnail.urlLow,
+        track.album?.thumbnail?.urlHigh,
+        track.album?.thumbnail?.url,
+        track.album?.thumbnail?.urlLow,
+      ];
+      var url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) =>
+                u.isNotEmpty &&
+                !isGenericProviderIcon(u) &&
+                !isYoutubeAvatar(u),
+            orElse: () => '',
+          );
+
+      // If URL is empty or is a channel avatar, extract YouTube video thumbnail from track.id
+      if (url.isEmpty || isYoutubeAvatar(url)) {
+        final ytid = extractYoutubeVideoId(track.id, url);
+        if (ytid != null && ytid.isNotEmpty) {
+          url = 'https://i.ytimg.com/vi/$ytid/hqdefault.jpg';
+        }
+      }
+
+      // If still empty, check if any non-generic candidate was present
+      if (url.isEmpty) {
+        url = candidates
+            .whereType<String>()
+            .map((u) => u.trim())
+            .firstWhere(
+              (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+              orElse: () => '',
+            );
+      }
+
       return (
         track.title,
         track.artists.map((a) => a.name).join(', '),
-        isGenericProviderIcon(url) ? '' : url,
+        url,
       );
     },
     album: (album) {
-      final url = album.thumbnail?.urlHigh ?? album.thumbnail?.url ?? '';
+      final candidates = [
+        album.thumbnail?.urlHigh,
+        album.thumbnail?.url,
+        album.thumbnail?.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
       return (
         album.title,
         album.artists.map((a) => a.name).join(', '),
-        isGenericProviderIcon(url) ? '' : url,
+        url,
       );
     },
     artist: (artist) {
-      final url = artist.thumbnail?.urlHigh ?? artist.thumbnail?.url ?? '';
+      final candidates = [
+        artist.thumbnail?.urlHigh,
+        artist.thumbnail?.url,
+        artist.thumbnail?.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
       return (
         artist.name,
         artist.subtitle ?? '',
-        isGenericProviderIcon(url) ? '' : url,
+        url,
       );
     },
     playlist: (playlist) {
-      final url = playlist.thumbnail.urlHigh ?? playlist.thumbnail.url;
+      final candidates = [
+        playlist.thumbnail.urlHigh,
+        playlist.thumbnail.url,
+        playlist.thumbnail.urlLow,
+      ];
+      final url = candidates
+          .whereType<String>()
+          .map((u) => u.trim())
+          .firstWhere(
+            (u) => u.isNotEmpty && !isGenericProviderIcon(u),
+            orElse: () => '',
+          );
       return (
         playlist.title,
         playlist.owner ?? '',
-        isGenericProviderIcon(url) ? '' : url,
+        url,
       );
     },
   );

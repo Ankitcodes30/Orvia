@@ -1,43 +1,120 @@
 <script>
+	import { trackDownloadClick } from '$lib/analytics.js';
+
+	const androidDownloadLink = "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk";
+	const windowsDownloadLink = "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip";
+	const releasesPageLink = "https://github.com/Ankitcodes30/Orvia/releases";
+	const sourceforgeLink = "https://sourceforge.net/projects/orvia/files/";
+
 	export let downloads = [
-		{ platform: 'android', icon: 'fa-brands fa-android', name: 'Android',  },
-		{ platform: 'windows', icon: 'fa-brands fa-windows', name: 'Windows', },
-		{ platform: 'linux', icon: 'fa-brands fa-linux', name: 'Linux',}
+		{
+			platform: 'android',
+			icon: 'fa-brands fa-android',
+			name: 'Android APK',
+			href: androidDownloadLink,
+			size: '59.0 MB · Direct Download'
+		},
+		{
+			platform: 'windows',
+			icon: 'fa-brands fa-windows',
+			name: 'Windows ZIP',
+			href: windowsDownloadLink,
+			size: '33.8 MB · Direct Download'
+		},
+		{
+			platform: 'linux',
+			icon: 'fa-brands fa-linux',
+			name: 'Linux / Other',
+			href: sourceforgeLink,
+			size: 'Builds'
+		}
 	];
 
-	const githubReleaseLink = "https://github.com/HemantKArya/Orvia/releases";
-	const sourceforgeLink = "https://orvia.sourceforge.io/";
+	let showIntegrity = false;
 
-	function openSourceForge() {
-		window.open(sourceforgeLink, '_blank');
+	function toggleIntegrity() {
+		showIntegrity = !showIntegrity;
 	}
 </script>
 
 <div class="download-section">
-	<!-- Top row of smaller download buttons -->
+	<!-- Top row of platform download buttons -->
 	<div class="download-buttons">
 		{#each downloads as download}
-			<a href={download.href} class="download-btn" on:click|preventDefault={openSourceForge}>
-				<i class={download.icon}></i> 
-				<span>{download.name}</span>
+			<a
+				href={download.href}
+				class="download-btn"
+				target="_blank"
+				rel="noopener noreferrer"
+				on:click={() => trackDownloadClick(download.platform)}
+			>
+				<i class={download.icon}></i>
+				<div class="btn-text">
+					<span class="btn-name">{download.name}</span>
+					<small class="btn-size">{download.size}</small>
+				</div>
 			</a>
 		{/each}
 	</div>
 
-	<!-- Larger buttons for GitHub and SourceForge -->
+	<!-- Concise visible direct download and destination note -->
+	<p class="download-subnote">
+		<i class="fa-solid fa-circle-check text-green"></i>
+		Download buttons provide verified direct downloads for Android and Windows. Packages are signed and verified with SHA-256 integrity checksums.
+	</p>
+
+	<!-- Checksums & Verification Toggle -->
+	<div class="integrity-toggle-container">
+		<button class="integrity-toggle-btn" on:click={toggleIntegrity}>
+			<i class="fa-solid fa-shield-halved"></i>
+			<span>{showIntegrity ? 'Hide SHA-256 Checksums & Notes' : 'View Verified SHA-256 Checksums & Notes'}</span>
+		</button>
+	</div>
+
+	{#if showIntegrity}
+		<div class="integrity-card">
+			<h4><i class="fa-solid fa-circle-check text-green"></i> Release v3.0.7 Verified Notes & SHA-256</h4>
+			<p class="install-tip"><i class="fa-solid fa-circle-info"></i> Release v3.0.7 binaries are verified and served directly. Checksums below match the exact published packages.</p>
+			<div class="checksum-row">
+				<strong>Android Release APK (v3.0.7 · 59.0 MB):</strong>
+				<code>519D3CAE43F5F05251A109FF07DD472BD6648B1E9C350EFDD079721D1117FC75</code>
+				<p class="install-tip"><i class="fa-solid fa-certificate"></i> Signing: Official Production Release Key (CN=Ankit Kumbhare, O=Orvia).</p>
+				<p class="install-tip"><i class="fa-solid fa-gear"></i> Android Install: Enable "Install unknown apps" from browser settings if prompted.</p>
+			</div>
+			<div class="checksum-row">
+				<strong>Windows Portable ZIP (v3.0.7 · 33.8 MB):</strong>
+				<code>F4649C9D4C625AD0C07EC3BE07EBBABFBD0CDF0A9195CC0BEC1A25EBA2D17971</code>
+				<p class="install-tip"><i class="fa-brands fa-windows"></i> Windows Install: Extract the ZIP archive completely, then launch <code>orvia.exe</code>.</p>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Larger buttons for Official GitHub Releases and SourceForge Direct Download -->
 	<div class="custom-download-buttons">
-		<a href={githubReleaseLink} class="custom-btn" target="_blank" rel="noopener noreferrer">
+		<a
+			href={releasesPageLink}
+			class="custom-btn"
+			target="_blank"
+			rel="noopener noreferrer"
+			on:click={() => trackDownloadClick('github', 'GitHub Releases', releasesPageLink)}
+		>
 			<i class="fa-brands fa-github"></i>
 			<div class="button-info">
 				<span>GitHub Releases</span>
-				<small>Latest built releases</small>
+				<small>View release packages on GitHub</small>
 			</div>
 		</a>
-		<a href="https://sourceforge.net/projects/orvia/files/latest/download" class="custom-btn" target="_blank" rel="noopener noreferrer">
+		<a
+			href={sourceforgeLink}
+			class="custom-btn"
+			target="_blank"
+			rel="noopener noreferrer"
+			on:click={() => trackDownloadClick('sourceforge', 'SourceForge Mirror', sourceforgeLink)}
+		>
 			<img src="https://a.fsdn.com/con/img/sandiego/svg/originals/sf-icon-orange-no_sf.svg" alt="SourceForge Logo" class="sourceforge-icon">
 			<div class="button-info">
-				<span>Download Now</span>
-				<small>SourceForge - Open Source</small>
+				<span>SourceForge Mirror</span>
+				<small>Alternative open-source mirror</small>
 			</div>
 		</a>
 	</div>
@@ -91,11 +168,125 @@
 		text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 	}
 	
-	.download-btn span { 
-		font-size: 0.9rem; 
-		font-weight: 600; 
-		color: #ffffff; 
+	.btn-text {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		line-height: 1.2;
+	}
+
+	.btn-name {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #ffffff;
 		text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+	}
+
+	.btn-size {
+		font-size: 0.72rem;
+		color: rgba(255, 255, 255, 0.65);
+		font-weight: 400;
+	}
+
+	.download-subnote {
+		margin: 0.8rem auto 0;
+		font-size: 0.78rem;
+		color: rgba(255, 255, 255, 0.75);
+		text-align: center;
+		max-width: 620px;
+		line-height: 1.4;
+	}
+
+	.download-subnote i {
+		color: #ffb74d;
+		margin-right: 4px;
+	}
+
+	.integrity-toggle-container {
+		display: flex;
+		justify-content: center;
+		margin-top: 1rem;
+	}
+
+	.integrity-toggle-btn {
+		background: transparent;
+		border: 1px dashed rgba(255, 255, 255, 0.3);
+		color: rgba(255, 255, 255, 0.85);
+		padding: 0.45rem 1rem;
+		border-radius: 20px;
+		font-size: 0.8rem;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		transition: all 0.2s ease;
+	}
+
+	.integrity-toggle-btn:hover {
+		border-color: rgba(255, 255, 255, 0.6);
+		color: #ffffff;
+		background: rgba(255, 255, 255, 0.05);
+	}
+
+	.integrity-card {
+		background: rgba(16, 11, 33, 0.5);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 12px;
+		padding: 1.2rem;
+		margin-top: 1rem;
+		max-width: 650px;
+		margin-left: auto;
+		margin-right: auto;
+		text-align: left;
+		backdrop-filter: blur(10px);
+	}
+
+	.integrity-card h4 {
+		margin: 0 0 0.8rem 0;
+		font-size: 0.95rem;
+		color: #ffffff;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.text-green {
+		color: #4CAF50;
+	}
+
+	.checksum-row {
+		margin-bottom: 0.8rem;
+	}
+
+	.checksum-row:last-child {
+		margin-bottom: 0;
+	}
+
+	.checksum-row strong {
+		display: block;
+		font-size: 0.82rem;
+		color: #e0e0e0;
+		margin-bottom: 3px;
+	}
+
+	.checksum-row code {
+		display: block;
+		background: rgba(0, 0, 0, 0.4);
+		padding: 0.4rem 0.6rem;
+		border-radius: 6px;
+		font-size: 0.72rem;
+		color: #80cbc4;
+		word-break: break-all;
+		font-family: monospace;
+	}
+
+	.install-tip {
+		margin: 4px 0 0 0;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.7);
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 
 	.custom-download-buttons {
@@ -134,7 +325,8 @@
 		transform: translateY(-4px);
 	}
 
-	.custom-btn .fa-github {
+	.custom-btn .fa-github,
+	.custom-btn .fa-box-archive {
 		font-size: 1.8rem;
 	}
 

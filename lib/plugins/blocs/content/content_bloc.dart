@@ -16,6 +16,26 @@ import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/services/plugin_cache_codec.dart';
 import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
+import 'package:Orvia/core/utils/track_identity.dart';
+
+List<Section> deduplicateHomeSections(List<Section> sections) {
+  final seenTitles = <String>{};
+  final deduplicated = <Section>[];
+  for (final section in sections) {
+    final normalizedTitle = section.title.trim().toLowerCase();
+    if (normalizedTitle.isEmpty) {
+      deduplicated.add(section);
+      continue;
+    }
+
+    final titleKey =
+        normalizedTitle.contains('trend') ? 'trending' : normalizedTitle;
+    if (seenTitles.add(titleKey)) {
+      deduplicated.add(section);
+    }
+  }
+  return deduplicated;
+}
 
 /// Handles content resolution: search, album/artist/playlist details,
 /// stream URLs, home sections.
@@ -67,13 +87,17 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
     SearchContent event,
     Emitter<ContentState> emit,
   ) async {
-    final pluginId = state.activePluginId;
+    final pluginId = event.pluginId ?? state.activePluginId;
     if (pluginId == null) {
       emit(state.copyWith(
         searchStatus: SearchStatus.error,
         error: 'No active content plugin selected',
       ));
       return;
+    }
+
+    if (state.activePluginId != pluginId) {
+      emit(state.copyWith(activePluginId: pluginId));
     }
 
     if (event.query.trim().isEmpty) {
@@ -232,7 +256,8 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
     SetActiveContentPlugin event,
     Emitter<ContentState> emit,
   ) {
-    emit(ContentState(activePluginId: event.pluginId));
+    if (state.activePluginId == event.pluginId) return;
+    emit(state.copyWith(activePluginId: event.pluginId));
   }
 
   // ── Album Details ──────────────────────────────────────────────────────────
@@ -243,6 +268,7 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
   ) async {
     emit(state.copyWith(
       albumDetailStatus: DetailStatus.loading,
+      activePluginId: event.pluginId,
       clearError: true,
     ));
 
@@ -257,9 +283,19 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
 
       response.when(
         albumDetails: (details) {
+          final dedupedTracks =
+              TrackIdentity.deduplicateTracks(details.tracks.items);
+          final updatedTracks = PagedTracks(
+            items: dedupedTracks,
+            nextPageToken: details.tracks.nextPageToken,
+          );
           emit(state.copyWith(
             albumDetailStatus: DetailStatus.loaded,
-            albumDetails: details,
+            albumDetails: AlbumDetails(
+              summary: details.summary,
+              tracks: updatedTracks,
+              description: details.description,
+            ),
           ));
         },
         trackDetails: (_) => _unexpectedResponse(emit, 'albumDetails'),
@@ -318,8 +354,12 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
         moreTracks: (paged) {
           final current = state.albumDetails;
           if (current != null) {
+            final uniqueNew = TrackIdentity.deduplicateTracks(
+              paged.items,
+              existingTracks: current.tracks.items,
+            );
             final updatedTracks = PagedTracks(
-              items: [...current.tracks.items, ...paged.items],
+              items: [...current.tracks.items, ...uniqueNew],
               nextPageToken: paged.nextPageToken,
             );
             emit(state.copyWith(
@@ -329,6 +369,7 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
                 tracks: updatedTracks,
                 description: current.description,
               ),
+              clearError: true,
             ));
           }
         },
@@ -370,13 +411,23 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
   ) async {
     emit(state.copyWith(
       artistDetailStatus: DetailStatus.loading,
+      activePluginId: event.pluginId,
       clearError: true,
     ));
 
     try {
+      var targetPluginId = event.pluginId;
+      final loadedPlugins = _pluginService.getLoadedPlugins();
+      final parsed = tryParseMediaId(event.artistId);
+      if (parsed != null && loadedPlugins.contains(parsed.pluginId)) {
+        targetPluginId = parsed.pluginId;
+      } else if (RegExp(r'^\d+$').hasMatch(event.artistId) &&
+          loadedPlugins.contains(kDefaultSaavnPluginId)) {
+        targetPluginId = kDefaultSaavnPluginId;
+      }
       final localId = localIdOf(event.artistId) ?? event.artistId;
       final response = await _pluginService.execute(
-        pluginId: event.pluginId,
+        pluginId: targetPluginId,
         request: PluginRequest.contentResolver(
           ContentResolverCommand.getArtistDetails(id: localId),
         ),
@@ -501,6 +552,7 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
   ) async {
     emit(state.copyWith(
       playlistDetailStatus: DetailStatus.loading,
+      activePluginId: event.pluginId,
       clearError: true,
     ));
 
@@ -521,11 +573,48 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
           ));
         },
         trackDetails: (_) => _unexpectedResponse(emit, 'playlistDetails'),
-        search: (_) => _unexpectedResponse(emit, 'playlistDetails'),
+        search: (results) {
+          final tracks = <Track>[];
+          for (final item in results.items) {
+            item.when(
+              track: (t) => tracks.add(t),
+              album: (_) {},
+              artist: (_) {},
+              playlist: (_) {},
+            );
+          }
+          emit(state.copyWith(
+            playlistDetailStatus: DetailStatus.loaded,
+            playlistDetails: PlaylistDetails(
+              summary: PlaylistSummary(
+                id: localId,
+                title: 'Playlist',
+                thumbnail: tracks.isNotEmpty
+                    ? tracks.first.thumbnail
+                    : const Artwork(url: '', layout: ImageLayout.square),
+              ),
+              tracks: PagedTracks(items: tracks),
+            ),
+          ));
+        },
         albumDetails: (_) => _unexpectedResponse(emit, 'playlistDetails'),
         artistDetails: (_) => _unexpectedResponse(emit, 'playlistDetails'),
         streams: (_) => _unexpectedResponse(emit, 'playlistDetails'),
-        moreTracks: (_) => _unexpectedResponse(emit, 'playlistDetails'),
+        moreTracks: (paged) {
+          emit(state.copyWith(
+            playlistDetailStatus: DetailStatus.loaded,
+            playlistDetails: PlaylistDetails(
+              summary: PlaylistSummary(
+                id: localId,
+                title: 'Station',
+                thumbnail: paged.items.isNotEmpty
+                    ? paged.items.first.thumbnail
+                    : const Artwork(url: '', layout: ImageLayout.square),
+              ),
+              tracks: paged,
+            ),
+          ));
+        },
         moreAlbums: (_) => _unexpectedResponse(emit, 'playlistDetails'),
         homeSections: (_) => _unexpectedResponse(emit, 'playlistDetails'),
         loadMoreItems: (_) => _unexpectedResponse(emit, 'playlistDetails'),
@@ -578,8 +667,12 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
         moreTracks: (paged) {
           final current = state.playlistDetails;
           if (current != null) {
+            final uniqueNew = TrackIdentity.deduplicateTracks(
+              paged.items,
+              existingTracks: current.tracks.items,
+            );
             final updatedTracks = PagedTracks(
-              items: [...current.tracks.items, ...paged.items],
+              items: [...current.tracks.items, ...uniqueNew],
               nextPageToken: paged.nextPageToken,
             );
             emit(state.copyWith(
@@ -719,9 +812,10 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
 
       hasCache = cached.value != null;
       if (hasCache) {
+        final cachedSections = deduplicateHomeSections(cached.value!);
         emit(state.copyWith(
           homeSectionsStatus: DetailStatus.loaded,
-          homeSections: cached.value,
+          homeSections: cachedSections,
           activePluginId: pluginId,
         ));
         if (!cached.isStale) return;
@@ -743,17 +837,7 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
 
       response.when(
         homeSections: (sections) {
-          // Deduplicate sections by normalized title and ID so duplicate provider entries (e.g. Trending Now) only appear once.
-          final seenTitles = <String>{};
-          final deduplicated = <Section>[];
-          for (final s in sections) {
-            final normTitle = s.title.trim().toLowerCase();
-            if (normTitle.isNotEmpty && seenTitles.add(normTitle)) {
-              deduplicated.add(s);
-            } else if (normTitle.isEmpty) {
-              deduplicated.add(s);
-            }
-          }
+          final deduplicated = deduplicateHomeSections(sections);
 
           emit(state.copyWith(
             homeSectionsStatus: DetailStatus.loaded,

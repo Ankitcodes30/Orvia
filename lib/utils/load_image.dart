@@ -94,6 +94,48 @@ Widget _buildLocalFileImage({
   );
 }
 
+bool isYoutubeAvatar(String? url) {
+  if (url == null || url.trim().isEmpty) return false;
+  final lower = url.trim().toLowerCase();
+  return lower.contains('yt3.ggpht.com') ||
+      lower.contains('yt3.googleusercontent.com');
+}
+
+bool _isYoutubeAvatar(String? url) => isYoutubeAvatar(url);
+
+String? extractYoutubeVideoId(String? mediaId, [String? fallbackUrl]) {
+  if (mediaId != null && mediaId.trim().isNotEmpty) {
+    final trimmed = mediaId.trim();
+    if (trimmed.contains('bloomfactory.ytvideo') ||
+        trimmed.contains('ytvideo') ||
+        trimmed.contains('bloomfactory.ytmusic') ||
+        trimmed.contains('ytmusic') ||
+        trimmed.contains('youtube')) {
+      final parts = trimmed.split('::');
+      final candidate = parts.last.trim();
+      final ytMatch = RegExp(r'([a-zA-Z0-9_-]{11})').firstMatch(candidate);
+      if (ytMatch != null) {
+        return ytMatch.group(1);
+      }
+    } else if (trimmed.length == 11 && !trimmed.contains(':') && !trimmed.contains('/')) {
+      return trimmed;
+    }
+  }
+  if (fallbackUrl != null && fallbackUrl.trim().isNotEmpty) {
+    final trimmed = fallbackUrl.trim();
+    final viMatch = RegExp(r'/vi/([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (viMatch != null) return viMatch.group(1);
+    final vMatch = RegExp(r'[?&]v=([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (vMatch != null) return vMatch.group(1);
+    final beMatch = RegExp(r'youtu\.be/([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (beMatch != null) return beMatch.group(1);
+  }
+  return null;
+}
+
+String? _extractYoutubeVideoId(String? mediaId, [String? fallbackUrl]) =>
+    extractYoutubeVideoId(mediaId, fallbackUrl);
+
 // Synchronous ImageProvider resolver
 ImageProvider<Object> getImageProviderSync(
   String? imageUrl, {
@@ -105,19 +147,32 @@ ImageProvider<Object> getImageProviderSync(
   final effectivePlaceholder = placeholderUrl ??
       resolveSongPlaceholder(mediaId: mediaId, isLocal: isLocal);
 
-  final primaryFile = _resolveLocalImageFile(imageUrl);
+  var effectiveImageUrl = imageUrl;
+  var effectiveFallbackUrl = fallbackUrl;
+  if (_isYoutubeAvatar(effectiveImageUrl) ||
+      effectiveImageUrl == null ||
+      effectiveImageUrl.trim().isEmpty ||
+      isGenericProviderIcon(effectiveImageUrl)) {
+    final ytid = _extractYoutubeVideoId(mediaId, fallbackUrl ?? effectiveImageUrl);
+    if (ytid != null) {
+      effectiveFallbackUrl = effectiveImageUrl;
+      effectiveImageUrl = 'https://i.ytimg.com/vi/$ytid/hqdefault.jpg';
+    }
+  }
+
+  final primaryFile = _resolveLocalImageFile(effectiveImageUrl);
   if (primaryFile != null) return FileImage(primaryFile);
 
-  final fallbackFile = _resolveLocalImageFile(fallbackUrl);
-  if (fallbackFile != null && !_isValidNetworkUrl(imageUrl)) {
+  final fallbackFile = _resolveLocalImageFile(effectiveFallbackUrl);
+  if (fallbackFile != null && !_isValidNetworkUrl(effectiveImageUrl)) {
     return FileImage(fallbackFile);
   }
 
-  if (_isValidNetworkUrl(imageUrl) && !isGenericProviderIcon(imageUrl)) {
-    return CachedNetworkImageProvider(imageUrl!.trim());
+  if (_isValidNetworkUrl(effectiveImageUrl) && !isGenericProviderIcon(effectiveImageUrl)) {
+    return CachedNetworkImageProvider(effectiveImageUrl!.trim());
   }
-  if (_isValidNetworkUrl(fallbackUrl) && !isGenericProviderIcon(fallbackUrl)) {
-    return CachedNetworkImageProvider(fallbackUrl!.trim());
+  if (_isValidNetworkUrl(effectiveFallbackUrl) && !isGenericProviderIcon(effectiveFallbackUrl)) {
+    return CachedNetworkImageProvider(effectiveFallbackUrl!.trim());
   }
 
   return AssetImage(effectivePlaceholder);
@@ -212,7 +267,7 @@ class _LoadImageCachedState extends State<LoadImageCached> {
   /// for efficient memory usage while maintaining sharpness.
   int? get _memCacheWidth {
     if (widget.width == null) return 500; // sensible default
-    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
     return (widget.width! * dpr).ceil().clamp(100, 1500);
   }
 
@@ -262,17 +317,35 @@ class _LoadImageCachedState extends State<LoadImageCached> {
     }
 
     // ── 3. Resolve network URLs ──
-    final hasPrimary = _isValidNetworkUrl(widget.imageUrl) &&
-        !isGenericProviderIcon(widget.imageUrl);
-    final hasFallback = _isValidNetworkUrl(widget.fallbackUrl) &&
-        !isGenericProviderIcon(widget.fallbackUrl);
+    var rawImageUrl = widget.imageUrl;
+    var rawFallbackUrl = widget.fallbackUrl;
+
+    if (_isYoutubeAvatar(rawImageUrl) ||
+        rawImageUrl.trim().isEmpty ||
+        isGenericProviderIcon(rawImageUrl)) {
+      final ytid = _extractYoutubeVideoId(widget.mediaId, widget.fallbackUrl ?? rawImageUrl);
+      if (ytid != null) {
+        rawFallbackUrl = rawImageUrl;
+        rawImageUrl = 'https://i.ytimg.com/vi/$ytid/hqdefault.jpg';
+      }
+    }
+
+    final hasPrimary = _isValidNetworkUrl(rawImageUrl) &&
+        !isGenericProviderIcon(rawImageUrl);
+    final hasFallback = _isValidNetworkUrl(rawFallbackUrl) &&
+        !isGenericProviderIcon(rawFallbackUrl);
 
     if (!hasPrimary && !hasFallback) {
       return _placeholderImage(_effectivePlaceholder, widget.fit);
     }
 
-    final primaryUrl = hasPrimary ? widget.imageUrl : widget.fallbackUrl!;
-    final fallbackUrl = hasPrimary && hasFallback ? widget.fallbackUrl : null;
+    final primaryUrl = hasPrimary ? rawImageUrl : rawFallbackUrl!;
+    final candidateFallback = (hasFallback && rawFallbackUrl != primaryUrl)
+        ? rawFallbackUrl
+        : _deriveProviderFallbackUrl(primaryUrl);
+    final fallbackUrl = (candidateFallback != null && _isValidNetworkUrl(candidateFallback))
+        ? candidateFallback
+        : null;
 
     // Both already known to fail — skip network entirely
     if (_failedImageUrls.contains(primaryUrl) &&
@@ -325,6 +398,26 @@ class _LoadImageCachedState extends State<LoadImageCached> {
       fadeInDuration: Duration.zero,
       fit: widget.fit,
     );
+  }
+
+  String? _deriveProviderFallbackUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    final trimmed = url.trim();
+    // 1. YouTube thumbnail fallback: maxresdefault / sddefault -> hqdefault.jpg
+    if (trimmed.contains('ytimg.com/vi/') || trimmed.contains('youtube.com/vi/')) {
+      if (trimmed.contains('maxresdefault.jpg') || trimmed.contains('sddefault.jpg')) {
+        return trimmed.replaceAll(RegExp(r'(maxresdefault|sddefault)\.jpg'), 'hqdefault.jpg');
+      }
+    }
+    // 2. JioSaavn CDN fallback: webp -> jpg, or 500x500 -> 150x150
+    if (trimmed.contains('saavncdn.com')) {
+      if (trimmed.endsWith('.webp')) {
+        return trimmed.replaceAll('.webp', '.jpg');
+      } else if (trimmed.contains('500x500.jpg')) {
+        return trimmed.replaceAll('500x500.jpg', '150x150.jpg');
+      }
+    }
+    return null;
   }
 }
 

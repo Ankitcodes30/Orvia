@@ -25,20 +25,35 @@ Future<void> bootstrapApp() async {
   final String appDocPath = (await getApplicationDocumentsDirectory()).path;
   final String appSuppPath = (await getApplicationSupportDirectory()).path;
 
-  // Open DB and schedule maintenance.
-  await DBProvider.init(
-      appSupportPath: appSuppPath, appDocumentsPath: appDocPath);
-  DBProvider.scheduleMaintenance();
+  // Open DB and schedule maintenance with error boundary.
+  try {
+    await DBProvider.init(
+        appSupportPath: appSuppPath, appDocumentsPath: appDocPath);
+    DBProvider.scheduleMaintenance();
 
-  // DI wiring (registers singletons).
-  await ServiceLocator.setup();
+    // DI wiring (registers singletons).
+    await ServiceLocator.setup();
+  } catch (e, stack) {
+    log('Database initialization failed during bootstrap: $e',
+        error: e, stackTrace: stack, name: 'Bootstrap');
+    // Early exit: DB-dependent services must not be initialized before the DB is healthy.
+    return;
+  }
 
-  // Ensure hosted repositories are persisted in settings (idempotent).
-  // Missing URLs are added, existing ones are left untouched.
+  // Ensure default plugin repository URLs are seeded in settings (idempotent, local, non-blocking).
+  // Background network update is dispatched asynchronously without blocking startup/first frame.
   try {
     await PluginBootstrapService.ensureHostedRepositoriesPresent(
       repositoryService: ServiceLocator.pluginRepositoryService,
+      skipNetwork: true,
     );
+    // Non-blocking background sync post-first-frame
+    unawaited(Future.delayed(const Duration(seconds: 3), () {
+      PluginBootstrapService.ensureHostedRepositoriesPresent(
+        repositoryService: ServiceLocator.pluginRepositoryService,
+        skipNetwork: false,
+      );
+    }));
   } catch (e) {
     log('Hosted repository reconciliation skipped',
         error: e, name: 'Bootstrap');
@@ -64,7 +79,10 @@ Future<void> bootstrapApp() async {
         await settingsDao.getSettingBool(SettingKeys.localMusicAutoScan) ??
             true;
     if (autoScan) {
-      unawaited(LocalMusicService.create().scanAndPersist());
+      // Defer local music scan until after initial launch transition and first frame
+      unawaited(Future.delayed(const Duration(seconds: 4), () {
+        LocalMusicService.create().scanAndPersist();
+      }));
     }
   } catch (e) {
     log('Local music auto-scan skipped', error: e, name: 'Bootstrap');

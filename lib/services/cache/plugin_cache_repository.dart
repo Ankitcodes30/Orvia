@@ -135,6 +135,11 @@ class PluginCacheRepository with WidgetsBindingObserver {
     _store.evictPrefix('chart_list::$pluginId');
   }
 
+  /// Evict all L1 home sections across all plugins (e.g. after country change).
+  void evictHomeSections() {
+    _store.evictPrefix('home_sections::');
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {

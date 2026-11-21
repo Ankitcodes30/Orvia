@@ -21,7 +21,7 @@ class HorizontalCardView extends StatefulWidget {
   final bool canLoadMore;
   final bool isLoadingMore;
 
-  HorizontalCardView({
+  const HorizontalCardView({
     super.key,
     required this.section,
     required this.pluginId,
@@ -163,9 +163,21 @@ class _HorizontalCardViewState extends State<HorizontalCardView> {
     );
   }
 
-  void _handleItemTap(BuildContext context, MediaItem item) {
-    final loadedPluginIds = context.read<PluginBloc>().state.loadedPluginIds;
-    if (!requirePlugin(widget.pluginId, loadedPluginIds)) {
+  Future<void> _handleItemTap(BuildContext context, MediaItem item) async {
+    final pluginBloc = context.read<PluginBloc>();
+    if (!pluginBloc.state.loadedPluginIds.contains(widget.pluginId)) {
+      if (pluginBloc.state.isLoading ||
+          pluginBloc.state.availablePlugins
+              .any((p) => p.manifest.id == widget.pluginId)) {
+        try {
+          await pluginBloc.stream
+              .firstWhere((s) => s.loadedPluginIds.contains(widget.pluginId))
+              .timeout(const Duration(seconds: 3));
+        } catch (_) {}
+      }
+    }
+    if (!context.mounted) return;
+    if (!requirePlugin(widget.pluginId, pluginBloc.state.loadedPluginIds)) {
       return;
     }
 
@@ -225,11 +237,24 @@ class _HorizontalCardViewState extends State<HorizontalCardView> {
           return;
         }
 
+        final isRadio =
+            secTitle.contains('radio') || secTitle.contains('station');
+        final effectivePlaylist = isRadio &&
+                (playlist.owner == null || playlist.owner!.isEmpty)
+            ? PlaylistSummary(
+                id: playlist.id,
+                title: playlist.title,
+                thumbnail: playlist.thumbnail,
+                owner: 'Radio Station',
+                url: playlist.url,
+              )
+            : playlist;
+
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                OnlPlaylistView(playlist: playlist, pluginId: widget.pluginId),
+            builder: (_) => OnlPlaylistView(
+                playlist: effectivePlaylist, pluginId: widget.pluginId),
           ),
         );
       },

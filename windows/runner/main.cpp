@@ -22,6 +22,34 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
+  // If Orvia is already running, forward any deep link argument and bring the window to focus
+  HWND existing_window = ::FindWindow(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Orvia");
+  if (existing_window != nullptr) {
+    std::string target_url = "";
+    for (const auto& arg : command_line_arguments) {
+      if (arg.rfind("orvia://", 0) == 0 ||
+          arg.rfind("https://", 0) == 0 ||
+          arg.rfind("http://", 0) == 0) {
+        target_url = arg;
+        break;
+      }
+    }
+    if (!target_url.empty()) {
+      COPYDATASTRUCT cds;
+      cds.dwData = 0x4F525649;
+      cds.cbData = static_cast<DWORD>(target_url.size() + 1);
+      cds.lpData = const_cast<char*>(target_url.c_str());
+      ::SendMessage(existing_window, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+    }
+    if (::IsIconic(existing_window)) {
+      ::ShowWindow(existing_window, SW_RESTORE);
+    } else {
+      ::ShowWindow(existing_window, SW_SHOW);
+    }
+    ::SetForegroundWindow(existing_window);
+    return EXIT_SUCCESS;
+  }
+
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);

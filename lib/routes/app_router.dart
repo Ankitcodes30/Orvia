@@ -13,6 +13,9 @@ import 'package:Orvia/screens/screen/local_music_screen.dart';
 import 'package:Orvia/screens/screen/search_screen.dart';
 import 'package:Orvia/screens/screen/chart/chart_view.dart';
 
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
+import 'package:Orvia/routes/search_navigation.dart';
+
 /// Canonical app router configuration.
 ///
 /// Use [AppRouter] in new code. The [GlobalRoutes] typedef at the bottom
@@ -20,11 +23,88 @@ import 'package:Orvia/screens/screen/chart/chart_view.dart';
 class AppRouter {
   static final globalRouterKey = GlobalKey<NavigatorState>();
   static final exploreNavigatorKey = GlobalKey<NavigatorState>();
+  static final libraryNavigatorKey = GlobalKey<NavigatorState>();
 
   static final globalRouter = GoRouter(
     initialLocation: '/Explore',
     navigatorKey: globalRouterKey,
     routes: [
+      GoRoute(
+        path: '/',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          final uri = state.uri;
+          if (uri.queryParameters.containsKey('id') ||
+              uri.queryParameters.containsKey('v') ||
+              OrviaDeepLinkService.isDeepLink(uri)) {
+            OrviaDeepLinkService.setPendingDeepLink(uri);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              OrviaDeepLinkService.handleDeepLinkUri(uri);
+            });
+          }
+          return '/Explore';
+        },
+      ),
+      GoRoute(
+        path: '/Orvia',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          final uri = state.uri;
+          if (uri.queryParameters.containsKey('id') ||
+              uri.queryParameters.containsKey('v') ||
+              OrviaDeepLinkService.isDeepLink(uri)) {
+            OrviaDeepLinkService.setPendingDeepLink(uri);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              OrviaDeepLinkService.handleDeepLinkUri(uri);
+            });
+          }
+          return '/Explore';
+        },
+      ),
+      GoRoute(
+        path: '/track',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          OrviaDeepLinkService.setPendingDeepLink(state.uri);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            OrviaDeepLinkService.handleDeepLinkUri(state.uri);
+          });
+          return '/Explore';
+        },
+      ),
+      GoRoute(
+        path: '/Orvia/track',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          OrviaDeepLinkService.setPendingDeepLink(state.uri);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            OrviaDeepLinkService.handleDeepLinkUri(state.uri);
+          });
+          return '/Explore';
+        },
+      ),
+      GoRoute(
+        path: '/playlist',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          OrviaDeepLinkService.setPendingDeepLink(state.uri);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            OrviaDeepLinkService.handleDeepLinkUri(state.uri);
+          });
+          return '/Explore';
+        },
+      ),
+      GoRoute(
+        path: '/Orvia/playlist',
+        parentNavigatorKey: globalRouterKey,
+        redirect: (context, state) {
+          OrviaDeepLinkService.setPendingDeepLink(state.uri);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            OrviaDeepLinkService.handleDeepLinkUri(state.uri);
+          });
+          return '/Explore';
+        },
+      ),
       GoRoute(
         path: '/AddToPlaylist',
         parentNavigatorKey: globalRouterKey,
@@ -35,9 +115,7 @@ class AppRouter {
           builder: (context, state, navigationShell) =>
               GlobalFooter(navigationShell: navigationShell),
           branches: [
-            StatefulShellBranch(
-                navigatorKey: exploreNavigatorKey,
-                routes: [
+            StatefulShellBranch(navigatorKey: exploreNavigatorKey, routes: [
               GoRoute(
                   name: RoutePaths.exploreScreen,
                   path: '/Explore',
@@ -56,7 +134,7 @@ class AppRouter {
                         }),
                   ])
             ]),
-            StatefulShellBranch(routes: [
+            StatefulShellBranch(navigatorKey: libraryNavigatorKey, routes: [
               GoRoute(
                   name: RoutePaths.libraryScreen,
                   path: '/Library',
@@ -94,14 +172,11 @@ class AppRouter {
                 name: RoutePaths.searchScreen,
                 path: '/Search',
                 builder: (context, state) {
-                  if (state.uri.queryParameters['query'] != null) {
-                    return SearchScreen(
-                      searchQuery:
-                          state.uri.queryParameters['query']!.toString(),
-                    );
-                  } else {
-                    return const SearchScreen();
-                  }
+                  final input = SearchNavigation.routeInput(state.uri);
+                  return SearchScreen(
+                    searchQuery: input.submit ? input.query : '',
+                    prefillQuery: input.submit ? '' : input.query,
+                  );
                 },
               ),
             ]),
@@ -121,6 +196,69 @@ class AppRouter {
             ]),
           ])
     ],
+    errorBuilder: (context, state) {
+      if (OrviaDeepLinkService.isDeepLink(state.uri) ||
+          state.uri.queryParameters.containsKey('id') ||
+          state.uri.queryParameters.containsKey('v')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          OrviaDeepLinkService.handleDeepLinkUri(state.uri);
+          context.go('/Explore');
+        });
+      }
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F0B13),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 48,
+                  color: Colors.white70,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Page Not Found',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  state.error?.toString() ?? 'The requested page could not be found.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white54,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/Explore'),
+                  icon: const Icon(Icons.home_rounded),
+                  label: const Text('Home'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF5252),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
   );
 }
 

@@ -31,6 +31,28 @@ class LocalMusicService {
       mediaLocation: false,
     ),
   );
+
+  /// Explicit audio filter option group with valid ORDER BY configuration.
+  ///
+  /// Prevents the Android MediaStore SQLite syntax error:
+  /// `near "LIMIT": syntax error` caused by an empty ORDER BY clause
+  /// when PhotoManager calls `getAssetListRange` without a FilterOption.
+  static FilterOptionGroup buildAudioFilterOption() {
+    return FilterOptionGroup(
+      audioOption: const FilterOption(
+        durationConstraint: DurationConstraint(
+          allowNullable: true,
+        ),
+      ),
+      orders: const [
+        OrderOption(
+          type: OrderOptionType.createDate,
+          asc: false,
+        ),
+      ],
+    );
+  }
+
   static const Set<String> _builtInPlaylistNames = {
     SettingKeys.localMusicPlaylist,
     SettingKeys.downloadPlaylist,
@@ -110,13 +132,18 @@ class LocalMusicService {
 
   /// Android: MediaStore enumeration via photo_manager → Lofty metadata.
   Future<List<Track>> _scanMobile() async {
+    final filterOption = buildAudioFilterOption();
     final albums = await PhotoManager.getAssetPathList(
       type: RequestType.audio,
       onlyAll: true,
+      filterOption: filterOption,
     );
     if (albums.isEmpty) return [];
 
-    final album = albums.first;
+    final rawAlbum = albums.first;
+    final album = rawAlbum.filterOption != null
+        ? rawAlbum
+        : rawAlbum.copyWith(filterOption: filterOption);
     final count = await album.assetCountAsync;
     if (count == 0) return [];
 

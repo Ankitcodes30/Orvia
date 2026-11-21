@@ -72,11 +72,11 @@ class SearchHistoryDAO {
 
   Future<void> removeSearchHistory(String id) async {
     Isar isarDB = await _db;
-    isarDB.writeTxn(() => isarDB.searchHistoryDBs.delete(int.parse(id)));
+    await isarDB.writeTxn(() => isarDB.searchHistoryDBs.delete(int.parse(id)));
   }
 
   Future<void> clearAllSearchHistory() async {
     Isar isarDB = await _db;
-    isarDB.writeTxn(() => isarDB.searchHistoryDBs.clear());
+    await isarDB.writeTxn(() => isarDB.searchHistoryDBs.clear());
   }
 }

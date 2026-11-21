@@ -32,6 +32,7 @@ import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/blocs/timer/timer_bloc.dart';
 import 'package:Orvia/screens/widgets/global_event_listener.dart';
 import 'package:Orvia/screens/widgets/shortcut_indicator_overlay.dart';
+import 'package:Orvia/screens/widgets/database_recovery_screen.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/services/bootstrap.dart';
 import 'package:Orvia/services/audio_service_initializer.dart';
@@ -65,13 +66,34 @@ import 'package:Orvia/services/onboarding_service.dart';
 import 'package:Orvia/services/plugin_bootstrap_service.dart';
 import 'package:Orvia/plugins/services/plugin_repository_service.dart';
 import 'package:Orvia/services/shared_url_resolver_service.dart';
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
+import 'package:Orvia/services/account/account_service.dart';
+import 'package:Orvia/services/notification/push_notification_service.dart';
+import 'package:Orvia/services/share/windows_protocol_service.dart';
 
 void processIncomingIntent(SharedMedia sharedMedia) {
-  if (sharedMedia.content != null && isUrl(sharedMedia.content!)) {
-    final urlType = getUrlType(sharedMedia.content!);
+  String? url;
+  if (sharedMedia.content != null && sharedMedia.content!.trim().isNotEmpty) {
+    final raw = sharedMedia.content!.trim();
+    final match = RegExp(r'(https?://[^\s]+|orvia://[^\s]+)').firstMatch(raw);
+    if (match != null) {
+      url = match.group(0);
+    } else if (isUrl(raw)) {
+      url = raw;
+    }
+  }
+
+  if (url != null) {
+    final parsedUri = Uri.tryParse(url);
+    if (parsedUri != null && OrviaDeepLinkService.isDeepLink(parsedUri)) {
+      OrviaDeepLinkService.setPendingDeepLink(parsedUri);
+      OrviaDeepLinkService.handleDeepLinkUri(parsedUri);
+      return;
+    }
+    final urlType = getUrlType(url);
     switch (urlType) {
       case UrlType.youtubeVideo:
-        _handleYoutubeVideoIntent(sharedMedia.content!);
+        _handleYoutubeVideoIntent(url);
         break;
       case UrlType.youtubePlaylist:
       case UrlType.spotifyTrack:
@@ -82,12 +104,26 @@ void processIncomingIntent(SharedMedia sharedMedia) {
             'Open the Import screen in Library to import from this URL.');
         break;
     }
-  } else if (sharedMedia.attachments != null &&
+    return;
+  }
+
+  if (sharedMedia.attachments != null &&
       sharedMedia.attachments!.isNotEmpty) {
     final attachment = sharedMedia.attachments!.first;
     if (attachment != null) {
+      final path = attachment.path.trim();
+      final uri = Uri.tryParse(path);
+      // Safe guard: Never pass an HTTP/HTTPS/orvia URL to local backup/playlist file import!
+      if (uri != null &&
+          (uri.scheme == 'http' || uri.scheme == 'https' || uri.scheme == 'orvia')) {
+        if (OrviaDeepLinkService.isDeepLink(uri)) {
+          OrviaDeepLinkService.setPendingDeepLink(uri);
+          OrviaDeepLinkService.handleDeepLinkUri(uri);
+          return;
+        }
+      }
       SnackbarService.showMessage('Processing File...');
-      importItems(attachment.path);
+      importItems(path);
     }
   }
 }
@@ -114,7 +150,11 @@ Future<void> _handleYoutubeVideoIntent(String url) async {
   final track = result.track;
   if (result.status == SharedUrlResolveStatus.success && track != null) {
     final player = await PlayerInitializer().getOrviaMusicPlayer();
-    await player.updateQueueTracks([track], doPlay: true);
+    await player.updateQueueTracks(
+      [track],
+      doPlay: true,
+      queueTitle: 'Shared Track',
+    );
     SnackbarService.showMessage('Playing: ${track.title}');
     return;
   }
@@ -138,7 +178,11 @@ Future<void> importItems(String path) async {
 
 Future<void> setHighRefreshRate() async {
   if (io.Platform.isAndroid) {
-    await FlutterDisplayMode.setHighRefreshRate();
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e) {
+      debugPrint('Failed to set high refresh rate: $e');
+    }
   }
 }
 
@@ -149,14 +193,45 @@ Future<void> setupPlayerCubit() async {
   orviaPlayerCubit = OrviaPlayerCubit(player);
 }
 
-Future<void> main() async {
+Future<void> main([List<String>? args]) async {
   WidgetsFlutterBinding.ensureInitialized();
   GestureBinding.instance.resamplingEnabled = true;
   MediaKit.ensureInitialized();
+
+  // If launched with command-line arguments (e.g. Windows protocol activation or cold-start):
+  if (args != null && args.isNotEmpty) {
+    for (final arg in args) {
+      final uri = Uri.tryParse(arg.trim());
+      if (uri != null && OrviaDeepLinkService.isDeepLink(uri)) {
+        OrviaDeepLinkService.setPendingDeepLink(uri);
+        break;
+      }
+    }
+  }
+
+  // On Android, capture the launch intent URL BEFORE player initialization:
+  if (io.Platform.isAndroid) {
+    final androidUri = await OrviaDeepLinkService.getInitialAndroidIntentUri();
+    if (androidUri != null) {
+      OrviaDeepLinkService.setPendingDeepLink(androidUri);
+    }
+    OrviaDeepLinkService.initAndroidDeepLinkListener();
+  }
+
   await bootstrapApp();
-  setHighRefreshRate();
-  await setupPlayerCubit();
-  DiscordService.initialize();
+
+  if (DBProvider.isHealthy) {
+    await setupPlayerCubit();
+    await AccountService.instance.initialize();
+    PushNotificationService.instance.initialize();
+    if (io.Platform.isWindows || io.Platform.isLinux || io.Platform.isMacOS) {
+      DiscordService.initialize();
+    }
+    if (io.Platform.isWindows) {
+      WindowsProtocolService.initialize();
+    }
+  }
+
   runApp(const MyApp());
 }
 
@@ -187,19 +262,47 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Check once at startup; DBProvider.appSuppDir is set by bootstrapApp().
-    _migrationPending = legacy_migration.needsMigration(
-      DBProvider.appSuppDir,
-      DBProvider.appDocDir,
-    );
+    if (DBProvider.isHealthy) {
+      // Check once at startup; DBProvider.appSuppDir is set by bootstrapApp().
+      _migrationPending = legacy_migration.needsMigration(
+        DBProvider.appSuppDir,
+        DBProvider.appDocDir,
+      );
 
-    _onboardingPending = !OnboardingService.onboardingDone;
-    _pluginBootstrapPending = !PluginBootstrapService.bootstrapDone;
+      _onboardingPending = !OnboardingService.onboardingDone;
+      _pluginBootstrapPending = !PluginBootstrapService.bootstrapDone;
+    }
     //--------------------------------------------------------------------
 
     if (io.Platform.isAndroid) {
       initPlatformState();
+      Future.delayed(const Duration(milliseconds: 650), () {
+        if (mounted) {
+          setHighRefreshRate();
+        }
+      });
     }
+
+    // Process pending deep link from cold start if present
+    if (OrviaDeepLinkService.hasPendingDeepLink) {
+      final pending = OrviaDeepLinkService.pendingDeepLink;
+      if (pending != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          OrviaDeepLinkService.handleDeepLinkUri(pending);
+        });
+      }
+    }
+  }
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    final uri = routeInformation.uri;
+    if (OrviaDeepLinkService.isDeepLink(uri)) {
+      OrviaDeepLinkService.setPendingDeepLink(uri);
+      final handled = await OrviaDeepLinkService.handleDeepLinkUri(uri);
+      if (handled) return true;
+    }
+    return super.didPushRouteInformation(routeInformation);
   }
 
   @override
@@ -274,15 +377,59 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _intentSub?.cancel();
-    orviaPlayerCubit.close();
-    if (io.Platform.isWindows || io.Platform.isLinux || io.Platform.isMacOS) {
-      DiscordService.clearPresence();
+    if (DBProvider.isHealthy) {
+      orviaPlayerCubit.close();
+      if (io.Platform.isWindows || io.Platform.isLinux || io.Platform.isMacOS) {
+        DiscordService.clearPresence();
+      }
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // ── Safe DB startup recovery guard ──────────────────────────────────
+    if (DBProvider.dbInitError != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: Default_Theme().defaultThemeData,
+        home: DatabaseRecoveryScreen(
+          error: DBProvider.dbInitError!,
+          onRecovered: () async {
+            try {
+              if (DBProvider.isHealthy) {
+                await ServiceLocator.setup();
+                await setupPlayerCubit();
+                await AccountService.instance.initialize();
+                PushNotificationService.instance.initialize();
+                if (io.Platform.isWindows ||
+                    io.Platform.isLinux ||
+                    io.Platform.isMacOS) {
+                  DiscordService.initialize();
+                }
+                if (io.Platform.isWindows) {
+                  WindowsProtocolService.initialize();
+                }
+                if (mounted) {
+                  setState(() {
+                    _migrationPending = legacy_migration.needsMigration(
+                      DBProvider.appSuppDir,
+                      DBProvider.appDocDir,
+                    );
+                    _onboardingPending = !OnboardingService.onboardingDone;
+                    _pluginBootstrapPending =
+                        !PluginBootstrapService.bootstrapDone;
+                  });
+                }
+              }
+            } catch (e) {
+              debugPrint('Error during post-recovery initialization: $e');
+            }
+          },
+        ),
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────
     // ── Legacy migration guard ────────────────────────────────────────────
     // If a default.isar (legacy DB) exists, show the non-dismissible
     // migration overlay before starting the normal app. Once migration

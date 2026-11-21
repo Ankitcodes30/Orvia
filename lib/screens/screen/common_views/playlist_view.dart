@@ -6,6 +6,7 @@ import 'package:Orvia/core/di/service_locator.dart';
 import 'package:Orvia/core/events/global_event_bus.dart';
 import 'package:Orvia/core/models/exported.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/core/utils/track_identity.dart';
 import 'package:Orvia/plugins/blocs/content/content_bloc.dart';
 import 'package:Orvia/plugins/blocs/content/content_event.dart';
 import 'package:Orvia/plugins/blocs/content/content_state.dart';
@@ -13,7 +14,6 @@ import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
 import 'package:Orvia/screens/widgets/animated_list_item.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
-import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 
 class OnlPlaylistView extends StatefulWidget {
   final PlaylistSummary playlist;
@@ -36,6 +37,76 @@ class OnlPlaylistView extends StatefulWidget {
     this.heroTag,
   });
 
+  /// Normalizes and cleans station / playlist category titles into provider-searchable queries.
+  static String cleanCategorySearchQuery(String title) {
+    var q = title.trim();
+    // Normalize unicode dashes (en-dash, em-dash, minus sign) to standard ASCII hyphen
+    q = q.replaceAll(RegExp(r'[\u2010-\u2015\u2212]'), '-');
+    var lower = q.toLowerCase();
+
+    // Strip station / radio / playlist suffixes first
+    for (final suffix in [
+      ' radio station',
+      ' station playlist',
+      ' radio',
+      ' station',
+      ' playlist'
+    ]) {
+      if (lower.endsWith(suffix) && q.length > suffix.length) {
+        q = q.substring(0, q.length - suffix.length).trim();
+        lower = q.toLowerCase();
+        break;
+      }
+    }
+
+    // 1. Bollywood Oldies 50s-60s
+    if (lower.contains('bollywood oldies') ||
+        (lower.contains('oldies') &&
+            (lower.contains('50s') || lower.contains('60s')))) {
+      return '50s 60s Bollywood';
+    }
+
+    // 2. Hindi Musical Covers
+    if (lower.contains('musical covers') ||
+        lower == 'hindi musical covers' ||
+        lower.contains('musical cover')) {
+      return 'Hindi Covers';
+    }
+
+    // 3. Bollywood Classics 30s-40s
+    if (lower.contains('bollywood classics') ||
+        (lower.contains('classics') &&
+            (lower.contains('30s') || lower.contains('40s')))) {
+      return '30s 40s Bollywood';
+    }
+
+    // 4. Drivetime Dhun
+    if (lower.contains('drivetime dhun') ||
+        lower == 'drivetime' ||
+        lower.contains('drive time')) {
+      return 'Drive Time Hindi';
+    }
+
+    // 5. Bollywood Retro 70s-80s
+    if (lower.contains('bollywood retro') ||
+        (lower.contains('retro') &&
+            (lower.contains('70s') || lower.contains('80s')))) {
+      return '70s 80s Bollywood';
+    }
+
+    // 6. Workout Karo
+    if (lower.contains('workout karo')) {
+      return 'Hindi Workout';
+    }
+
+    // 7. Sufiyana Safar
+    if (lower.contains('sufiyana safar')) {
+      return 'Sufi Hindi Songs';
+    }
+
+    return q;
+  }
+
   @override
   State<OnlPlaylistView> createState() => _OnlPlaylistViewState();
 }
@@ -47,8 +118,12 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
   bool _isSaved = false;
 
   List<Track> _fallbackTracks = const [];
+  String? _fallbackNextPageToken;
   bool _fallbackAttempted = false;
   bool _isSearchingFallback = false;
+  bool _isLoadingMoreFallback = false;
+  bool _fallbackSearchFailed = false;
+  String? _fallbackSearchError;
 
   @override
   void initState() {
@@ -58,19 +133,27 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
 
     _contentSubscription = _contentBloc.stream.listen((state) {
       if (!mounted) return;
-      if (state.playlistDetailStatus == DetailStatus.loaded) {
-        final tracks = state.playlistDetails?.tracks.items ?? [];
-        if (tracks.isEmpty && !_fallbackAttempted && !_isSearchingFallback) {
-          _fallbackAttempted = true;
-          _isSearchingFallback = true;
-          final query = widget.playlist.title.trim();
-          if (query.isNotEmpty) {
-            _contentBloc.add(SetActiveContentPlugin(pluginId: widget.pluginId));
-            _contentBloc.add(SearchContent(
-              query: query,
-              filter: ContentSearchFilter.all,
-            ));
-          }
+      final isLoadedEmpty = state.playlistDetailStatus == DetailStatus.loaded &&
+          (state.playlistDetails?.tracks.items.isEmpty ?? true);
+      final isError = state.playlistDetailStatus == DetailStatus.error;
+
+      if ((isLoadedEmpty || isError) &&
+          !_fallbackAttempted &&
+          !_isSearchingFallback) {
+        _fallbackAttempted = true;
+        _isSearchingFallback = true;
+        _fallbackSearchFailed = false;
+        _fallbackSearchError = null;
+        final query =
+            OnlPlaylistView.cleanCategorySearchQuery(widget.playlist.title);
+        if (query.isNotEmpty) {
+          _contentBloc.add(SearchContent(
+            query: query,
+            filter: ContentSearchFilter.track,
+            pluginId: widget.pluginId,
+          ));
+        } else {
+          _isSearchingFallback = false;
         }
       }
 
@@ -85,9 +168,13 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
             playlist: (_) {},
           );
         }
+        final deduped = TrackIdentity.deduplicateTracks(collected);
         if (mounted) {
           setState(() {
-            _fallbackTracks = collected;
+            _fallbackTracks = deduped;
+            _fallbackNextPageToken = state.searchResults?.nextPageToken;
+            _fallbackSearchFailed = false;
+            _fallbackSearchError = null;
             _isSearchingFallback = false;
           });
         }
@@ -95,7 +182,43 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
           state.searchStatus == SearchStatus.error) {
         if (mounted) {
           setState(() {
+            _fallbackSearchFailed = true;
+            _fallbackSearchError =
+                state.error ?? 'Failed to load station tracks';
             _isSearchingFallback = false;
+          });
+        }
+      } else if (_isLoadingMoreFallback &&
+          state.searchStatus == SearchStatus.loaded) {
+        final results = state.searchResults?.items ?? [];
+        final collected = <Track>[];
+        for (final item in results) {
+          item.when(
+            track: (t) => collected.add(t),
+            album: (_) {},
+            artist: (_) {},
+            playlist: (_) {},
+          );
+        }
+        final deduped = TrackIdentity.deduplicateTracks(
+          collected,
+          existingTracks: _fallbackTracks,
+        );
+        if (mounted) {
+          setState(() {
+            _fallbackTracks = [..._fallbackTracks, ...deduped];
+            _fallbackNextPageToken =
+                (state.searchResults?.nextPageToken == null || deduped.isEmpty)
+                    ? null
+                    : state.searchResults?.nextPageToken;
+            _isLoadingMoreFallback = false;
+          });
+        }
+      } else if (_isLoadingMoreFallback &&
+          state.searchStatus == SearchStatus.error) {
+        if (mounted) {
+          setState(() {
+            _isLoadingMoreFallback = false;
           });
         }
       }
@@ -108,6 +231,7 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
             .emitError(AppError.pluginNotLoaded(pluginId: widget.pluginId));
         return;
       }
+      _contentBloc.add(SetActiveContentPlugin(pluginId: widget.pluginId));
       _contentBloc.add(LoadPlaylistDetails(
           pluginId: widget.pluginId, playlistId: widget.playlist.id));
       _checkSavedState();
@@ -150,21 +274,38 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
+
+    if (_scrollController.position.maxScrollExtent - _scrollController.offset >
+        320) {
+      return;
+    }
+
+    if (_fallbackTracks.isNotEmpty) {
+      if (_fallbackNextPageToken == null ||
+          _isLoadingMoreFallback ||
+          _isSearchingFallback) {
+        return;
+      }
+
+      setState(() => _isLoadingMoreFallback = true);
+      _contentBloc.add(LoadMoreSearchContent(pageToken: _fallbackNextPageToken!));
+      return;
+    }
+
     final details = _contentBloc.state.playlistDetails;
     final nextPageToken = details?.tracks.nextPageToken;
     final status = _contentBloc.state.playlistDetailStatus;
 
     if (nextPageToken == null ||
         status == DetailStatus.loading ||
-        status == DetailStatus.loadingMore) return;
-
-    if (_scrollController.position.maxScrollExtent - _scrollController.offset <=
-        320) {
-      _contentBloc.add(LoadMorePlaylistTracks(
-          pluginId: widget.pluginId,
-          playlistId: widget.playlist.id,
-          pageToken: nextPageToken));
+        status == DetailStatus.loadingMore) {
+      return;
     }
+
+    _contentBloc.add(LoadMorePlaylistTracks(
+        pluginId: widget.pluginId,
+        playlistId: widget.playlist.id,
+        pageToken: nextPageToken));
   }
 
   String? _cleanText(String? raw) {
@@ -363,13 +504,15 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                   ),
                 ),
               ),
-              if ((status == DetailStatus.loaded ||
-                      status == DetailStatus.loadingMore) &&
-                  tracks.isNotEmpty)
+              if (tracks.isNotEmpty && !_isSearchingFallback)
                 SliverPadding(
                   padding: EdgeInsets.only(
                       top: 24,
-                      bottom: status == DetailStatus.loadingMore ? 0 : 120),
+                      bottom: (status == DetailStatus.loadingMore ||
+                              _isLoadingMoreFallback ||
+                              _isSearchingFallback)
+                          ? 0
+                          : 120),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -399,7 +542,77 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                     ),
                   ),
                 )
-              else if (status == DetailStatus.loaded && !_isSearchingFallback)
+              else if (tracks.isEmpty &&
+                  !_isSearchingFallback &&
+                  status != DetailStatus.loading &&
+                  (_fallbackSearchFailed ||
+                      (status == DetailStatus.error &&
+                          !_fallbackAttempted)))
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                        top: 60, bottom: 120, left: 24, right: 24),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            ((_fallbackSearchError ?? state.error)
+                                        ?.contains('offline') ??
+                                    false)
+                                ? MingCute.wifi_off_line
+                                : MingCute.warning_line,
+                            size: 44,
+                            color: Default_Theme.primaryColor1
+                                .withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            _fallbackSearchError ??
+                                state.error ??
+                                'Failed to load playlist',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Default_Theme.primaryColor1
+                                  .withValues(alpha: 0.7),
+                            ).merge(Default_Theme.secondoryTextStyle),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _fallbackAttempted = false;
+                                _fallbackTracks = const [];
+                                _fallbackNextPageToken = null;
+                                _isSearchingFallback = false;
+                                _isLoadingMoreFallback = false;
+                                _fallbackSearchFailed = false;
+                                _fallbackSearchError = null;
+                              });
+                              _contentBloc.add(SetActiveContentPlugin(
+                                  pluginId: widget.pluginId));
+                              _contentBloc.add(LoadPlaylistDetails(
+                                  pluginId: widget.pluginId,
+                                  playlistId: widget.playlist.id));
+                            },
+                            icon: const Icon(MingCute.refresh_3_line, size: 18),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Default_Theme.accentColor2,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else if (tracks.isEmpty &&
+                  !_isSearchingFallback &&
+                  status != DetailStatus.loading)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 80, bottom: 120),
@@ -420,8 +633,6 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             onPressed: () {
-                              _contentBloc.add(SetActiveContentPlugin(
-                                  pluginId: widget.pluginId));
                               _contentBloc.add(SearchContent(
                                 query: playlistSummary.title,
                                 filter: ContentSearchFilter.all,
@@ -429,54 +640,6 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                             },
                             icon: const Icon(MingCute.search_2_line, size: 16),
                             label: const Text('Search for Tracks'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Default_Theme.accentColor2,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else if (status == DetailStatus.error && !_isSearchingFallback)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                        top: 60, bottom: 120, left: 24, right: 24),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            (state.error?.contains('offline') ?? false)
-                                ? MingCute.wifi_off_line
-                                : MingCute.warning_line,
-                            size: 44,
-                            color: Default_Theme.primaryColor1
-                                .withValues(alpha: 0.5),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            state.error ?? 'Failed to load playlist',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Default_Theme.primaryColor1
-                                  .withValues(alpha: 0.7),
-                            ).merge(Default_Theme.secondoryTextStyle),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _contentBloc.add(LoadPlaylistDetails(
-                                  pluginId: widget.pluginId,
-                                  playlistId: widget.playlist.id));
-                            },
-                            icon: const Icon(MingCute.refresh_3_line, size: 18),
-                            label: const Text('Retry'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Default_Theme.accentColor2,
                               foregroundColor: Colors.white,
@@ -499,7 +662,7 @@ class _OnlPlaylistViewState extends State<OnlPlaylistView> {
                             color: Default_Theme.accentColor2)),
                   ),
                 ),
-              if (status == DetailStatus.loadingMore)
+              if (status == DetailStatus.loadingMore || _isLoadingMoreFallback)
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.only(top: 20, bottom: 120),
@@ -741,6 +904,28 @@ class _PlaylistHeaderContent extends StatelessWidget {
                   isActive: isSaved,
                   tooltip: isSaved ? 'Remove from Library' : 'Save to Library',
                   onTap: onToggleSave,
+                ),
+                _PremiumCircularButton(
+                  icon: MingCute.share_forward_line,
+                  isActive: false,
+                  tooltip: 'Share Playlist',
+                  onTap: () {
+                    if (tracks.isEmpty) {
+                      SnackbarService.showMessage('Cannot share an empty playlist.');
+                      return;
+                    }
+                    if (OrviaDeepLinkService.isSharing) {
+                      SnackbarService.showMessage('A share operation is already in progress...');
+                      return;
+                    }
+                    OrviaDeepLinkService.sharePlaylist(
+                      context,
+                      name: title,
+                      tracks: tracks,
+                      artworkUrl: imageUrl,
+                      description: description,
+                    );
+                  },
                 ),
                 if (url != null)
                   _PremiumCircularButton(

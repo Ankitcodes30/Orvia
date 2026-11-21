@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 
 enum ImportPhase {
@@ -51,14 +52,63 @@ class ImportTrackEntry extends Equatable {
   bool get isSkipped => selectedCandidateIndex == -1;
 
   /// The track that will be saved (respects user selection / skip).
+  ///
+  /// Returns a valid [Track] ONLY when:
+  /// 1. The user explicitly chose a valid candidate, OR
+  /// 2. Cross-plugin resolution found a high-confidence playable match ([resolvedTrack]), OR
+  /// 3. The source track is ALREADY legitimately stamped from an active provider (e.g. JioSaavn).
+  ///
+  /// NEVER stamps an arbitrary YouTube video ID or Spotify ID as a JioSaavn ID.
   Track? get effectiveTrack {
     if (isSkipped) return null;
     final idx = selectedCandidateIndex;
     if (idx != null && idx >= 0 && idx < candidates.length) {
       return candidates[idx];
     }
-    return resolvedTrack;
+    if (resolvedTrack != null) {
+      return resolvedTrack;
+    }
+
+    // Only preserve source track directly if it is ALREADY legitimately stamped
+    // from an authorized active provider (e.g., imported from native JioSaavn collection).
+    final rawSourceId = sourceTrack.sourceId;
+    if (rawSourceId != null && isStampedId(rawSourceId) && sourceTrack.title.trim().isNotEmpty) {
+      final thumb = sourceTrack.thumbnailUrl;
+      final artwork = (thumb != null && thumb.isNotEmpty)
+          ? Artwork(
+              url: thumb,
+              urlLow: thumb,
+              urlHigh: thumb,
+              layout: ImageLayout.square)
+          : const Artwork(url: '', layout: ImageLayout.square);
+
+      return Track(
+        id: rawSourceId,
+        title: sourceTrack.title,
+        artists: sourceTrack.artists
+            .map((a) => ArtistSummary(id: '', name: a, thumbnail: artwork))
+            .toList(),
+        album: AlbumSummary(
+          id: '',
+          title: sourceTrack.albumTitle ?? '',
+          artists: const [],
+          thumbnail: artwork,
+        ),
+        durationMs: sourceTrack.durationMs ?? BigInt.zero,
+        thumbnail: artwork,
+        isExplicit: sourceTrack.isExplicit,
+      );
+    }
+
+    // Unmatched tracks without a playable resolver mapping are NOT playable
+    return null;
   }
+
+  /// Whether this entry has a confirmed, playable track ready to be saved.
+  bool get isPlayable => effectiveTrack != null;
+
+  /// Whether this entry could not be matched to a playable audio provider.
+  bool get isUnmatched => !isSkipped && effectiveTrack == null;
 
   ImportTrackEntry copyWith({
     TrackResolutionStatus? status,
@@ -128,6 +178,15 @@ class ContentImportState extends Equatable {
   }
 
   int get totalTracks => tracks.length;
+
+  /// Count of tracks that have a confirmed playable match.
+  int get playableCount => tracks.where((t) => t.isPlayable).length;
+
+  /// Count of tracks that failed to resolve to a playable audio provider.
+  int get unmatchedCount => tracks.where((t) => t.isUnmatched).length;
+
+  /// Count of tracks explicitly skipped by the user.
+  int get skippedCount => tracks.where((t) => t.isSkipped).length;
 
   @override
   List<Object?> get props => [

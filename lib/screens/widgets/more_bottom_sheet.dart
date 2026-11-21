@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:Orvia/blocs/add_to_playlist/cubit/add_to_playlist_cubit.dart';
@@ -18,6 +17,7 @@ import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/smart_replace_dialog.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 import 'package:Orvia/services/song_metadata_refresh_service.dart';
 
 void showMoreBottomSheet(
@@ -168,8 +168,11 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                                       ctx
                                           .read<OrviaPlayerCubit>()
                                           .orviaPlayer
-                                          .updateQueueTracks([song],
-                                              doPlay: true);
+                                          .updateQueueTracks(
+                                            [song],
+                                            doPlay: true,
+                                            queueTitle: 'Direct Play',
+                                          );
                                       Navigator.pop(ctx);
                                       SnackbarService.showMessage(
                                           l10n.snackbarNowPlaying(song.title));
@@ -307,12 +310,7 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                               Navigator.pop(ctx);
                               SnackbarService.showMessage(
                                   l10n.menuSharePreparing(song.title));
-                              if (song.url?.isNotEmpty ?? false) {
-                                SharePlus.instance.share(
-                                  ShareParams(
-                                      text: song.url!, subject: song.title),
-                                );
-                              }
+                              OrviaDeepLinkService.shareTrack(parentContext, song);
                             },
                           ),
                           _CompactTile(

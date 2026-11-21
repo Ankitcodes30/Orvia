@@ -6,6 +6,8 @@ import 'package:Orvia/services/db/mappers/media_item_mapper.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:Orvia/utils/pallete_generator.dart';
 
 part 'current_playlist_state.dart';
@@ -171,6 +173,19 @@ class CurrentPlaylistCubit extends Cubit<CurrentPlaylistState> {
   /// Returns the removed [Track] and its index so the UI can animate removal.
   Future<(Track, int)?> removeTrack(Track track) async {
     if (_playlist == null || _playlistId == null) return null;
+
+    if (CreatorsChoiceService.isCreatorsChoice(state.playlist.title)) {
+      SnackbarService.showMessage("Creator's Choice tracks cannot be removed.");
+      return null;
+    }
+
+    // Protection guard: original seeded tracks cannot be removed.
+    if (await _playlistDao.isTrackProtected(_playlistId!, track.id)) {
+      SnackbarService.showMessage(
+          'Original tracks in this playlist are protected and cannot be removed.');
+      return null;
+    }
+
     final tracks = List<Track>.from(state.playlist.tracks);
     final index = tracks.indexWhere((t) => t.id == track.id);
     if (index == -1) return null;
@@ -195,6 +210,12 @@ class CurrentPlaylistCubit extends Cubit<CurrentPlaylistState> {
     return (removed, index);
   }
 
+  /// Checks if [track] is an original protected track in this playlist.
+  Future<bool> isTrackProtected(Track track) async {
+    if (_playlistId == null) return false;
+    return _playlistDao.isTrackProtected(_playlistId!, track.id);
+  }
+
   String getTitle() => state.playlist.title;
 
   int getPlaylistLength() => _playlist?.tracks.length ?? 0;
@@ -215,6 +236,7 @@ class CurrentPlaylistCubit extends Cubit<CurrentPlaylistState> {
   /// the position-index mismatch that silently broke the old approach.
   Future<void> updatePlaylist(List<Track> reorderedTracks) async {
     if (_playlist == null || _playlistId == null) return;
+    if (CreatorsChoiceService.isCreatorsChoice(state.playlist.title)) return;
     final fullyLoaded = await ensureAllTracksLoaded();
     final existingTracks = fullyLoaded.tracks;
 
@@ -250,6 +272,7 @@ class CurrentPlaylistCubit extends Cubit<CurrentPlaylistState> {
   /// Reorder tracks. [oldIndex] and [newIndex] are 0-based UI positions.
   Future<void> reorderTrack(int oldIndex, int newIndex) async {
     if (_playlist == null || _playlistId == null) return;
+    if (CreatorsChoiceService.isCreatorsChoice(state.playlist.title)) return;
     await _playlistDao.reorderTrack(_playlistId!, oldIndex, newIndex);
     await openPlaylist(_playlist!.title);
   }
@@ -269,4 +292,16 @@ class CurrentPlaylistCubit extends Cubit<CurrentPlaylistState> {
 
   /// Returns the name of the currently loaded playlist, or null if none.
   String? get currentPlaylistName => _playlist?.title;
+
+  /// Returns the database ID of the currently loaded playlist, or null if none.
+  int? get playlistId => _playlistId;
+
+  /// Renames the currently loaded playlist in-memory so the title updates
+  /// immediately in the UI without re-fetching or resetting tracks.
+  void renameCurrentPlaylist(String newName) {
+    if (CreatorsChoiceService.isCreatorsChoice(state.playlist.title)) return;
+    final updated = (_playlist ?? state.playlist).copyWith(title: newName);
+    _playlist = updated;
+    emit(state.copyWith(playlist: updated));
+  }
 }

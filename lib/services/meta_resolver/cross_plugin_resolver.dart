@@ -28,13 +28,15 @@ import 'package:fuzzywuzzy/fuzzywuzzy.dart' as fw;
 // Pre-compiled RegExp constants
 // ══════════════════════════════════════════════════════════════════════════════
 
+final RegExp _kQuotesAndApostrophes =
+    RegExp(r"[\u2018\u2019\u201B\u201C\u201D\u201F\u00AB\u00BB`]");
 final RegExp _kBrackets = RegExp(r'[$$$$\(\){}]');
 final RegExp _kAsciiPunct = RegExp(r'[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]');
 final RegExp _kMultiSpace = RegExp(r'\s+');
-final RegExp _kParenthetical = RegExp(r'\(.*?\)');
+final RegExp _kParenthetical = RegExp(r'[\(\[\{].*?[\)\]\}]');
 final RegExp _kFeatSuffix = RegExp(r'\b(?:feat|ft|featuring)\b.*$');
 final RegExp _kVersionWords =
-    RegExp(r'\b(?:remaster(?:ed)?|version|edit|mix|remix)\b');
+    RegExp(r'\b(?:remaster(?:ed)?|version|edit|mix|remix|video|audio|official|lyric(?:s)?)\b');
 final RegExp _kEditionWords =
     RegExp(r'\b(?:single|album|deluxe|edition|bonus)\b');
 
@@ -81,13 +83,58 @@ class TrackMatchTarget {
     this.durationMs,
   });
 
+  /// Helper to split composite multi-artist strings
+  /// (e.g. "Post Malone Featuring Morgan Wallen", "Artist A & Artist B", "X, Y").
+  static List<String> splitArtistNames(Iterable<String> rawNames) {
+    final result = <String>[];
+    final splitRegex = RegExp(
+      r'\s*(?:,\s*|\s+(?:feat\.?|featuring|ft\.?|with|&|\/|;)\s+)\s*',
+      caseSensitive: false,
+    );
+    for (final raw in rawNames) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final parts = trimmed.split(splitRegex);
+      for (final part in parts) {
+        var cleaned = part
+            .replaceAll(RegExp(r'^[,\/;&\s]+|[,\/;&\s]+$'), '')
+            .trim();
+        if (cleaned.isEmpty) continue;
+
+        // Normalize common channel suffixes: " - Topic" and trailing "VEVO"
+        cleaned = _stripChannelSuffix(cleaned);
+
+        if (cleaned.isNotEmpty &&
+            !result.any((r) => r.toLowerCase() == cleaned.toLowerCase())) {
+          result.add(cleaned);
+        }
+      }
+    }
+    return result;
+  }
+
+  /// Strip common channel-name suffixes such as " - Topic" and trailing "VEVO".
+  static String _stripChannelSuffix(String name) {
+    var s = name.trim();
+    final topicMatch =
+        RegExp(r'^(.*?)\s*-\s*topic$', caseSensitive: false).firstMatch(s);
+    if (topicMatch != null) {
+      final base = topicMatch.group(1)?.trim() ?? '';
+      if (base.isNotEmpty) s = base;
+    }
+    final vevoMatch =
+        RegExp(r'^(.*?)(?:\s*vevo|\bvevo)$', caseSensitive: false).firstMatch(s);
+    if (vevoMatch != null) {
+      final base = vevoMatch.group(1)?.trim() ?? '';
+      if (base.length >= 3) s = base;
+    }
+    return s;
+  }
+
   /// Construct from a plugin [Track] model.
   factory TrackMatchTarget.fromTrack(Track track) => TrackMatchTarget(
         title: track.title,
-        artistNames: track.artists
-            .map((a) => a.name.trim())
-            .where((n) => n.isNotEmpty)
-            .toList(growable: false),
+        artistNames: splitArtistNames(track.artists.map((a) => a.name)),
         albumTitle: track.album?.title,
         durationMs: track.durationMs,
       );
@@ -100,8 +147,7 @@ class TrackMatchTarget {
   }) =>
       TrackMatchTarget(
         title: title,
-        artistNames:
-            artists.map((a) => a.trim()).where((a) => a.isNotEmpty).toList(),
+        artistNames: splitArtistNames(artists),
         albumTitle: null,
         durationMs: durationMs != null ? BigInt.from(durationMs) : null,
       );
@@ -316,10 +362,57 @@ class CrossPluginResolver {
   // Track scoring
   // ────────────────────────────────────────────────────────────────────────
 
+  /// If [candidateTitle] starts with an artist prefix or ends with an artist suffix matching any [targetArtists]
+  /// separated by a supported delimiter (`-`, `–`, `—`, `:`, `|`, `~`), returns the title
+  /// with the artist part removed. Otherwise returns [candidateTitle] unchanged.
+  String stripMatchingArtistPrefix(
+    String candidateTitle,
+    List<String> targetArtists,
+  ) {
+    if (candidateTitle.trim().isEmpty || targetArtists.isEmpty) {
+      return candidateTitle;
+    }
+
+    final match = RegExp(
+      r'^\s*([^:\-–—|~]+?)\s*[\-–—:\~\|]\s*(.+)$',
+    ).firstMatch(candidateTitle);
+
+    if (match == null) return candidateTitle;
+
+    final prefix = match.group(1)?.trim() ?? '';
+    final remainder = match.group(2)?.trim() ?? '';
+
+    if (prefix.isEmpty || remainder.isEmpty) return candidateTitle;
+
+    bool matchesArtist(String text) {
+      final norm = normalized(text).replaceAll(' ', '');
+      if (norm.length < 2) return false;
+      return targetArtists.any((artist) {
+        final artNorm = normalized(artist).replaceAll(' ', '');
+        if (artNorm.isEmpty) return false;
+        if (artNorm == norm) return true;
+        return blendedTextSimilarity(text, artist) >= 0.85;
+      });
+    }
+
+    if (matchesArtist(prefix)) {
+      return remainder;
+    }
+    if (matchesArtist(remainder)) {
+      return prefix;
+    }
+
+    return candidateTitle;
+  }
+
   /// Score [candidate] against [target], returning confidence in [0.0, 1.0].
   double scoreTrack(TrackMatchTarget target, Track candidate) {
+    final effectiveCandTitle = stripMatchingArtistPrefix(
+      candidate.title,
+      target.artistNames,
+    );
     final targetTitleNorm = normalized(target.title);
-    final candTitleNorm = normalized(candidate.title);
+    final candTitleNorm = normalized(effectiveCandTitle);
     final targetArtKey = _artistKeyFromNames(target.artistNames);
     final candArtKey = artistKeyFromSummaries(candidate.artists);
 
@@ -332,16 +425,24 @@ class CrossPluginResolver {
       return (0.92 + dur * 0.08).clamp(0.0, 1.0);
     }
 
-    final titleScore = blendedTextSimilarity(target.title, candidate.title);
-    final simplifiedTitleScore = blendedTextSimilarity(
-      simplifyTitle(target.title),
-      simplifyTitle(candidate.title),
+    final titleScore = math.max(
+      blendedTextSimilarity(target.title, candidate.title),
+      blendedTextSimilarity(target.title, effectiveCandTitle),
+    );
+    final simplifiedTitleScore = math.max(
+      blendedTextSimilarity(
+        simplifyTitle(target.title),
+        simplifyTitle(candidate.title),
+      ),
+      blendedTextSimilarity(
+        simplifyTitle(target.title),
+        simplifyTitle(effectiveCandTitle),
+      ),
     );
 
-    final candArtistNames = candidate.artists
-        .map((a) => a.name.trim())
-        .where((n) => n.isNotEmpty)
-        .toList(growable: false);
+    final candArtistNames = TrackMatchTarget.splitArtistNames(
+      candidate.artists.map((a) => a.name),
+    );
     final artistScore =
         artistNamesSimilarity(target.artistNames, candArtistNames);
 
@@ -360,30 +461,47 @@ class CrossPluginResolver {
       candidate.album?.title,
     );
 
-    // Adaptive weights.
-    final wTitle = hasAlbum ? 0.32 : 0.36;
+    // Adaptive weights (neutral when duration is unknown/null).
+    final hasDuration = target.durationMs != null && candidate.durationMs != null;
+    final wTitle = hasAlbum
+        ? (hasDuration ? 0.32 : 0.38)
+        : (hasDuration ? 0.36 : 0.44);
     final wSimplified = hasAlbum ? 0.12 : 0.14;
-    final wArtist = hasAlbum ? 0.28 : 0.32;
+    final wArtist = hasAlbum
+        ? (hasDuration ? 0.28 : 0.34)
+        : (hasDuration ? 0.32 : 0.38);
     final wAlbum = hasAlbum ? 0.10 : 0.00;
-    const wDuration = 0.13;
+    final wDuration = hasDuration ? 0.13 : 0.00;
 
     var score = titleScore * wTitle +
         simplifiedTitleScore * wSimplified +
         artistScore * wArtist +
         albumScore * wAlbum +
-        dur * wDuration;
+        (hasDuration ? dur * wDuration : 0.0);
 
     // Exact-match bonuses (guarded against empty strings).
-    if (targetTitleNorm.isNotEmpty && targetTitleNorm == candTitleNorm) {
+    if (targetTitleNorm.isNotEmpty &&
+        (targetTitleNorm == candTitleNorm ||
+            targetTitleNorm == normalized(candidate.title))) {
       score += 0.06;
     }
     final tSimple = simplifyTitle(target.title);
     final cSimple = simplifyTitle(candidate.title);
-    if (tSimple.isNotEmpty && cSimple.isNotEmpty && tSimple == cSimple) {
+    final effCSimple = simplifyTitle(effectiveCandTitle);
+    if (tSimple.isNotEmpty &&
+        ((cSimple.isNotEmpty && tSimple == cSimple) ||
+            (effCSimple.isNotEmpty && tSimple == effCSimple))) {
       score += 0.04;
     }
     if (targetArtKey.isNotEmpty && targetArtKey == candArtKey) {
       score += 0.05;
+    }
+    // Severe penalty if both target and candidate specify artists, but they completely mismatch (< 25%).
+    // Prevents unrelated covers or unrelated songs with the same title from scoring above acceptance threshold.
+    if (target.artistNames.isNotEmpty &&
+        candArtistNames.isNotEmpty &&
+        artistScore < 0.25) {
+      score -= 0.30;
     }
 
     score -= vPenalty;
@@ -393,24 +511,41 @@ class CrossPluginResolver {
   /// Lightweight check: returns true when title and artist match exactly
   /// or near-exactly (useful for ChartItemResolver.isStrongTrackMatch).
   bool isStrongMatch(TrackMatchTarget target, Track candidate) {
+    final effectiveCandTitle = stripMatchingArtistPrefix(
+      candidate.title,
+      target.artistNames,
+    );
     final tNorm = normalized(target.title);
     final cNorm = normalized(candidate.title);
+    final effCNorm = normalized(effectiveCandTitle);
     final tSimple = simplifyTitle(target.title);
     final cSimple = simplifyTitle(candidate.title);
+    final effCSimple = simplifyTitle(effectiveCandTitle);
 
     final titleMatch =
         (tNorm.isNotEmpty && cNorm.isNotEmpty && tNorm == cNorm) ||
-            (tSimple.isNotEmpty && cSimple.isNotEmpty && tSimple == cSimple);
+            (tNorm.isNotEmpty && effCNorm.isNotEmpty && tNorm == effCNorm) ||
+            (tSimple.isNotEmpty && cSimple.isNotEmpty && tSimple == cSimple) ||
+            (tSimple.isNotEmpty && effCSimple.isNotEmpty && tSimple == effCSimple) ||
+            blendedTextSimilarity(tSimple, cSimple) >= 0.88 ||
+            blendedTextSimilarity(tSimple, effCSimple) >= 0.88;
     if (!titleMatch) return false;
 
     if (target.artistNames.isEmpty) return true;
-    final candNames = candidate.artists
-        .map((a) => a.name.trim())
-        .where((n) => n.isNotEmpty)
-        .toList(growable: false);
+    final candNames = TrackMatchTarget.splitArtistNames(
+      candidate.artists.map((a) => a.name.trim()).where((n) => n.isNotEmpty),
+    );
     if (candNames.isEmpty) return true;
 
-    return artistNamesSimilarity(target.artistNames, candNames) >= 0.7;
+    final artSim = artistNamesSimilarity(target.artistNames, candNames);
+    if (artSim >= 0.65) return true;
+
+    if (target.primaryArtist.isNotEmpty && candNames.isNotEmpty) {
+      if (blendedTextSimilarity(target.primaryArtist, candNames.first) >= 0.80) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -422,6 +557,13 @@ class CrossPluginResolver {
     final r = normalized(right);
     if (l.isEmpty || r.isEmpty) return 0;
     if (l == r) return 1.0;
+
+    // Direct match when spaces are collapsed (e.g. "troyesivan" vs "troye sivan")
+    final lNoSpace = l.replaceAll(' ', '');
+    final rNoSpace = r.replaceAll(' ', '');
+    if (lNoSpace.length >= 3 && lNoSpace == rNoSpace) {
+      return 0.98;
+    }
 
     final direct = fw.ratio(l, r) / 100;
     final partial = fw.partialRatio(l, r) / 100;
@@ -509,10 +651,10 @@ class CrossPluginResolver {
 
   /// Compare two durations using blended absolute + relative thresholds.
   double durationSimilarity(BigInt? left, BigInt? right) {
-    if (left == null || right == null) return 0.35;
+    if (left == null || right == null) return 0.70;
     final lMs = left.toDouble();
     final rMs = right.toDouble();
-    if (lMs <= 0 || rMs <= 0) return 0.35;
+    if (lMs <= 0 || rMs <= 0) return 0.70;
 
     final diff = (lMs - rMs).abs();
     final maxMs = math.max(lMs, rMs);
@@ -559,6 +701,7 @@ class CrossPluginResolver {
     if (value.isEmpty) return const {};
     final norm = value
         .toLowerCase()
+        .replaceAll(_kQuotesAndApostrophes, ' ')
         .replaceAll(_kBrackets, ' ')
         .replaceAll(_kAsciiPunct, ' ')
         .replaceAll(_kMultiSpace, ' ')
@@ -599,6 +742,7 @@ class CrossPluginResolver {
     if (value == null || value.trim().isEmpty) return '';
     return value
         .toLowerCase()
+        .replaceAll(_kQuotesAndApostrophes, ' ')
         .replaceAll(_kBrackets, ' ')
         .replaceAll('&', ' and ')
         .replaceAll(_kAsciiPunct, ' ')
@@ -612,6 +756,7 @@ class CrossPluginResolver {
     if (value == null || value.trim().isEmpty) return '';
     return value
         .trim()
+        .replaceAll(_kQuotesAndApostrophes, ' ')
         .replaceAll(_kParenthetical, ' ')
         .toLowerCase()
         .replaceAll(_kFeatSuffix, '')
@@ -642,7 +787,8 @@ class CrossPluginResolver {
   }
 
   String _artistKeyFromNames(List<String> names) {
-    final norm = names
+    final splitNames = TrackMatchTarget.splitArtistNames(names);
+    final norm = splitNames
         .map((n) => normalized(n))
         .where((n) => n.isNotEmpty)
         .toList(growable: false)
@@ -659,7 +805,7 @@ class CrossPluginResolver {
   List<String> buildTrackQueries(TrackMatchTarget target) {
     final title = target.title.trim();
     final simplified = simplifyTitle(title);
-    final allArtists = target.allArtists;
+    final artistsClean = target.artistNames.take(3).join(' ');
     final primary = target.primaryArtist;
     final album = target.albumTitle?.trim() ?? '';
 
@@ -674,10 +820,21 @@ class CrossPluginResolver {
       queries.add(t);
     }
 
-    add('$title $allArtists');
-    if (simplified != normalized(title)) add('$simplified $allArtists');
-    add('$title $primary');
-    if (album.isNotEmpty) add('$title $primary $album');
+    if (artistsClean.isNotEmpty) {
+      add('$title $artistsClean');
+    }
+    if (primary.isNotEmpty && primary != artistsClean) {
+      add('$title $primary');
+    }
+    if (simplified.isNotEmpty && simplified != normalized(title)) {
+      if (artistsClean.isNotEmpty) add('$simplified $artistsClean');
+      if (primary.isNotEmpty && primary != artistsClean) {
+        add('$simplified $primary');
+      }
+    }
+    if (album.isNotEmpty && primary.isNotEmpty) {
+      add('$title $primary $album');
+    }
     add(title);
     if (simplified.isNotEmpty && simplified != normalized(title)) {
       add(simplified);

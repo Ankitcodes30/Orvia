@@ -158,7 +158,8 @@ Changelog parseChangelog(String? log) {
 }
 
 String _normalizeVersionLabel(String v) {
-  return v.trim().toLowerCase().replaceFirst(RegExp(r'^v'), '');
+  final stripped = v.trim().toLowerCase().replaceFirst(RegExp(r'^v'), '');
+  return stripped.split('+').first;
 }
 
 /// Return a filtered list of versions to display when 'showOlderVersions' is false.

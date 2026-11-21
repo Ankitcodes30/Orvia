@@ -168,6 +168,7 @@ class _SmartReplaceDialogState extends State<_SmartReplaceDialog> {
           updatedQueue,
           startIndex: player.currentQueueIndex,
           doPlay: player.currentTrackInfo.id == widget.track.id,
+          preserveTitle: true,
         );
       }
 

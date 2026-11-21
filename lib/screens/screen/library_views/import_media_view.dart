@@ -6,6 +6,7 @@ import 'package:Orvia/plugins/blocs/import/content_import_cubit.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_state.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/services/catalogue/playlist_import_service.dart';
 import 'package:Orvia/services/import_export_service.dart';
 import 'package:Orvia/services/m3u_processor.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
@@ -75,6 +76,12 @@ class _ImportMediaFromPlatformsViewState
                     height: 32,
                   ),
                   const SizedBox(height: 8),
+                  _ImportFromBtn(
+                    btnName: 'Import from YouTube, Spotify, or JioSaavn URL',
+                    btnIcon: MingCute.link_fill,
+                    onClickFunc: () => _importOnlineUrl(context),
+                  ),
+                  const SizedBox(height: 10),
                   _ImportFromBtn(
                     btnName: AppLocalizations.of(context)!.importOrviaFiles,
                     btnIcon: MingCute.file_import_fill,
@@ -364,6 +371,189 @@ class _ImportMediaFromPlatformsViewState
             ),
           ),
         ],
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
+  /// Imports from YouTube, Spotify, or JioSaavn URL with real-time detection
+  /// and feeds the extracted tracks into ContentImportCubit.
+  Future<void> _importOnlineUrl(BuildContext context) async {
+    final controller = TextEditingController();
+    var platform = ImportPlatform.unknown;
+
+    await showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: Default_Theme.themeColor,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(MingCute.link_fill,
+                    color: Default_Theme.accentColor2, size: 22),
+                SizedBox(width: 10),
+                Text(
+                  'Import Playlist URL',
+                  style: TextStyle(
+                    color: Default_Theme.primaryColor1,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Paste a public playlist, album, or song link from YouTube, Spotify, or JioSaavn:',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    cursorColor: Default_Theme.accentColor2,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'https://open.spotify.com/playlist/...',
+                      hintStyle: TextStyle(
+                        color:
+                            Default_Theme.primaryColor2.withValues(alpha: 0.4),
+                        fontSize: 13,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.05),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: Default_Theme.primaryColor1
+                                .withValues(alpha: 0.15)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Default_Theme.accentColor2, width: 1.5),
+                      ),
+                    ),
+                    onChanged: (text) {
+                      setDialogState(() {
+                        platform = PlaylistImportService.detectPlatform(text);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (platform != ImportPlatform.unknown)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: platform == ImportPlatform.spotify
+                            ? const Color(0xFF1DB954).withValues(alpha: 0.2)
+                            : platform == ImportPlatform.youtube
+                                ? const Color(0xFFFF0000).withValues(alpha: 0.2)
+                                : const Color(0xFF2BC5B4)
+                                    .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Detected: ${platform.name.toUpperCase()}',
+                        style: TextStyle(
+                          color: platform == ImportPlatform.spotify
+                              ? const Color(0xFF1DB954)
+                              : platform == ImportPlatform.youtube
+                                  ? const Color(0xFFFF4444)
+                                  : const Color(0xFF2BC5B4),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Note: DRM-protected tracks are matched across available audio providers. Private playlists require public link sharing.',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final url = controller.text.trim();
+                  if (url.isEmpty) return;
+
+                  Navigator.of(dialogCtx).pop();
+
+                  SnackbarService.showMessage('Fetching online playlist...');
+                  final result =
+                      await PlaylistImportService.importFromUrl(url);
+
+                  if (!context.mounted) return;
+
+                  if (!result.isSuccess || result.tracks.isEmpty) {
+                    SnackbarService.showMessage(
+                      result.errorMessage ??
+                          'Could not find playable tracks from the provided link.',
+                    );
+                    return;
+                  }
+
+                  if (result.duplicateCount > 0 || result.unavailableCount > 0) {
+                    final note = [
+                      if (result.duplicateCount > 0)
+                        '${result.duplicateCount} duplicate${result.duplicateCount == 1 ? '' : 's'} skipped',
+                      if (result.unavailableCount > 0)
+                        '${result.unavailableCount} unavailable',
+                    ].join(', ');
+                    SnackbarService.showMessage(
+                      'Importing ${result.importedCount} tracks ($note).',
+                    );
+                  }
+
+                  context.read<ContentImportCubit>().loadFromM3U(
+                        result.tracks,
+                        result.summary ??
+                            ImportCollectionSummary(
+                              title: 'Imported Playlist',
+                              kind: ImportCollectionType.playlist,
+                              trackCount: result.tracks.length,
+                            ),
+                      );
+
+                  context.goNamed(
+                    RoutePaths.importProcess,
+                    queryParameters: {'pluginId': ''},
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Default_Theme.accentColor2,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Import',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
       ),
     ).whenComplete(controller.dispose);
   }

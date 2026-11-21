@@ -1,5 +1,6 @@
 import 'package:Orvia/core/events/global_event_bus.dart';
 import 'package:Orvia/core/models/exported.dart';
+import 'package:Orvia/core/utils/track_identity.dart';
 import 'package:Orvia/plugins/blocs/plugin/plugin_bloc.dart';
 import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/screens/screen/common_views/album_view.dart';
@@ -281,7 +282,8 @@ List<_MetadataSegment> _artistSegments(
   final segments = <_MetadataSegment>[];
   for (var index = 0; index < artists.length; index++) {
     final artist = artists[index];
-    if (artist.name.trim().isEmpty) {
+    if (artist.name.trim().isEmpty ||
+        TrackIdentity.isViewCountOrMetadataArtifact(artist.name)) {
       continue;
     }
     if (segments.isNotEmpty) {
@@ -319,11 +321,28 @@ _MetadataSegment _summarySegment(
   );
 }
 
-void _openArtist(BuildContext context, ArtistSummary artist, String pluginId) {
-  if (!requirePlugin(
-      pluginId, context.read<PluginBloc>().state.loadedPluginIds)) {
+Future<bool> _ensurePluginLoaded(BuildContext context, String pluginId) async {
+  final pluginBloc = context.read<PluginBloc>();
+  if (pluginBloc.state.loadedPluginIds.contains(pluginId)) return true;
+
+  if (pluginBloc.state.isLoading ||
+      pluginBloc.state.availablePlugins.any((p) => p.manifest.id == pluginId)) {
+    try {
+      await pluginBloc.stream
+          .firstWhere((s) => s.loadedPluginIds.contains(pluginId))
+          .timeout(const Duration(seconds: 3));
+      return true;
+    } catch (_) {}
+  }
+
+  return requirePlugin(pluginId, pluginBloc.state.loadedPluginIds);
+}
+
+Future<void> _openArtist(BuildContext context, ArtistSummary artist, String pluginId) async {
+  if (!await _ensurePluginLoaded(context, pluginId)) {
     return;
   }
+  if (!context.mounted) return;
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => ArtistView(artist: artist, pluginId: pluginId),
@@ -331,11 +350,11 @@ void _openArtist(BuildContext context, ArtistSummary artist, String pluginId) {
   );
 }
 
-void _openAlbum(BuildContext context, AlbumSummary album, String pluginId) {
-  if (!requirePlugin(
-      pluginId, context.read<PluginBloc>().state.loadedPluginIds)) {
+Future<void> _openAlbum(BuildContext context, AlbumSummary album, String pluginId) async {
+  if (!await _ensurePluginLoaded(context, pluginId)) {
     return;
   }
+  if (!context.mounted) return;
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => AlbumView(album: album, pluginId: pluginId),
@@ -343,15 +362,15 @@ void _openAlbum(BuildContext context, AlbumSummary album, String pluginId) {
   );
 }
 
-void _openPlaylist(
+Future<void> _openPlaylist(
   BuildContext context,
   PlaylistSummary playlist,
   String pluginId,
-) {
-  if (!requirePlugin(
-      pluginId, context.read<PluginBloc>().state.loadedPluginIds)) {
+) async {
+  if (!await _ensurePluginLoaded(context, pluginId)) {
     return;
   }
+  if (!context.mounted) return;
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => OnlPlaylistView(playlist: playlist, pluginId: pluginId),

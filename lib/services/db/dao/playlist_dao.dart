@@ -259,12 +259,21 @@ class PlaylistDAO {
     });
   }
 
+  /// Retired: returns false since special Dammn playlist feature has been removed.
+  Future<bool> isDammnPlaylist(int playlistId) async => false;
+
+  /// Retired: returns false since no tracks are protected from editing/deletion.
+  Future<bool> isTrackProtected(int playlistId, String mediaId) async => false;
+
   /// Replace the full ordered contents of [playlistId] with [tracks].
   Future<void> setPlaylistTracks(int playlistId, List<Track> tracks) async {
     final isar = await _db;
+    final workingTracks = List<Track>.from(tracks);
+
     final seenIds = <String>{};
-    final orderedUniqueTracks =
-        tracks.where((track) => seenIds.add(track.id)).toList(growable: false);
+    final orderedUniqueTracks = workingTracks
+        .where((track) => seenIds.add(track.id))
+        .toList(growable: false);
     final trackIds = await _trackDAO.upsertTracks(orderedUniqueTracks);
 
     await isar.writeTxn(() async {
@@ -669,7 +678,7 @@ class PlaylistDAO {
   /// Load a fully hydrated [Playlist] domain model from the database.
   Future<Playlist> loadPlaylist(String name) async {
     final playlistDB = await getPlaylistByName(name);
-    if (playlistDB == null) return Playlist(tracks: [], title: name);
+    if (playlistDB == null) return Playlist(tracks: const [], title: name);
     final tracks = await getPlaylistTracks(playlistDB.id);
     final domainPlaylist = playlistDBToPlaylist(playlistDB);
     return domainPlaylist.copyWith(
@@ -748,4 +757,72 @@ class PlaylistDAO {
       }
     });
   }
+
+  /// Checks if a playlist with [name] already exists and contains the exact tracks.
+  Future<bool> isPlaylistSavedWithTracks(String name, List<Track> tracks) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return false;
+    final existing = await getPlaylistByName(cleanName);
+    if (existing == null) return false;
+
+    final existingTracks = await getPlaylistTracks(existing.id);
+    if (existingTracks.length != tracks.length) return false;
+
+    for (int i = 0; i < tracks.length; i++) {
+      if (existingTracks[i].mediaId != tracks[i].id) return false;
+    }
+    return true;
+  }
+
+  /// Saves a shared playlist into the local database as an independent, editable copy.
+  ///
+  /// Returns a record of `(int playlistId, bool alreadyExisted)`.
+  /// - If an identical playlist with this name already exists, returns its ID with `alreadyExisted: true`.
+  /// - If a different playlist exists with the same name, appends an incremented suffix (e.g. `(1)`).
+  Future<({int id, bool alreadyExisted})?> saveSharedPlaylist(Playlist sharedPlaylist) async {
+    final baseName = sharedPlaylist.title.trim();
+    if (baseName.isEmpty) return null;
+
+    final existing = await getPlaylistByName(baseName);
+    if (existing != null) {
+      final existingTracks = await getPlaylistTracks(existing.id);
+      bool isIdentical = existingTracks.length == sharedPlaylist.tracks.length;
+      if (isIdentical) {
+        for (int i = 0; i < existingTracks.length; i++) {
+          if (existingTracks[i].mediaId != sharedPlaylist.tracks[i].id) {
+            isIdentical = false;
+            break;
+          }
+        }
+      }
+      if (isIdentical) {
+        return (id: existing.id, alreadyExisted: true);
+      }
+    }
+
+    String targetName = baseName;
+    int counter = 1;
+    while (await getPlaylistByName(targetName) != null) {
+      targetName = '$baseName ($counter)';
+      counter++;
+    }
+
+    final id = await createPlaylist(
+      targetName,
+      thumbnail: (sharedPlaylist.thumbnail != null && sharedPlaylist.thumbnail!.url.isNotEmpty)
+          ? (ArtworkDB()..url = sharedPlaylist.thumbnail!.url)
+          : null,
+      description: sharedPlaylist.description,
+    );
+
+    if (id != null && sharedPlaylist.tracks.isNotEmpty) {
+      await addTracksToPlaylist(id, sharedPlaylist.tracks);
+    }
+
+    if (id != null) {
+      return (id: id, alreadyExisted: false);
+    }
+    return null;
+  }
 }
+

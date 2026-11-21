@@ -203,6 +203,7 @@ class _WhatsHotNearYouSectionState extends State<WhatsHotNearYouSection> {
                               ),
                               idx: index,
                               doPlay: true,
+                              isFromPlaylist: false,
                             );
                       },
                       child: SizedBox(

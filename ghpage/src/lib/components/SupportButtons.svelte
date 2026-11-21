@@ -1,28 +1,27 @@
 <script>
-	export let buttons = [
-		{ type: 'paypal', icon: 'fa-brands fa-paypal', text: 'PayPal', href: 'https://www.paypal.com/ncp/payment/JKSMRB5E3PAF2' },
-		{ type: 'librepay', icon: 'fa-solid fa-heart', text: 'Liberapay', href: 'https://liberapay.com/hemantkarya' },
-        { type: 'upi', text: 'Razorpay UPI', href: 'https://razorpay.me/@iamhemant', customIcon: 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg' },
-	];
+	// Verified support / donation buttons (empty until owner configures verified payment links)
+	export let buttons = [];
 
 	export let highlighted = false;
 </script>
 
-<div class="support-container" class:highlighted>
-	<h3>Buy me a coffee 🍵</h3>
-	<div class="support-buttons">
-		{#each buttons as button}
-			<a href={button.href} class="support-btn {button.type}" target="_blank" rel="noopener noreferrer">
-				{#if button.customIcon}
-					<img src={button.customIcon} alt="{button.text} icon" class="btn-icon">
-				{:else}
-					<i class="{button.icon} btn-icon"></i>
-				{/if}
-				<span class="btn-text">{button.text}</span>
-			</a>
-		{/each}
+{#if buttons && buttons.length > 0}
+	<div class="support-container" class:highlighted>
+		<h3>Buy me a coffee 🍵</h3>
+		<div class="support-buttons">
+			{#each buttons as button}
+				<a href={button.href} class="support-btn {button.type}" target="_blank" rel="noopener noreferrer">
+					{#if button.customIcon}
+						<img src={button.customIcon} alt="{button.text} icon" class="btn-icon">
+					{:else}
+						<i class="{button.icon} btn-icon"></i>
+					{/if}
+					<span class="btn-text">{button.text}</span>
+				</a>
+			{/each}
+		</div>
 	</div>
-</div>
+{/if}
 
 <style>
 	.support-container h3 { 
@@ -91,24 +90,6 @@
 		color: white;
 	}
 	
-	.support-btn.upi {
-		background: rgba(34, 139, 34, 0.9);
-		border: 1px solid rgba(34, 139, 34, 0.7);
-		color: white;
-	}
-
-	/* Style for the UPI icon image */
-	.support-btn.upi .btn-icon {
-		filter: brightness(0) invert(1);
-	}
-	
-	.support-btn.librepay {
-		background: #f6c915; /* Standard Librepay yellow */
-		border: 1px solid rgba(255, 215, 0, 0.7);
-		/* Use dark text for better contrast and readability */
-		color: #1a1a1a; 
-	}
-	
 	/* --- Highlighted State Styles (Unchanged) --- */
 	.support-container.highlighted {
 		animation: none;
@@ -120,24 +101,6 @@
 		box-shadow: 
 			0 3px 12px rgba(106, 168, 255, 0.4),
 			0 0 20px rgba(101, 161, 245, 0.3);
-		animation: softBlink 1s ease-in-out 3;
-	}
-	
-	.support-container.highlighted .support-btn.upi {
-		background: rgba(34, 139, 34, 1);
-		border-color: rgba(34, 139, 34, 1);
-		box-shadow: 
-			0 3px 12px rgba(34, 139, 34, 0.4),
-			0 0 20px rgba(34, 139, 34, 0.3);
-		animation: softBlink 1s ease-in-out 3;
-	}
-	
-	.support-container.highlighted .support-btn.librepay {
-		background: rgba(255, 215, 0, 1);
-		border-color: rgba(255, 215, 0, 1);
-		box-shadow: 
-			0 3px 12px rgba(255, 215, 0, 0.4),
-			0 0 20px rgba(255, 215, 0, 0.3);
 		animation: softBlink 1s ease-in-out 3;
 	}
 	

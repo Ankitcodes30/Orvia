@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +18,37 @@ import 'package:Orvia/services/db/dao/search_history_dao.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/db/dao/track_dao.dart';
 
+/// Categorization of database initialization errors.
+enum DbInitErrorType {
+  /// File is locked by another OS process, background instance, or permission restriction.
+  transientLock,
+
+  /// File contains invalid magic header, MDBX corruption, or unreadable pages.
+  corruption,
+
+  /// Unknown or unexpected initialization error.
+  unknown,
+}
+
+/// Represents a database initialization failure with diagnostic details and recovery context.
+class DbInitError {
+  final DbInitErrorType type;
+  final String message;
+  final dynamic rawError;
+  final String dbPath;
+  final String? quarantinedCopyPath;
+
+  const DbInitError({
+    required this.type,
+    required this.message,
+    required this.rawError,
+    required this.dbPath,
+    this.quarantinedCopyPath,
+  });
+
+  bool get isTransient => type == DbInitErrorType.transientLock;
+}
+
 /// Centralised Isar lifecycle manager.
 ///
 /// Owns database open / close / backup-restore responsibilities that were
@@ -24,6 +57,16 @@ class DBProvider {
   static late String appSuppDir;
   static late String appDocDir;
   static late Future<Isar> db;
+
+  /// Holds the error details if the database failed to open on startup.
+  static DbInitError? dbInitError;
+
+  /// Whether the database has been opened and initialized.
+  static bool get isInitialized => Isar.instanceNames.isNotEmpty;
+
+  /// Whether the database opened successfully and is ready for use.
+  static bool get isHealthy =>
+      dbInitError == null && Isar.instanceNames.isNotEmpty;
 
   static final List<CollectionSchema<dynamic>> _schemas = [
     TrackDBSchema,
@@ -51,6 +94,150 @@ class DBProvider {
     return db;
   }
 
+  /// Classifies a database opening error to distinguish transient locks from corruption.
+  static DbInitErrorType _classifyDbError(dynamic error) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('lock') ||
+        msg.contains('busy') ||
+        msg.contains('sharing violation') ||
+        msg.contains('access denied') ||
+        msg.contains('permission denied') ||
+        msg.contains('os error 32') ||
+        msg.contains('os error 5') ||
+        msg.contains('resource temporarily unavailable')) {
+      return DbInitErrorType.transientLock;
+    }
+    if (msg.contains('corrupt') ||
+        msg.contains('mdbx') ||
+        msg.contains('bad magic') ||
+        msg.contains('invalid page') ||
+        msg.contains('invalid database') ||
+        msg.contains('schema') ||
+        msg.contains('format error') ||
+        msg.contains('truncated')) {
+      return DbInitErrorType.corruption;
+    }
+    return DbInitErrorType.unknown;
+  }
+
+  static String _userFriendlyDbErrorMessage(
+      DbInitErrorType type, dynamic error) {
+    switch (type) {
+      case DbInitErrorType.transientLock:
+        return 'The database is currently locked by another Orvia process or background task. Please close other Orvia instances and click Retry.';
+      case DbInitErrorType.corruption:
+        return 'The local database file appears corrupted or unreadable. A verified backup copy has been quarantined safely.';
+      case DbInitErrorType.unknown:
+        return 'Unable to initialize the database: ${error.toString()}';
+    }
+  }
+
+  /// Safely copies the damaged database file to a collision-safe quarantine path
+  /// and verifies that the copy exists and its SHA-256 hash matches the original.
+  /// Never deletes the original file.
+  static Future<String?> _safeQuarantineDatabaseFile(File dbFile) async {
+    try {
+      if (!await dbFile.exists() || await dbFile.length() == 0) return null;
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final quarantinePath = p.join(
+        appSuppDir,
+        'dbv3_corrupted_${ts}_$pid.isar',
+      );
+      final quarantineFile = File(quarantinePath);
+
+      await dbFile.copy(quarantineFile.path);
+
+      if (!await quarantineFile.exists() ||
+          await quarantineFile.length() != await dbFile.length()) {
+        log('Quarantine copy validation failed by file length mismatch',
+            name: 'DBProvider');
+        return null;
+      }
+
+      final origHash = await _computeFileSha256(dbFile);
+      final copyHash = await _computeFileSha256(quarantineFile);
+      if (origHash != copyHash) {
+        log('Quarantine copy validation failed by SHA256 mismatch',
+            name: 'DBProvider');
+        return null;
+      }
+
+      log('Corrupted database safely quarantined to: $quarantinePath (SHA256: $origHash)',
+          name: 'DBProvider');
+      return quarantinePath;
+    } catch (e) {
+      log('Error creating quarantine copy: $e', name: 'DBProvider');
+      return null;
+    }
+  }
+
+  static Future<String> _computeFileSha256(File file) async {
+    final bytes = await file.readAsBytes();
+    return sha256.convert(bytes).toString();
+  }
+
+  @visibleForTesting
+  static DbInitErrorType classifyDbError(dynamic error) =>
+      _classifyDbError(error);
+
+  @visibleForTesting
+  static Future<String?> safeQuarantineDatabaseFile(File dbFile) =>
+      _safeQuarantineDatabaseFile(dbFile);
+
+  @visibleForTesting
+  static Future<String> computeFileSha256(File file) =>
+      _computeFileSha256(file);
+
+  /// Safe recovery action: Attempts to re-open the database.
+  static Future<bool> retryInit() async {
+    try {
+      dbInitError = null;
+      db = openDB();
+      await db;
+      scheduleMaintenance();
+      return true;
+    } catch (e) {
+      log('retryInit failed: $e', error: e, name: 'DBProvider');
+      return false;
+    }
+  }
+
+  /// Safe recovery action: Creates a verified archive of the current database file,
+  /// then removes the damaged file and initializes a clean, fresh database.
+  static Future<bool> safeStartFresh() async {
+    try {
+      final dbFile = File(p.join(appSuppDir, 'dbv3.isar'));
+      if (await dbFile.exists() && await dbFile.length() > 0) {
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final archivePath = p.join(
+          appSuppDir,
+          'dbv3_archived_before_reset_$ts.isar',
+        );
+        final archiveFile = File(archivePath);
+        await dbFile.copy(archiveFile.path);
+
+        if (!await archiveFile.exists() ||
+            await archiveFile.length() != await dbFile.length() ||
+            await _computeFileSha256(archiveFile) !=
+                await _computeFileSha256(dbFile)) {
+          throw Exception(
+              'Failed to safely archive current database before reset.');
+        }
+
+        await dbFile.delete();
+      }
+
+      dbInitError = null;
+      db = openDB();
+      await db;
+      scheduleMaintenance();
+      return true;
+    } catch (e) {
+      log('safeStartFresh failed: $e', error: e, name: 'DBProvider');
+      return false;
+    }
+  }
+
   /// Check for DB backup file and restore when the primary DB is missing.
   static Future<void> checkAndRestoreDB(
       String dbPath, List<String> bPaths) async {
@@ -71,7 +258,7 @@ class DBProvider {
     }
   }
 
-  /// Open (or return existing) Isar instance.
+  /// Open (or return existing) Isar instance with safe error boundary.
   static Future<Isar> openDB() async {
     if (Isar.instanceNames.isEmpty) {
       final File dbFile = File(p.join(appSuppDir, 'dbv3.isar'));
@@ -90,14 +277,43 @@ class DBProvider {
       // Migrate DB from documents dir to support dir if needed
       if (!await dbFile.exists() &&
           await File(p.join(appDocDir, 'dbv3.isar')).exists()) {
-        final tempDb = Isar.openSync(_schemas, directory: appDocDir, name: 'dbv3');
-        tempDb.copyToFile(dbFile.path);
-        log("DB Copied to $appSuppDir", name: "DBProvider");
-        tempDb.close();
+        try {
+          final tempDb =
+              Isar.openSync(_schemas, directory: appDocDir, name: 'dbv3');
+          tempDb.copyToFile(dbFile.path);
+          log("DB Copied to $appSuppDir", name: "DBProvider");
+          tempDb.close();
+        } catch (e) {
+          log("Failed migrating DB from appDocDir to appSuppDir: $e",
+              name: "DBProvider");
+        }
       }
 
       log(appSuppDir, name: "DB");
-      return Isar.openSync(_schemas, directory: appSuppDir, name: 'dbv3');
+      try {
+        final isar =
+            Isar.openSync(_schemas, directory: appSuppDir, name: 'dbv3');
+        dbInitError = null;
+        return isar;
+      } catch (e, stack) {
+        log('Isar.openSync failed: $e',
+            error: e, stackTrace: stack, name: 'DBProvider');
+        final errorType = _classifyDbError(e);
+        String? quarantinedPath;
+
+        if (errorType == DbInitErrorType.corruption && await dbFile.exists()) {
+          quarantinedPath = await _safeQuarantineDatabaseFile(dbFile);
+        }
+
+        dbInitError = DbInitError(
+          type: errorType,
+          message: _userFriendlyDbErrorMessage(errorType, e),
+          rawError: e,
+          dbPath: dbFile.path,
+          quarantinedCopyPath: quarantinedPath,
+        );
+        rethrow;
+      }
     }
     return Future.value(Isar.getInstance());
   }
@@ -169,7 +385,11 @@ class DBProvider {
 
   /// Get the database backup file path.
   static Future<String> getDbBackupFilePath() async {
-    String backupPath = (await getDownloadsDirectory())?.path ?? appDocDir;
+    String? backupPath;
+    try {
+      backupPath = (await getDownloadsDirectory())?.path;
+    } catch (_) {}
+    backupPath ??= appDocDir;
     final orviaPath =
         p.join(backupPath, 'orviaBackup', 'orvia_backup_dbv3.json');
     final legacyPath =
@@ -238,7 +458,11 @@ class DBProvider {
       final allPlaylists = await playlistDao.getAllPlaylists();
       final userPlaylists = allPlaylists.where((playlist) {
         final name = playlist.name.trim();
-        return name.isNotEmpty && !standardPlaylists.contains(name);
+        return name.isNotEmpty &&
+            playlist.type == PlaylistTypeDB.userPlaylist &&
+            !standardPlaylists.contains(name) &&
+            !name.startsWith('content-resolver.') &&
+            !name.contains('::');
       }).toList(growable: false);
 
       final playlistRows = <Map<String, dynamic>>[];
@@ -298,6 +522,13 @@ class DBProvider {
         await backupDir.create(recursive: true);
       }
 
+      final searchHistoryDao = SearchHistoryDAO(db);
+      final searchHistory = await searchHistoryDao.getLastSearches(limit: 100);
+      final searchQueries = searchHistory
+          .map((s) => s['query'])
+          .whereType<String>()
+          .toList(growable: false);
+
       final backupPayload = <String, dynamic>{
         '_meta': {
           'format': 'legacy-v2-full',
@@ -308,9 +539,10 @@ class DBProvider {
         },
         'playlists': playlistRows,
         'media_items': mediaRows,
+        'search_history': searchQueries,
       };
 
-      final encoder = const JsonEncoder.withIndent('  ');
+      const encoder = JsonEncoder.withIndent('  ');
       final file = File(backupFilePath);
       await file.writeAsString(encoder.convert(backupPayload), flush: true);
 
@@ -343,9 +575,13 @@ class DBProvider {
         };
       }
 
-      // Close live DB before overwriting the file.
-      final isar = await db;
-      await isar.close();
+      // Close live DB before overwriting the file if an instance is active.
+      if (Isar.instanceNames.isNotEmpty) {
+        try {
+          final isar = Isar.getInstance();
+          await isar?.close();
+        } catch (_) {}
+      }
 
       if (rollbackFile.existsSync()) {
         rollbackFile.deleteSync();
@@ -359,8 +595,10 @@ class DBProvider {
       backupFile.copySync(primaryFile.path);
 
       // Re-open the DB and reassign the static future.
+      dbInitError = null;
       db = openDB();
       await db;
+      scheduleMaintenance();
 
       if (rollbackFile.existsSync()) {
         rollbackFile.deleteSync();
@@ -447,7 +685,12 @@ class DBProvider {
 
       final playlistNames = _extractDeclaredLegacyPlaylistNames(decoded);
       for (final name in playlistNames) {
-        if (name.isEmpty || standardPlaylists.contains(name)) continue;
+        if (name.isEmpty ||
+            standardPlaylists.contains(name) ||
+            name.startsWith('content-resolver.') ||
+            name.contains('::')) {
+          continue;
+        }
         await playlistDao.ensurePlaylist(name);
       }
 
@@ -467,7 +710,9 @@ class DBProvider {
 
         for (final playlistName in memberships) {
           if (playlistName.isEmpty ||
-              standardPlaylists.contains(playlistName)) {
+              standardPlaylists.contains(playlistName) ||
+              playlistName.startsWith('content-resolver.') ||
+              playlistName.contains('::')) {
             continue;
           }
 
@@ -490,6 +735,15 @@ class DBProvider {
         importedPlaylists++;
         await playlistDao.addTracksToPlaylist(playlistId, entry.value);
         importedTracks += entry.value.length;
+      }
+
+      if (decoded['search_history'] is List) {
+        final searchDao = SearchHistoryDAO(db);
+        for (final item in decoded['search_history']) {
+          if (item is String && item.trim().isNotEmpty) {
+            await searchDao.putSearchHistory(item.trim());
+          }
+        }
       }
 
       return {

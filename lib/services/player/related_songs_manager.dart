@@ -15,6 +15,7 @@ class RelatedSongsManager {
   final PluginService _pluginService;
   final Set<String> _fetchedTrackIds = <String>{};
 
+  int _requestGeneration = 0;
   String? _referenceTrackId;
   String? _referenceLocalId;
   String? _pluginId;
@@ -25,6 +26,26 @@ class RelatedSongsManager {
   // Callbacks
   Function(List<Track> items, {bool atLast})? onAddQueueItems;
 
+  static final _kNonMusicPatterns = RegExp(
+    r'\b(trailer|teaser|full movie|reaction|review|vlog|episode|ep\s*\d+|part\s*\d+|scene|comedy scene|short film|highlight|press meet|interview|roast|unboxing|prank)\b',
+    caseSensitive: false,
+  );
+
+  static final _kNonMusicAuthors = RegExp(
+    r'\b(sony liv|slayy point|set india|colors tv|star plus|netflix|prime video|zeetv|sab tv|taarak mehta)\b',
+    caseSensitive: false,
+  );
+
+  static bool _isMusicTrack(Track track) {
+    final title = track.title.toLowerCase();
+    if (_kNonMusicPatterns.hasMatch(title)) return false;
+
+    for (final a in track.artists) {
+      if (_kNonMusicAuthors.hasMatch(a.name.toLowerCase())) return false;
+    }
+    return true;
+  }
+
   RelatedSongsManager(this._pluginService);
 
   Future<void> checkForRelatedSongs({
@@ -32,16 +53,28 @@ class RelatedSongsManager {
     required List<Track> queue,
     required int currentPlayingIdx,
     required LoopMode loopMode,
+    bool isFromPlaylist = false,
   }) async {
     log("Checking for related songs: ${queue.isNotEmpty && (queue.length - currentPlayingIdx) < 2}",
         name: "RelatedSongsManager");
 
-    final autoPlay =
-        await SettingsDAO(DBProvider.db).getSettingBool(SettingKeys.autoPlay);
-    if (autoPlay != null && !autoPlay) return;
+    bool autoPlay = true;
+    if (DBProvider.isInitialized) {
+      try {
+        final setting =
+            await SettingsDAO(DBProvider.db).getSettingBool(SettingKeys.autoPlay);
+        if (setting != null) autoPlay = setting;
+      } catch (_) {}
+    }
+    if (!autoPlay) return;
+
+    // For playlist and album queues, never inject artist recommendations.
+    if (isFromPlaylist) {
+      return;
+    }
 
     final shouldQueueMore = queue.isNotEmpty &&
-        (queue.length - currentPlayingIdx) < 2 &&
+        (queue.length - currentPlayingIdx) <= 2 &&
         loopMode != LoopMode.all;
     if (!shouldQueueMore) {
       return;
@@ -63,15 +96,20 @@ class RelatedSongsManager {
       localId: parts.localId,
     );
 
+    final gen = _requestGeneration;
+
     if (relatedSongs.value.isEmpty) {
       await _fetchNextRadioPage();
     }
+    if (_requestGeneration != gen) return;
 
     await loadRelatedSongs(
         queue: queue, currentPlayingIdx: currentPlayingIdx, loopMode: loopMode);
+    if (_requestGeneration != gen) return;
 
     if (relatedSongs.value.isEmpty) {
       await _fetchNextRadioPage();
+      if (_requestGeneration != gen) return;
       await loadRelatedSongs(
         queue: queue,
         currentPlayingIdx: currentPlayingIdx,
@@ -88,12 +126,14 @@ class RelatedSongsManager {
     if (relatedSongs.value.isNotEmpty &&
         (queue.length - currentPlayingIdx) < 3 &&
         loopMode != LoopMode.all) {
-      onAddQueueItems?.call(relatedSongs.value, atLast: true);
+      final items = List<Track>.from(relatedSongs.value);
       relatedSongs.add([]);
+      onAddQueueItems?.call(items, atLast: true);
     }
   }
 
   void clearRelatedSongs() {
+    _requestGeneration++;
     relatedSongs.add([]);
     _fetchedTrackIds.clear();
     _referenceTrackId = null;
@@ -113,6 +153,7 @@ class RelatedSongsManager {
       return;
     }
 
+    _requestGeneration++;
     relatedSongs.add([]);
     _fetchedTrackIds.clear();
     _referenceTrackId = trackId;
@@ -131,22 +172,35 @@ class RelatedSongsManager {
       return;
     }
 
+    final capturedGen = _requestGeneration;
+    final capturedPluginId = _pluginId!;
+    final capturedLocalId = _referenceLocalId!;
+
     _isFetching = true;
     try {
       final response = await _pluginService.execute(
-        pluginId: _pluginId!,
+        pluginId: capturedPluginId,
         request: PluginRequest.contentResolver(
           ContentResolverCommand.getRadioTracks(
-            id: _referenceLocalId!,
+            id: capturedLocalId,
             pageToken: _nextPageToken,
           ),
         ),
       );
 
+      // Discard stale or superseded request response.
+      if (_requestGeneration != capturedGen ||
+          _referenceLocalId != capturedLocalId ||
+          _pluginId != capturedPluginId) {
+        log('Discarding stale radio response (gen $capturedGen != $_requestGeneration)',
+            name: 'RelatedSongsManager');
+        return;
+      }
+
       response.when(
         moreTracks: (pagedTracks) {
           final uniqueTracks = pagedTracks.items.where((track) {
-            return _fetchedTrackIds.add(track.id);
+            return _isMusicTrack(track) && _fetchedTrackIds.add(track.id);
           }).toList(growable: false);
 
           if (uniqueTracks.isNotEmpty) {

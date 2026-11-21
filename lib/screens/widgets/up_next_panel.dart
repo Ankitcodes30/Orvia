@@ -144,6 +144,7 @@ class _UpNextPanelState extends State<UpNextPanel> {
   }
 
   void _updateExpandedState() {
+    if (!_sheetController.isAttached) return;
     final nowExpanded = _sheetController.size > _minSheetSize + 0.1;
     if (nowExpanded != _isExpanded) {
       setState(() => _isExpanded = nowExpanded);
@@ -159,6 +160,7 @@ class _UpNextPanelState extends State<UpNextPanel> {
   }
 
   void _toggleSheet() {
+    if (!_sheetController.isAttached) return;
     if (_sheetController.size < _minSheetSize + 0.1) {
       _sheetController.animateTo(_maxSheetSize,
           duration: const Duration(milliseconds: 300),
@@ -169,6 +171,7 @@ class _UpNextPanelState extends State<UpNextPanel> {
   }
 
   void _collapseSheet() {
+    if (!_sheetController.isAttached) return;
     _sheetController.animateTo(_minSheetSize,
         duration: const Duration(milliseconds: 300), curve: Curves.easeOutExpo);
   }
@@ -192,6 +195,7 @@ class _UpNextPanelState extends State<UpNextPanel> {
         builder: (context, scrollController) {
           return _PanelContent(
             peekHeight: widget.peekHeight,
+            parentHeight: widget.parentHeight,
             isExpanded: _isExpanded,
             onHeaderTap: _toggleSheet,
             scrollController: scrollController,
@@ -208,6 +212,7 @@ class _UpNextPanelState extends State<UpNextPanel> {
 
 class _PanelContent extends StatelessWidget {
   final double peekHeight;
+  final double parentHeight;
   final bool isExpanded;
   final VoidCallback onHeaderTap;
   final ScrollController scrollController;
@@ -218,6 +223,7 @@ class _PanelContent extends StatelessWidget {
 
   const _PanelContent({
     required this.peekHeight,
+    required this.parentHeight,
     required this.isExpanded,
     required this.onHeaderTap,
     required this.scrollController,
@@ -249,6 +255,25 @@ class _PanelContent extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: onHeaderTap,
+                    onVerticalDragUpdate: (details) {
+                      if (!sheetController.isAttached || parentHeight <= 0) return;
+                      final delta = -details.primaryDelta! / parentHeight;
+                      final newSize = (sheetController.size + delta).clamp(minSize, maxSize);
+                      sheetController.jumpTo(newSize);
+                    },
+                    onVerticalDragEnd: (details) {
+                      if (!sheetController.isAttached || parentHeight <= 0) return;
+                      final velocity = -(details.primaryVelocity ?? 0) / parentHeight;
+                      if (velocity > 0.5 || sheetController.size > (minSize + maxSize) / 2) {
+                        sheetController.animateTo(maxSize,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutCubic);
+                      } else {
+                        sheetController.animateTo(minSize,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutCubic);
+                      }
+                    },
                     behavior: HitTestBehavior.opaque,
                     child: SizedBox(
                       height: peekHeight - 0.5,
@@ -281,8 +306,10 @@ class _PanelContent extends StatelessWidget {
                           SliverToBoxAdapter(
                               child: _QueueInfoRow(playerCubit: playerCubit)),
                           _SongListSliver(
-                              playerCubit: playerCubit,
-                              scrollController: scrollController),
+                            playerCubit: playerCubit,
+                            scrollController: scrollController,
+                            isExpanded: isExpanded,
+                          ),
                           SliverToBoxAdapter(
                               child: SizedBox(
                                   height:
@@ -346,6 +373,7 @@ class _QueueInfoRow extends StatelessWidget {
         children: [
           StreamBuilder<List<MediaItem>>(
             stream: playerCubit.orviaPlayer.queue,
+            initialData: playerCubit.orviaPlayer.queue.valueOrNull,
             builder: (context, snapshot) {
               return Text(l10n.upNextItemsInQueue(snapshot.data?.length ?? 0),
                   style: _UpNextStyles.queueCountStyle);
@@ -475,16 +503,24 @@ class _DesktopSongListState extends State<_DesktopSongList> {
   Widget build(BuildContext context) {
     return StreamBuilder<List<MediaItem>>(
       stream: widget.playerCubit.orviaPlayer.queue,
+      initialData: widget.playerCubit.orviaPlayer.queue.valueOrNull,
       builder: (context, queueSnapshot) {
-        if (!queueSnapshot.hasData) {
+        final queue = queueSnapshot.data ?? [];
+        if (queue.isEmpty) {
           return const Center(
-              child: CircularProgressIndicator(
-                  color: Default_Theme.primaryColor2));
+            child: Text(
+              'No tracks in queue',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+              ),
+            ),
+          );
         }
-        final queue = queueSnapshot.data!;
 
         return StreamBuilder<MediaItem?>(
           stream: widget.playerCubit.orviaPlayer.mediaItem,
+          initialData: widget.playerCubit.orviaPlayer.mediaItem.valueOrNull,
           builder: (context, mediaSnapshot) {
             final currentId = mediaSnapshot.data?.id;
             if (currentId != null && currentId != _lastPlayingId) {
@@ -529,8 +565,12 @@ class _DesktopSongListState extends State<_DesktopSongList> {
 class _SongListSliver extends StatefulWidget {
   final OrviaPlayerCubit playerCubit;
   final ScrollController scrollController;
-  const _SongListSliver(
-      {required this.playerCubit, required this.scrollController});
+  final bool isExpanded;
+  const _SongListSliver({
+    required this.playerCubit,
+    required this.scrollController,
+    required this.isExpanded,
+  });
 
   @override
   State<_SongListSliver> createState() => _SongListSliverState();
@@ -541,8 +581,23 @@ class _SongListSliverState extends State<_SongListSliver> {
   static const double _itemHeight = 70.0;
   static const double _headerOffset = 60.0;
 
+  @override
+  void didUpdateWidget(covariant _SongListSliver oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isExpanded && widget.isExpanded) {
+      final queue = widget.playerCubit.orviaPlayer.queue.valueOrNull ?? [];
+      final currentId =
+          widget.playerCubit.orviaPlayer.mediaItem.valueOrNull?.id;
+      if (currentId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToCurrentSong(queue, currentId);
+        });
+      }
+    }
+  }
+
   void _scrollToCurrentSong(List<MediaItem> queue, String currentId) {
-    if (!widget.scrollController.hasClients) {
+    if (!widget.isExpanded || !widget.scrollController.hasClients) {
       return;
     }
     final index = queue.indexWhere((item) => item.id == currentId);
@@ -566,17 +621,34 @@ class _SongListSliverState extends State<_SongListSliver> {
   Widget build(BuildContext context) {
     return StreamBuilder<List<MediaItem>>(
       stream: widget.playerCubit.orviaPlayer.queue,
+      initialData: widget.playerCubit.orviaPlayer.queue.valueOrNull,
       builder: (context, queueSnapshot) {
-        if (!queueSnapshot.hasData) {
-          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        final queue = queueSnapshot.data ?? [];
+        if (queue.isEmpty) {
+          return const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  'No tracks in queue',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          );
         }
-        final queue = queueSnapshot.data!;
 
         return StreamBuilder<MediaItem?>(
           stream: widget.playerCubit.orviaPlayer.mediaItem,
+          initialData: widget.playerCubit.orviaPlayer.mediaItem.valueOrNull,
           builder: (context, mediaSnapshot) {
             final currentId = mediaSnapshot.data?.id;
-            if (currentId != null && currentId != _lastPlayingId) {
+            if (widget.isExpanded &&
+                currentId != null &&
+                currentId != _lastPlayingId) {
               _lastPlayingId = currentId;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _scrollToCurrentSong(queue, currentId);

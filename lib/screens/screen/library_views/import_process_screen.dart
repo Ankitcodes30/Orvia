@@ -585,15 +585,16 @@ class _ReviewViewState extends State<_ReviewView> {
                 children: [
                   _StatChip(
                       icon: Icons.check_circle,
-                      label: '${s.resolvedCount}',
+                      label: '${s.playableCount} Playable',
                       color: Colors.green),
-                  _StatChip(
-                      icon: Icons.cancel,
-                      label: '${s.failedCount}',
-                      color: Colors.redAccent),
+                  if (s.unmatchedCount > 0)
+                    _StatChip(
+                        icon: Icons.help_outline,
+                        label: '${s.unmatchedCount} Unmatched',
+                        color: Colors.amber),
                   _StatChip(
                       icon: Icons.list_alt,
-                      label: '${s.totalTracks}',
+                      label: '${s.totalTracks} Total',
                       color: Default_Theme.primaryColor2),
                 ],
               ),
@@ -823,13 +824,13 @@ class _ReviewTrackTile extends StatelessWidget {
         ? Default_Theme.primaryColor2
         : effective != null
             ? Colors.green
-            : Colors.redAccent;
+            : Colors.amber.shade400;
 
     final IconData statusIcon = entry.isSkipped
         ? Icons.remove_circle
         : effective != null
             ? Icons.check_circle
-            : Icons.cancel;
+            : Icons.help_outline;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -933,6 +934,29 @@ class _ReviewTrackTile extends StatelessWidget {
                                 fontSize: 13,
                                 fontStyle: FontStyle.italic,
                               ),
+                            ),
+                          )
+                        else if (entry.isUnmatched)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              children: [
+                                Icon(Icons.link_off,
+                                    size: 14, color: Colors.amber.shade300),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Unmatched — no playable provider match',
+                                    style: TextStyle(
+                                      color: Colors.amber.shade300,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                       ],

@@ -15,6 +15,7 @@ import 'package:Orvia/services/storage_backup_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 
 /// Service for importing and exporting playlists and tracks.
 ///
@@ -160,6 +161,10 @@ class ImportExportService {
   /// Exports a playlist to a JSON file.
   static Future<String?> exportPlaylist(String playlistName,
       {String? filePath}) async {
+    if (CreatorsChoiceService.isCreatorsChoice(playlistName)) {
+      log("Cannot export protected playlist $playlistName", name: "FileManager");
+      return null;
+    }
     final playlistDB = await _playlistDao.getPlaylistByName(playlistName);
     if (playlistDB == null) {
       log("Playlist not found", name: "FileManager");

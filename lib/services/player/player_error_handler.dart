@@ -89,7 +89,9 @@ class PlayerErrorHandler {
     if (msg.contains('403') ||
         msg.contains('forbidden') ||
         msg.contains('expired') ||
-        msg.contains('410')) {
+        msg.contains('410') ||
+        msg.contains('401') ||
+        msg.contains('unauthorized')) {
       return PlayerErrorType.sourceExpired;
     } else if (msg.contains('eof') ||
         msg.contains('broken pipe') ||
@@ -174,28 +176,39 @@ class PlayerErrorHandler {
       onClearCachedSource?.call(track.id);
     }
 
-    if (_currentTrackRetries < _retryConfig.maxRetriesPerTrack) {
-      _currentTrackRetries++;
-      final delay = _calculateRetryDelay(_currentTrackRetries - 1);
+    // Expired stream recovery: allow at most ONE fresh resolution attempt per failure
+    final int maxRetries = (type == PlayerErrorType.sourceExpired)
+        ? 1
+        : _retryConfig.maxRetriesPerTrack;
 
-      SnackbarService.showMessage(
-          '${_getUserFriendlyErrorMessage(type, message)} (Retry $_currentTrackRetries/${_retryConfig.maxRetriesPerTrack})',
-          duration: const Duration(seconds: 3));
+    if (_currentTrackRetries < maxRetries) {
+      _currentTrackRetries++;
+
+      // For expired streams, suppress technical error toasts during the first attempt
+      final delay = (type == PlayerErrorType.sourceExpired)
+          ? Duration.zero
+          : _calculateRetryDelay(_currentTrackRetries - 1);
+
+      if (type != PlayerErrorType.sourceExpired) {
+        SnackbarService.showMessage(
+            '${_getUserFriendlyErrorMessage(type, message)} (Retry $_currentTrackRetries/${_retryConfig.maxRetriesPerTrack})',
+            duration: const Duration(seconds: 3));
+      }
 
       _reconnectionTimer?.cancel();
       _reconnectionTimer = Timer(delay, () {
         dev.log(
-            'Retrying playback for ${track.title} (attempt $_currentTrackRetries)',
+            'Retrying playback for ${track.title} (attempt $_currentTrackRetries, type: $type)',
             name: 'PlayerErrorHandler');
         onRetryCurrentTrack?.call();
       });
     } else {
-      _handleTrackTotalFailure(track);
+      _handleTrackTotalFailure(track, isExpiredStreamFailure: type == PlayerErrorType.sourceExpired);
     }
   }
 
   void _handleTrackTotalFailure(Track track,
-      {bool countTowardsCircuitBreaker = true}) {
+      {bool countTowardsCircuitBreaker = true, bool isExpiredStreamFailure = false}) {
     if (!_currentTrackHadPlay && countTowardsCircuitBreaker) {
       _consecutiveTrackFailures++;
     }
@@ -211,8 +224,10 @@ class PlayerErrorHandler {
     } else {
       dev.log('Track completely failed, skipping: ${track.title}',
           name: 'PlayerErrorHandler');
-      SnackbarService.showMessage(
-          'Failed to play "${track.title}". Skipping to next...',
+      final message = isExpiredStreamFailure
+          ? 'Stream link for "${track.title}" expired and could not be renewed. Skipping to next...'
+          : 'Failed to play "${track.title}". Skipping to next...';
+      SnackbarService.showMessage(message,
           duration: const Duration(seconds: 3));
       onSkipToNext?.call();
     }

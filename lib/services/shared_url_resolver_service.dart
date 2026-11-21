@@ -68,9 +68,32 @@ class SharedUrlResolverService {
             .timeout(const Duration(seconds: 10));
 
         if (response is PluginResponse_TrackDetails) {
+          var resolvedTrack = response.field0;
+          final thumb = resolvedTrack.thumbnail.url;
+          if (thumb.contains('yt3.ggpht.com') ||
+              thumb.contains('yt3.googleusercontent.com') ||
+              thumb.trim().isEmpty) {
+            final ytThumbUrl = 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+            resolvedTrack = Track(
+              id: resolvedTrack.id,
+              title: resolvedTrack.title,
+              artists: resolvedTrack.artists,
+              album: resolvedTrack.album,
+              durationMs: resolvedTrack.durationMs,
+              thumbnail: Artwork(
+                url: ytThumbUrl,
+                urlHigh: 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg',
+                urlLow: ytThumbUrl,
+                layout: ImageLayout.square,
+              ),
+              url: resolvedTrack.url,
+              isExplicit: resolvedTrack.isExplicit,
+              lyrics: resolvedTrack.lyrics,
+            );
+          }
           return SharedUrlResolveResult(
             status: SharedUrlResolveStatus.success,
-            track: response.field0,
+            track: resolvedTrack,
           );
         }
       } catch (e) {

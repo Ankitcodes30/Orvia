@@ -33,15 +33,14 @@ import 'chart/carousal_widget.dart';
 import '../widgets/horizontal_card_view.dart';
 import '../widgets/tab_list_widget.dart';
 import 'package:badges/badges.dart' as badges;
-import 'package:collection/collection.dart';
 import 'package:Orvia/screens/widgets/bhakti_section.dart';
 import 'package:Orvia/screens/widgets/featured_artists_section.dart';
 import 'package:Orvia/screens/widgets/indian_browse_categories.dart';
 import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
-import 'package:Orvia/screens/widgets/whats_hot_near_you.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
+import 'package:Orvia/services/updater/in_app_update_manager.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -49,7 +48,8 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen>
+    with WidgetsBindingObserver {
   bool isUpdateChecked = false;
   late final ContentBloc _homeContentBloc;
   Future<List<Track>> lFMData = Future.value(const []);
@@ -58,13 +58,53 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final GlobalKey _festiveSectionKey = GlobalKey();
   bool _isRefreshing = false;
   DateTime? _lastReconnectRefreshTime;
+  Timer? _festivalBoundaryTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _homeContentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
     _tryLoadHomeSections();
-    FestivalService.refreshRemoteSchedule();
+    _refreshFestivalSchedule();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!isUpdateChecked && mounted) {
+        isUpdateChecked = true;
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            InAppUpdateManager.instance.checkOnStartup(context);
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshFestivalSchedule();
+    }
+  }
+
+  Future<void> _refreshFestivalSchedule() async {
+    await FestivalService.refreshRemoteSchedule();
+    if (!mounted) return;
+    setState(_scheduleFestivalBoundary);
+  }
+
+  void _scheduleFestivalBoundary() {
+    _festivalBoundaryTimer?.cancel();
+    final boundary = FestivalService.nextDateBoundary();
+    if (boundary == null) return;
+    final delay = boundary.difference(DateTime.now());
+    _festivalBoundaryTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () {
+        if (!mounted) return;
+        setState(_scheduleFestivalBoundary);
+      },
+    );
   }
 
   void _scrollToFestiveSpecial() {
@@ -73,9 +113,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final disableAnim = MediaQuery.of(context).disableAnimations;
       Scrollable.ensureVisible(
         ctx,
-        duration: disableAnim ? Duration.zero : const Duration(milliseconds: 650),
+        duration:
+            disableAnim ? Duration.zero : const Duration(milliseconds: 650),
         curve: Curves.easeInOutCubic,
         alignment: 0.08,
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NavratriSpecialScreen()),
       );
     }
   }
@@ -186,6 +232,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _festivalBoundaryTimer?.cancel();
     _homeContentBloc.close();
     super.dispose();
   }
@@ -290,23 +338,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         onFestiveTap: _scrollToFestiveSpecial,
                       ),
                       // 2. Recently Played directly beneath the carousel
-                      Padding(
-                        padding: const EdgeInsets.only(top: 15.0),
-                        child: BlocBuilder<RecentlyCubit, RecentlyCubitState>(
-                          builder: (context, state) {
-                            if (state is RecentlyCubitInitial) {
-                              return const Center(
-                                child: SizedBox(
-                                  height: 60,
-                                  width: 60,
-                                  child: CircularProgressIndicator(
-                                    color: Default_Theme.accentColor2,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (state.tracks.isNotEmpty) {
-                              return Column(
+                      BlocBuilder<RecentlyCubit, RecentlyCubitState>(
+                        builder: (context, state) {
+                          if (state.tracks.isNotEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 15.0),
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Padding(
@@ -387,11 +424,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     columnSize: 3,
                                   ),
                                 ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
                       ),
                       BlocBuilder<SettingsCubit, SettingsState>(
                         builder: (context, state) {
@@ -416,7 +453,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                     tracks: snapshot.data!,
                                                     title: 'Last.Fm Picks',
                                                   ),
-                                                  idx: snapshot.data!.indexOf(e),
+                                                  idx:
+                                                      snapshot.data!.indexOf(e),
                                                   doPlay: true,
                                                 );
                                           },
@@ -481,18 +519,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 }
 
-/// Structured layout enforcing normal homepage ordering:
-/// 3. Trending Now (only once)
-/// 4. New Releases
-/// 5. What's Hot Near You
-/// 6. Indian First Discovery
-/// 7. Iconic Indian Artists
-/// 8. Festive Special (with automatic schedule promotion)
-/// 9. Best of 90s and year-based collections (2025, 2026)
-/// 10. Additional regular discovery, genre and mood sections
-/// 11. Bhakti & Spiritual
-/// 12. Instrumental Discovery
-/// 13. Radio/stations and remaining sections
+/// The top sliding banners are rendered before these provider-backed sections:
+/// Trending, New Releases, Indian discovery, artists, festival, year collections,
+/// followed by regular provider sections, Bhakti, Instrumentals, and radio.
 class _StructuredHomeSections extends StatelessWidget {
   final String pluginId;
   final List<Section> sections;
@@ -510,21 +539,39 @@ class _StructuredHomeSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Partition sections cleanly
-    final trending = sections.firstWhereOrNull(
-        (s) => s.title.toLowerCase().contains('trend'));
-    final newReleases = sections.firstWhereOrNull((s) =>
-        s != trending &&
-        (s.title.toLowerCase().contains('new') ||
-            s.title.toLowerCase().contains('release') ||
-            s.title.toLowerCase().contains('album')));
+    final trendingSections =
+        sections.where((s) => s.title.toLowerCase().contains('trend')).toList();
+    final rawTrending = trendingSections.isEmpty ? null : trendingSections.first;
+    final Section? trending = rawTrending != null
+        ? Section(
+            id: rawTrending.id,
+            title: 'Trending Now',
+            subtitle: rawTrending.subtitle,
+            cardType: rawTrending.cardType,
+            items: rawTrending.items,
+            moreLink: rawTrending.moreLink,
+          )
+        : null;
+    Section? newReleases;
+    for (final s in sections) {
+      if (!trendingSections.contains(s) &&
+          (s.title.toLowerCase().contains('new') ||
+              s.title.toLowerCase().contains('release') ||
+              s.title.toLowerCase().contains('album'))) {
+        newReleases = s;
+        break;
+      }
+    }
     final radio = sections
         .where((s) =>
             s.title.toLowerCase().contains('radio') ||
             s.title.toLowerCase().contains('station'))
         .toList();
     final otherSections = sections
-        .where((s) => s != trending && s != newReleases && !radio.contains(s))
+        .where((s) =>
+            !trendingSections.contains(s) &&
+            s != newReleases &&
+            !radio.contains(s))
         .toList();
 
     final activeFestival = FestivalService.getActiveOrUpcomingFestival();
@@ -566,11 +613,7 @@ class _StructuredHomeSections extends StatelessWidget {
           ),
         ],
 
-        // 5. What's Hot Near You
-        const SizedBox(height: 14),
-        WhatsHotNearYouSection(pluginId: pluginId),
-
-        // 6. Indian First Discovery
+        // 5. Indian First Discovery
         const SizedBox(height: 14),
         IndianBrowseCategories(pluginId: pluginId),
 
@@ -583,7 +626,9 @@ class _StructuredHomeSections extends StatelessWidget {
           const SizedBox(height: 14),
           KeyedSubtree(
             key: festiveSectionKey,
-            child: const NavratriSpecialSection(),
+            child: activeFestival.id == 'diwali_2026'
+                ? DiwaliSpecialSection(tracks: activeFestival.tracks)
+                : const SizedBox.shrink(),
           ),
         ],
 
@@ -827,4 +872,3 @@ class SiteIcon extends StatelessWidget {
     );
   }
 }
-

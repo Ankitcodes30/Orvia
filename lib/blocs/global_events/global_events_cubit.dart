@@ -27,11 +27,14 @@ class GlobalEventsCubit extends Cubit<GlobalEventsState> {
 
     if (await _settingsDao.getSettingBool(SettingKeys.autoUpdateNotify) ??
         true) {
-      if (updates["results"]) {
+      if (updates["results"] == true) {
+        final dlUrl = updates["download_url"]?.toString();
         emit(UpdateAvailable(
-          newVersion: updates["newVer"],
-          newBuild: updates["newBuild"],
-          downloadUrl: "https://orvia.sourceforge.io/",
+          newVersion: updates["newVer"] ?? '',
+          newBuild: updates["newBuild"] ?? '',
+          downloadUrl: (dlUrl != null && dlUrl.isNotEmpty)
+              ? dlUrl
+              : "https://orvia.sourceforge.io/",
         ));
       }
     }

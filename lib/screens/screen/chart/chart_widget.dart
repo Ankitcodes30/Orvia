@@ -6,6 +6,7 @@ import 'package:Orvia/src/rust/api/plugin/models.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
 import 'package:Orvia/utils/load_image.dart';
+import 'package:Orvia/plugins/blocs/chart/fallback_chart_data.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 
 class ChartWidget extends StatefulWidget {
@@ -85,6 +86,14 @@ class _ChartWidgetState extends State<ChartWidget> {
           }
         }
       }
+      if (_resolvedArtworkUrl == null && mounted) {
+        final fallback = fallbackChartArtwork(widget.chart.id);
+        if (fallback != null && fallback.isNotEmpty) {
+          setState(() {
+            _resolvedArtworkUrl = fallback;
+          });
+        }
+      }
     } catch (_) {}
   }
 
@@ -95,8 +104,9 @@ class _ChartWidgetState extends State<ChartWidget> {
 
     final artwork = widget.chart.thumbnail;
     final fallbackUrl = artwork?.urlHigh ?? artwork?.url ?? artwork?.urlLow;
+    final fallbackKnownArt = fallbackChartArtwork(widget.chart.id);
     final effectiveUrl = _resolvedArtworkUrl ??
-        (!_isGenericIcon(fallbackUrl) ? fallbackUrl : null);
+        (!_isGenericIcon(fallbackUrl) ? fallbackUrl : fallbackKnownArt);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),

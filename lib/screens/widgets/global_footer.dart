@@ -241,6 +241,24 @@ void _handleTabNavigation(
     }
     // 4. Navigate to initial location of Home tab
     navigationShell.goBranch(0, initialLocation: true);
+  } else if (index == 1) {
+    // 1. Pop any modal or dialog routes on root Navigator
+    final rootNav = AppRouter.globalRouterKey.currentState;
+    if (rootNav != null && rootNav.canPop()) {
+      rootNav.popUntil((route) => route.isFirst);
+    }
+    // 2. Pop any nested screens on the Library branch (e.g. PlaylistView -> Import screens)
+    final libraryNav = AppRouter.libraryNavigatorKey.currentState;
+    if (libraryNav != null && libraryNav.canPop()) {
+      libraryNav.popUntil((route) => route.isFirst);
+    }
+    // 3. Pop any active context navigator routes
+    final currentNav = Navigator.maybeOf(context);
+    if (currentNav != null && currentNav.canPop()) {
+      currentNav.popUntil((route) => route.isFirst);
+    }
+    // 4. Navigate to initial location of Library tab
+    navigationShell.goBranch(1, initialLocation: true);
   } else {
     navigationShell.goBranch(
       index,

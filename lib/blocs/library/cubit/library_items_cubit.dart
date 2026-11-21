@@ -31,26 +31,47 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   })  : _playlistDao = playlistDao,
         _libraryDao = libraryDao,
         super(LibraryItemsLoading()) {
-    _initialize();
+    _initFuture = _initialize();
   }
 
+  Future<void>? _initFuture;
+  Future<void>? get initFuture => _initFuture;
+
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _playlistWatcher?.cancel();
+    _playlistWatcher = null;
+    try {
+      await _initFuture;
+    } catch (_) {}
     return super.close();
   }
 
   Future<void> _initialize() async {
-    await _playlistDao.purgeBrokenPlaylistEntries();
-    await CreatorsChoiceService.ensurePlaylistExists(_playlistDao);
-    await _fetchPlaylists();
-    _setupWatchers();
+    try {
+      if (isClosed) return;
+      await _playlistDao.purgeBrokenPlaylistEntries();
+      if (isClosed) return;
+      await CreatorsChoiceService.ensurePlaylistExists(_playlistDao);
+      if (isClosed) return;
+      await _fetchPlaylists();
+      if (isClosed) return;
+      await _setupWatchers();
+    } catch (e) {
+      log('Error during LibraryItemsCubit initialization: $e',
+          name: 'LibraryItemsCubit');
+    }
   }
 
   Future<void> _setupWatchers() async {
-    _playlistWatcher = (await _playlistDao.watchAllPlaylists()).listen((_) {
-      _fetchPlaylists();
-    });
+    if (isClosed) return;
+    try {
+      _playlistWatcher = (await _playlistDao.watchAllPlaylists()).listen((_) {
+        if (!isClosed) {
+          _fetchPlaylists();
+        }
+      });
+    } catch (_) {}
   }
 
   static const _systemPlaylists = {
@@ -59,17 +80,34 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
     SettingKeys.localMusicPlaylist,
   };
 
+  /// Playlists explicitly excluded from the Library view listing only.
+  /// DB records, tracks, and Discovery categories remain completely intact.
+  static const _excludedFromLibraryOnly = {
+    'Bollywood Dance Hits',
+    'Marathi Superhits',
+    'Instrumental Classics & Covers',
+    'Dammn',
+  };
+
   /// Fetch all playlists (user + remote collections) and emit as domain items.
   Future<void> _fetchPlaylists() async {
     try {
       final allPlaylists = await _playlistDao.getAllPlaylists();
       allPlaylists.removeWhere((p) => _systemPlaylists.contains(p.name));
-      // Guard against orphan rows with an empty name.
-      allPlaylists.removeWhere((p) => p.name.trim().isEmpty);
+      allPlaylists.removeWhere((p) => _excludedFromLibraryOnly.contains(p.name));
+      // Guard against orphan rows with an empty name or internal provider IDs.
+      allPlaylists.removeWhere((p) =>
+          p.name.trim().isEmpty ||
+          p.type == PlaylistTypeDB.artist ||
+          p.type == PlaylistTypeDB.album ||
+          p.name.startsWith('content-resolver.') ||
+          p.name.contains('::'));
       final items = await _toItemProperties(allPlaylists);
+      if (isClosed) return;
       emit(state.copyWith(playlists: items));
     } catch (e) {
       log('Error fetching playlists: $e', name: 'LibraryItemsCubit');
+      if (isClosed) return;
       emit(const LibraryItemsError('Failed to load your playlists.'));
     }
   }
@@ -150,17 +188,67 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
   }
 
   /// Delete a playlist by its Isar id.
-  void removePlaylistById(int playlistId) {
+  void removePlaylistById(int playlistId) async {
+    final playlist = await _playlistDao.getPlaylistById(playlistId);
+    if (playlist != null && CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+      log('Cannot remove protected playlist "${playlist.name}"', name: 'LibraryItemsCubit');
+      return;
+    }
     _playlistDao.deletePlaylist(playlistId);
     SnackbarService.showMessage('Playlist removed');
   }
 
   /// Delete a playlist by name.
   void removePlaylistByName(String name) {
+    if (CreatorsChoiceService.isCreatorsChoice(name)) {
+      log('Cannot remove protected playlist "$name"', name: 'LibraryItemsCubit');
+      return;
+    }
     if (name.isNotEmpty && name != 'Null') {
       _playlistDao.deletePlaylistByName(name);
       SnackbarService.showMessage('Playlist "$name" removed');
     }
+  }
+
+  /// Rename an existing playlist.
+  Future<bool> renamePlaylist(int playlistId, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return false;
+    try {
+      final playlist = await _playlistDao.getPlaylistById(playlistId);
+      if (playlist != null && CreatorsChoiceService.isCreatorsChoice(playlist.name)) {
+        log('Cannot rename protected playlist "${playlist.name}"', name: 'LibraryItemsCubit');
+        return false;
+      }
+      if (CreatorsChoiceService.isCreatorsChoice(trimmed)) {
+        SnackbarService.showMessage('Cannot rename to "${CreatorsChoiceService.playlistName}"');
+        return false;
+      }
+      final existing = await _playlistDao.getPlaylistByName(trimmed);
+      if (existing != null && existing.id != playlistId) {
+        SnackbarService.showMessage('A playlist named "$trimmed" already exists');
+        return false;
+      }
+      await _playlistDao.updatePlaylistMeta(playlistId, name: trimmed);
+      SnackbarService.showMessage('Playlist renamed to "$trimmed"');
+      await _fetchPlaylists();
+      return true;
+    } catch (e, stack) {
+      log('Error renaming playlist: $e\n$stack', name: 'LibraryItemsCubit');
+      SnackbarService.showMessage('Failed to rename playlist: $e');
+      return false;
+    }
+  }
+
+  /// Rename an existing playlist by name.
+  Future<bool> renamePlaylistByName(String oldName, String newName) async {
+    if (CreatorsChoiceService.isCreatorsChoice(oldName)) {
+      log('Cannot rename protected playlist "$oldName"', name: 'LibraryItemsCubit');
+      return false;
+    }
+    final playlist = await _playlistDao.getPlaylistByName(oldName);
+    if (playlist == null) return false;
+    return renamePlaylist(playlist.id, newName);
   }
 
   // ── Track management ───────────────────────────────────────────────────────

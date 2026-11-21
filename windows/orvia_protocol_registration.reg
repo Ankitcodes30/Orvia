@@ -1,0 +1,17 @@
+Windows Registry Editor Version 5.00
+
+; One-time Windows URL Protocol Registration for Orvia
+; This registers the orvia:// custom protocol handler in HKCU (current user).
+; Note: The Orvia application automatically registers this on first launch via WindowsProtocolService.
+; You can also double-click this file or customize the executable path if moving Orvia to another folder.
+
+[HKEY_CURRENT_USER\Software\Classes\orvia]
+@="URL:Orvia Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\orvia\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\orvia\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\orvia\shell\open\command]
+@="\"C:\\Users\\ankit\\Desktop\\Orvia\\build\\windows\\x64\\runner\\Release\\Orvia.exe\" \"%1\""

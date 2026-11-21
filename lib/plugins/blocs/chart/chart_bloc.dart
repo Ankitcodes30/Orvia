@@ -13,7 +13,41 @@ import 'package:Orvia/services/cache/plugin_cache_repository.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/services/plugin_cache_codec.dart';
 import 'package:Orvia/plugins/utils/plugin_error_sanitizer.dart';
+import 'package:Orvia/plugins/blocs/chart/fallback_chart_data.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
+
+ChartSummary preferFreshChartArtwork(
+  ChartSummary chart,
+  String? cachedArtwork,
+) {
+  final currentArtwork = [
+    chart.thumbnail?.urlHigh,
+    chart.thumbnail?.url,
+    chart.thumbnail?.urlLow,
+  ].whereType<String>().map((url) => url.trim()).firstWhere(
+        (url) => url.isNotEmpty && !isGenericProviderIcon(url),
+        orElse: () => '',
+      );
+  if (currentArtwork.isNotEmpty) {
+    return chart;
+  }
+
+  final cached = cachedArtwork?.trim();
+  if (cached == null || cached.isEmpty || isGenericProviderIcon(cached)) {
+    return chart;
+  }
+
+  return ChartSummary(
+    id: chart.id,
+    title: chart.title,
+    description: chart.description,
+    thumbnail: Artwork(
+      url: cached,
+      urlHigh: cached,
+      layout: ImageLayout.square,
+    ),
+  );
+}
 
 /// Manages chart data: listing available charts and loading chart details.
 ///
@@ -62,6 +96,18 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
   ) async {
     final enriched = <ChartSummary>[];
     for (final chart in charts) {
+      final hasCurrentArtwork = [
+        chart.thumbnail?.urlHigh,
+        chart.thumbnail?.url,
+        chart.thumbnail?.urlLow,
+      ].whereType<String>().any(
+            (url) => url.trim().isNotEmpty && !_isGenericProviderIcon(url),
+          );
+      if (hasCurrentArtwork) {
+        enriched.add(chart);
+        continue;
+      }
+
       final cacheKey = 'chart_cache::$pluginId::${chart.id}';
       try {
         final cachedDetails =
@@ -75,25 +121,18 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
             ? _extractTopItemArtwork(cachedDetails.value!)
             : null;
         if (topArtwork != null && topArtwork.isNotEmpty) {
-          enriched.add(ChartSummary(
-            id: chart.id,
-            title: chart.title,
-            description: chart.description,
-            thumbnail: Artwork(
-              url: topArtwork,
-              urlHigh: topArtwork,
-              layout: ImageLayout.square,
-            ),
-          ));
+          enriched.add(preferFreshChartArtwork(chart, topArtwork));
           continue;
         }
       } catch (_) {}
 
-      if (chart.thumbnail != null &&
-          !_isGenericProviderIcon(chart.thumbnail?.url)) {
-        enriched.add(chart);
+      // Fallback to verified genuine artwork for known standard charts if cache is not yet primed
+      final fallbackArt = fallbackChartArtwork(chart.id);
+      if (fallbackArt != null && fallbackArt.isNotEmpty) {
+        enriched.add(preferFreshChartArtwork(chart, fallbackArt));
         continue;
       }
+
       enriched.add(chart);
     }
     return enriched;
@@ -285,17 +324,20 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
 
       response.when(
         chartDetails: (items) {
+          final effectiveItems = (items.isEmpty && !hasCache)
+              ? getFallbackChartItems(event.chartId)
+              : items;
           _propagateChartLeadingArtwork(
             pluginId: event.pluginId,
             chartId: event.chartId,
-            items: items,
+            items: effectiveItems,
             emit: emit,
           );
           _cache.put(
             key: cacheKey,
-            value: items,
+            value: effectiveItems,
             type: CacheType.chart,
-            blob: encodeChartItemsCache(items),
+            blob: encodeChartItemsCache(effectiveItems),
           );
         },
         trackDetails: (_) => unexpectedFn(),
@@ -321,6 +363,22 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
       );
     } on PluginException catch (e) {
       if (!hasCache) {
+        final fallbackItems = getFallbackChartItems(event.chartId);
+        if (fallbackItems.isNotEmpty) {
+          _propagateChartLeadingArtwork(
+            pluginId: event.pluginId,
+            chartId: event.chartId,
+            items: fallbackItems,
+            emit: emit,
+          );
+          _cache.put(
+            key: cacheKey,
+            value: fallbackItems,
+            type: CacheType.chart,
+            blob: encodeChartItemsCache(fallbackItems),
+          );
+          return;
+        }
         _handlePluginError(emit, e, chartDetail: true);
       } else {
         log('Background chart detail refresh failed: $e', name: 'ChartBloc');
@@ -329,6 +387,22 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
       log('LoadChartDetails error',
           error: e, stackTrace: stack, name: 'ChartBloc');
       if (!hasCache) {
+        final fallbackItems = getFallbackChartItems(event.chartId);
+        if (fallbackItems.isNotEmpty) {
+          _propagateChartLeadingArtwork(
+            pluginId: event.pluginId,
+            chartId: event.chartId,
+            items: fallbackItems,
+            emit: emit,
+          );
+          _cache.put(
+            key: cacheKey,
+            value: fallbackItems,
+            type: CacheType.chart,
+            blob: encodeChartItemsCache(fallbackItems),
+          );
+          return;
+        }
         emit(state.copyWith(
           chartDetailStatus: ChartStatus.error,
           error: formatUserFriendlyPluginError(e,
@@ -483,6 +557,19 @@ class ChartBloc extends Bloc<ChartEvent, ChartState> {
             importTracks: (_) {},
             ack: () {},
           );
+        }
+
+        if (chartItems == null || chartItems!.isEmpty) {
+          final fallbackItems = getFallbackChartItems(chartId);
+          if (fallbackItems.isNotEmpty) {
+            chartItems = fallbackItems;
+            _cache.put(
+              key: cacheKey,
+              value: fallbackItems,
+              type: CacheType.chart,
+              blob: encodeChartItemsCache(fallbackItems),
+            );
+          }
         }
 
         // Enrich the corresponding chart summary with the genuine top-item artwork

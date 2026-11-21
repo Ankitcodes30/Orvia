@@ -21,3 +21,7 @@ final class SearchSuggestionClear extends SearchSuggestionEvent {
 final class SearchSuggestionSave extends SearchSuggestionEvent {
   const SearchSuggestionSave(String query) : super(query);
 }
+
+final class SearchSuggestionClearAll extends SearchSuggestionEvent {
+  const SearchSuggestionClearAll() : super('');
+}

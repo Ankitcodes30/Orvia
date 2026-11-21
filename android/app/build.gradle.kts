@@ -55,7 +55,7 @@ android {
             val keystoreProperties = Properties()
             keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 
-            val keystorePath = keystoreProperties["orvia.jks"] as String?
+            val keystorePath = keystoreProperties["storeFile"] as String?
             val keyAliasValue = keystoreProperties["keyAlias"] as String?
 
             println("   Keystore file path: $keystorePath")
@@ -70,9 +70,11 @@ android {
             create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String?
                 keyPassword = keystoreProperties["keyPassword"] as String?
-                storeFile = rootProject.file("orvia.jks")
+                storeFile = file(keystorePath ?: error("storeFile missing in key.properties"))
                 storePassword = keystoreProperties["storePassword"] as String?
-                println("   ✅ Release signing config created successfully")
+                enableV1Signing = true
+                enableV2Signing = true
+                println("   ✅ Release signing config created successfully (v1 + v2 enabled)")
             }
         } else {
             println("   ❌ key.properties not found - using debug signing")
@@ -80,6 +82,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")

@@ -114,9 +114,9 @@ class _AlbumCardState extends State<AlbumCard> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: SizedBox(
-                  height: 44,
                   width: double.infinity,
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -134,21 +134,18 @@ class _AlbumCardState extends State<AlbumCard> {
                           height: 1.15,
                         ).merge(Default_Theme.secondoryTextStyleMedium),
                       ),
-                      const SizedBox(height: 2),
-                      SizedBox(
-                        height: 12,
-                        child: ArtistListLinks(
-                          artists: widget.album.artists,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            color: Default_Theme.primaryColor1
-                                .withValues(alpha: 0.5),
-                            fontWeight: FontWeight.w500,
-                          ).merge(Default_Theme.secondoryTextStyle),
-                        ),
+                      const SizedBox(height: 3),
+                      ArtistListLinks(
+                        artists: widget.album.artists,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: Default_Theme.primaryColor1
+                              .withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w500,
+                        ).merge(Default_Theme.secondoryTextStyle),
                       ),
                     ],
                   ),

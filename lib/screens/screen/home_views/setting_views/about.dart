@@ -274,43 +274,59 @@ class About extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       child: Center(
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () {
-                launchUrl(
-                    Uri.parse("https://github.com/Ankitcodes30"),
-                    mode: LaunchMode.externalApplication);
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(MingCute.github_fill,
-                      color: kSecondaryTextColor, size: 16),
-                  const SizedBox(width: 8),
-                  Text(l10n.aboutGitHub,
-                      style: const TextStyle(
-                          color: kSecondaryTextColor,
-                          fontSize: 12,
-                          fontFamily: 'Gilroy')),
-                ],
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    launchUrl(
+                        Uri.parse("https://github.com/Ankitcodes30"),
+                        mode: LaunchMode.externalApplication);
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(MingCute.github_fill,
+                          color: kSecondaryTextColor, size: 16),
+                      const SizedBox(width: 8),
+                      Text(l10n.aboutGitHub,
+                          style: const TextStyle(
+                              color: kSecondaryTextColor,
+                              fontSize: 12,
+                              fontFamily: 'Gilroy')),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 18),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    final ver = snapshot.hasData
+                        ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}'
+                        : 'Not able to retrieve version';
+                    return Text(ver,
+                        style: const TextStyle(
+                            color: kSecondaryTextColor,
+                            fontSize: 12,
+                            fontFamily: 'Gilroy'));
+                  },
+                ),
+              ],
             ),
-            const SizedBox(width: 18),
-            FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snapshot) {
-                final ver = snapshot.hasData
-                    ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}'
-                    : 'Not able to retrieve version';
-                return Text(ver,
-                    style: const TextStyle(
-                        color: kSecondaryTextColor,
-                        fontSize: 12,
-                        fontFamily: 'Gilroy'));
-              },
+            const SizedBox(height: 16),
+            const Text(
+              'A non-commercial, experimental audio player built to explore background media lifecycles and cross-platform UI. Does not host or store any media.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color.fromRGBO(255, 255, 255, 0.65),
+                fontSize: 11,
+                fontFamily: 'Gilroy',
+                height: 1.4,
+              ),
             ),
           ],
         ),

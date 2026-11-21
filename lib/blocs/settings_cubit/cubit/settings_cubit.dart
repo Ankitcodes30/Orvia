@@ -5,6 +5,8 @@ import 'package:Orvia/core/constants/cache_keys.dart';
 import 'package:Orvia/repository/orvia/settings_repository.dart';
 import 'package:Orvia/services/player/stream_quality_selector.dart';
 import 'package:Orvia/services/db/db_provider.dart';
+import 'package:Orvia/core/di/service_locator.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/utils/country_info.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -38,7 +40,8 @@ class SettingsCubit extends Cubit<SettingsState> {
       ),
       // [1] autoSlideCharts
       _readSetting(
-        () => _settingsRepo.getSettingBool(SettingKeys.autoSlideCharts),
+        () => _settingsRepo.getSettingBool(SettingKeys.autoSlideCharts,
+            defaultValue: true),
         SettingKeys.autoSlideCharts,
       ),
       // [2] downPath - may need async platform call for default
@@ -364,6 +367,14 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setCountryCode(String v) {
     _settingsRepo.putSettingStr(SettingKeys.countryCode, v);
     emit(state.copyWith(countryCode: v));
+    try {
+      ServiceLocator.pluginCache.evictHomeSections();
+    } catch (_) {}
+    if (v.toUpperCase() == 'IN') {
+      if (state.homePluginId.isEmpty || state.homePluginId.contains('ytmusic')) {
+        setHomePluginId(kDefaultSaavnPluginId);
+      }
+    }
   }
 
   void setLanguageCode(String v) {

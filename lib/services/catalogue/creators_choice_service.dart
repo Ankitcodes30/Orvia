@@ -5,13 +5,25 @@ import 'package:Orvia/services/db/dao/playlist_dao.dart';
 import 'package:Orvia/services/db/global_db.dart';
 
 /// Service managing the "Creator's Choice" Library playlist.
-/// Sourced from YouTube playlist PLQHN0Tu_Mcf8 and matched to genuine,
-/// verified playable tracks on the supported JioSaavn content provider.
+/// Contains verified JioSaavn matches from YouTube playlist PLQHN0Tu_Mcf8.
+/// Unmatched source videos are excluded and documented in [playlistDescription].
 class CreatorsChoiceService {
   static const String playlistName = "Creator's Choice";
   static const String playlistDescription =
+      "47 verified JioSaavn tracks from YouTube playlist PLQHN0Tu_Mcf8. "
+      "11 of its 58 source videos are reported unmatched and are excluded, not listed as playable.";
+  static const String _legacyPlaylistDescription =
       "Curated playlist of popular melodies, romantic hits, and chillout favorites imported from YouTube playlist PLQHN0Tu_Mcf8.";
   static const String pluginId = kDefaultSaavnPluginId;
+
+  /// Returns whether [name] refers to the built-in "Creator's Choice" playlist.
+  static bool isCreatorsChoice(String? name) {
+    if (name == null) return false;
+    final normalized = name.trim().toLowerCase().replaceAll('’', "'");
+    return normalized == playlistName.toLowerCase() ||
+        normalized == "creator's choice" ||
+        normalized == "creators choice";
+  }
 
   static List<Track> getVerifiedTracks() {
     return _kVerifiedTracks;
@@ -72,6 +84,12 @@ class CreatorsChoiceService {
               name: 'CreatorsChoiceService');
         }
       } else {
+        if (existing.description == _legacyPlaylistDescription) {
+          await playlistDao.updatePlaylistMeta(
+            existing.id,
+            description: playlistDescription,
+          );
+        }
         final entries = await playlistDao.getPlaylistEntries(existing.id);
         if (entries.isEmpty) {
           await playlistDao.addTracksToPlaylist(existing.id, _kVerifiedTracks);

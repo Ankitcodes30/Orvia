@@ -27,6 +27,12 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  deep_link_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "ls.orvia.musicplayer/deep_link",
+          &flutter::StandardMethodCodec::GetInstance());
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -40,6 +46,10 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if (deep_link_channel_) {
+    deep_link_channel_ = nullptr;
+  }
+
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -65,6 +75,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_COPYDATA: {
+      PCOPYDATASTRUCT pcds = reinterpret_cast<PCOPYDATASTRUCT>(lparam);
+      if (pcds != nullptr && pcds->cbData > 0 && pcds->lpData != nullptr) {
+        std::string raw_url(reinterpret_cast<char*>(pcds->lpData));
+        if (deep_link_channel_) {
+          deep_link_channel_->InvokeMethod(
+              "onDeepLink",
+              std::make_unique<flutter::EncodableValue>(raw_url));
+        }
+      }
+      return TRUE;
+    }
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);

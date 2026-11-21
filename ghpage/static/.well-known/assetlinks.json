@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ls.orvia.musicplayer",
+      "sha256_cert_fingerprints": [
+        "BE:8C:33:95:61:3F:B4:8D:85:2E:F5:0A:3F:D2:43:D6:97:6D:E6:45:4B:FC:57:65:A0:68:A7:C3:2F:A2:05:6E",
+        "F9:3D:21:B1:97:FB:D6:70:B0:A5:C4:E5:ED:1E:6E:0E:10:F0:3B:59:82:D3:1E:6C:84:97:71:FF:5B:14:85:9D"
+      ]
+    }
+  }
+]

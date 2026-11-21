@@ -21,6 +21,8 @@ import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
+import 'dart:async';
+import 'package:Orvia/screens/widgets/load_more_songs_tile.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -43,17 +45,43 @@ class AlbumView extends StatefulWidget {
 class _AlbumViewState extends State<AlbumView> {
   late final ContentBloc _contentBloc;
   late final ScrollController _scrollController;
+  StreamSubscription<ContentState>? _contentSubscription;
   bool _isSaved = false;
+  String? _loadMoreError;
 
   @override
   void initState() {
     super.initState();
     _contentBloc = ContentBloc(pluginService: ServiceLocator.pluginService);
-    _scrollController = ScrollController()..addListener(_onScroll);
+    _scrollController = ScrollController();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _contentSubscription = _contentBloc.stream.listen((state) {
       if (!mounted) return;
-      if (!context.read<PluginBloc>().state.isPluginLoaded(widget.pluginId)) {
+      if (state.error != null &&
+          (state.albumDetails?.tracks.items.isNotEmpty ?? false)) {
+        setState(() => _loadMoreError = state.error);
+      } else if (state.albumDetailStatus == DetailStatus.loaded &&
+          _loadMoreError != null) {
+        setState(() => _loadMoreError = null);
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final pluginBloc = context.read<PluginBloc>();
+      if (!pluginBloc.state.isPluginLoaded(widget.pluginId)) {
+        if (pluginBloc.state.isLoading ||
+            pluginBloc.state.availablePlugins
+                .any((p) => p.manifest.id == widget.pluginId)) {
+          try {
+            await pluginBloc.stream
+                .firstWhere((s) => s.isPluginLoaded(widget.pluginId))
+                .timeout(const Duration(seconds: 3));
+          } catch (_) {}
+        }
+      }
+      if (!mounted) return;
+      if (!pluginBloc.state.isPluginLoaded(widget.pluginId)) {
         GlobalEventBus.instance
             .emitError(AppError.pluginNotLoaded(pluginId: widget.pluginId));
         return;
@@ -66,6 +94,7 @@ class _AlbumViewState extends State<AlbumView> {
 
   @override
   void dispose() {
+    _contentSubscription?.cancel();
     _scrollController.dispose();
     _contentBloc.close();
     super.dispose();
@@ -96,25 +125,23 @@ class _AlbumViewState extends State<AlbumView> {
     await _checkSavedState();
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-
+  void _loadMoreTracks() {
     final details = _contentBloc.state.albumDetails;
     final nextPageToken = details?.tracks.nextPageToken;
     final status = _contentBloc.state.albumDetailStatus;
 
     if (nextPageToken == null ||
         status == DetailStatus.loading ||
-        status == DetailStatus.loadingMore) return;
-
-    if (_scrollController.position.maxScrollExtent - _scrollController.offset <=
-        320) {
-      _contentBloc.add(LoadMoreAlbumTracks(
-        pluginId: widget.pluginId,
-        albumId: widget.album.id,
-        pageToken: nextPageToken,
-      ));
+        status == DetailStatus.loadingMore) {
+      return;
     }
+
+    setState(() => _loadMoreError = null);
+    _contentBloc.add(LoadMoreAlbumTracks(
+      pluginId: widget.pluginId,
+      albumId: widget.album.id,
+      pageToken: nextPageToken,
+    ));
   }
 
   String? _cleanText(String? raw) {
@@ -282,9 +309,9 @@ class _AlbumViewState extends State<AlbumView> {
               // Tracklist Generation
               if ((status == DetailStatus.loaded ||
                       status == DetailStatus.loadingMore) &&
-                  tracks.isNotEmpty)
+                  tracks.isNotEmpty) ...[
                 SliverPadding(
-                  padding: const EdgeInsets.only(top: 24, bottom: 120),
+                  padding: const EdgeInsets.only(top: 24),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -318,7 +345,20 @@ class _AlbumViewState extends State<AlbumView> {
                           true, // Crucial to prevent jank when scrolling list
                     ),
                   ),
-                )
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 120),
+                    child: LoadMoreSongsTile(
+                      isLoading: status == DetailStatus.loadingMore,
+                      hasMore: details?.tracks.nextPageToken != null,
+                      error: _loadMoreError,
+                      currentCount: tracks.length,
+                      onTap: _loadMoreTracks,
+                    ),
+                  ),
+                ),
+              ]
               else if (status == DetailStatus.loaded)
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -381,16 +421,6 @@ class _AlbumViewState extends State<AlbumView> {
                   child: Center(
                       child: CircularProgressIndicator(
                           color: Default_Theme.accentColor2)),
-                ),
-
-              if (status == DetailStatus.loadingMore)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                        child: CircularProgressIndicator(
-                            color: Default_Theme.accentColor2)),
-                  ),
                 ),
             ],
           );

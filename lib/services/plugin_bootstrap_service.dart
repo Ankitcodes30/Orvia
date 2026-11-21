@@ -8,6 +8,7 @@ import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/plugins/errors/plugin_exceptions.dart';
 import 'package:Orvia/plugins/models/plugin_repository.dart';
 import 'package:Orvia/plugins/utils/plugin_constants.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/plugins/services/plugin_repository_service.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/plugin/plugin_load_state_service.dart';
@@ -58,10 +59,10 @@ class PluginBootstrapProgress {
 
 class PluginBootstrapService {
   static const String hostedRepositoriesUrl =
-      'https://hemantkarya.github.io/Orvia/repositories.json';
+      'https://ankitcodes30.github.io/Orvia/repositories.json';
 
   static const List<String> hostedRepositoriesUrls = [
-    'https://hemantkarya.github.io/Orvia/repositories.json',
+    'https://ankitcodes30.github.io/Orvia/repositories.json',
     'https://hemantkarya.github.io/BloomeeTunes/repositories.json',
   ];
 
@@ -85,9 +86,26 @@ class PluginBootstrapService {
     _bootstrapDone = true;
   }
 
+  static const List<String> defaultRepositoryUrls = [
+    'https://github.com/kojima-ui/bloom-factory/releases/latest/download/bex-factory.json',
+  ];
+
   static Future<void> ensureHostedRepositoriesPresent({
     required PluginRepositoryService repositoryService,
+    bool skipNetwork = false,
   }) async {
+    // 1. Immediately ensure bundled/default repositories in settings (offline/fast)
+    try {
+      await repositoryService.ensureRepositoryUrls(defaultRepositoryUrls);
+    } catch (e) {
+      log('Default repository seeding failed: $e', name: 'PluginBootstrap');
+    }
+
+    if (skipNetwork) {
+      return;
+    }
+
+    // 2. Fetch hosted entries if network is enabled (asynchronous / background)
     try {
       final entries = await _fetchHostedEntries();
       final added = await repositoryService.ensureRepositoryUrls(
@@ -326,10 +344,21 @@ class PluginBootstrapService {
 
       final currentHome =
           await settingsDao.getSettingStr(SettingKeys.homePluginId);
-      if (currentHome == null || currentHome.isEmpty) {
+      final countryCode = await _resolveBootstrapCountryCode(settingsDao);
+      final isIndia = countryCode.toUpperCase() == 'IN';
+      final hasSaavn = available.any((p) => p.manifest.id == kDefaultSaavnPluginId);
+
+      if (currentHome == null ||
+          currentHome.isEmpty ||
+          (isIndia && hasSaavn && currentHome.contains('ytmusic'))) {
         final homePlugin = available.firstWhere(
-          (p) => p.pluginType == PluginType.contentResolver,
-          orElse: () => throw StateError('none'),
+          (p) => isIndia && hasSaavn
+              ? p.manifest.id == kDefaultSaavnPluginId
+              : p.pluginType == PluginType.contentResolver,
+          orElse: () => available.firstWhere(
+            (p) => p.pluginType == PluginType.contentResolver,
+            orElse: () => throw StateError('none'),
+          ),
         );
         await settingsDao.putSettingStr(
             SettingKeys.homePluginId, homePlugin.manifest.id);
@@ -489,6 +518,33 @@ class PluginBootstrapService {
           continue;
         } catch (e) {
           log('Auto-update failed for $pluginId: $e', name: 'PluginBootstrap');
+        }
+      }
+ 
+      // If country is India and default Saavn plugin was never installed (e.g. onboarded with US, then switched to India),
+      // install and load it so Indian users receive the standard Indian trending content.
+      if (countryCode.toUpperCase() == 'IN' && !installedById.containsKey(kDefaultSaavnPluginId)) {
+        final saavnRemote = remoteLatestById[kDefaultSaavnPluginId];
+        if (saavnRemote != null) {
+          try {
+            await _installRemotePluginWithRetry(
+              pluginService: pluginService,
+              plugin: saavnRemote,
+              retries: maxRetries,
+              countryCode: countryCode,
+              shouldLoad: true,
+            );
+            final loadStateService = PluginLoadStateService(settingsDao);
+            await loadStateService.addAutoLoadPluginIds(<String>[kDefaultSaavnPluginId]);
+            await pluginService.loadPlugin(
+              pluginId: kDefaultSaavnPluginId,
+              pluginType: PluginType.contentResolver,
+            );
+            log('Installed and loaded missing default Saavn plugin after country change',
+                name: 'PluginBootstrap');
+          } catch (e) {
+            log('Failed to install default Saavn plugin: $e', name: 'PluginBootstrap');
+          }
         }
       }
 

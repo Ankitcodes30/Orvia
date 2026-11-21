@@ -22,6 +22,7 @@ import 'package:Orvia/services/player/recently_played_tracker.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
 import 'package:Orvia/services/meta_resolver/smart_track_replacement_service.dart';
 import 'package:Orvia/services/discord_service.dart';
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:async/async.dart';
@@ -120,6 +121,9 @@ class OrviaMusicPlayer extends BaseAudioHandler
   Stream<bool> get playingStream => _facadePlaying.stream;
   Stream<EngineState> get engineStateStream => _facadeState.stream;
 
+  Duration get currentPosition => _facadePosition.value;
+  Duration get currentDuration => _facadeDuration.value;
+
   // ── Modular component accessors ───────────────────────────────────────────
   BehaviorSubject<bool> get shuffleMode => _queueManager.shuffleMode;
   BehaviorSubject<PlayerError?> get lastError => _errorHandler.lastError;
@@ -162,9 +166,23 @@ class OrviaMusicPlayer extends BaseAudioHandler
   /// Guarded by [_isDisposed] so a rapid dispose() during cold start is safe.
   Future<void> _restoreLastSession() async {
     if (_isDisposed) return;
+    if (OrviaDeepLinkService.hasPendingDeepLink ||
+        OrviaDeepLinkService.isHandlingDeepLink ||
+        OrviaDeepLinkService.hasHandledColdStartDeepLink) {
+      log('Skipping last session restore because deep link is pending, active, or handled.',
+          name: 'OrviaMusicPlayer');
+      return;
+    }
     try {
       final restored = await _queueManager.restoreQueueState();
       if (_isDisposed) return; // re-check after await
+      if (OrviaDeepLinkService.hasPendingDeepLink ||
+          OrviaDeepLinkService.isHandlingDeepLink ||
+          OrviaDeepLinkService.hasHandledColdStartDeepLink) {
+        log('Aborting session restore apply because deep link arrived.',
+            name: 'OrviaMusicPlayer');
+        return;
+      }
       if (restored) {
         final track = _queueManager.currentTrack;
         if (track != null) {
@@ -350,6 +368,12 @@ class OrviaMusicPlayer extends BaseAudioHandler
 
     _errorHandler.onSkipToNext = _internalSkipToNext;
     _errorHandler.onRetryCurrentTrack = _retryCurrentTrack;
+    _errorHandler.onClearCachedSource = (trackId) {
+      if (trackId != null && trackId == _preloadedTrackId) {
+        _clearPreloadedMarker();
+      }
+      engine.clearPreload();
+    };
     _errorHandler.onStopPlayback = () async {
       _playCompleter?.operation.cancel();
       _playCompleter = null;
@@ -537,6 +561,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
     if (_isDisposed) return;
     // Manual pause clears any pending auto-resume.
     _shouldResumeAfterInterruption = false;
+    isResolving.add(false);
     await engine.pause();
   }
 
@@ -566,6 +591,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
     _playCompleter = null;
     _preResolveOp?.cancel();
     _currentResolveOp?.cancel();
+    isResolving.add(false);
     playbackState.add(playbackState.value
         .copyWith(processingState: AudioProcessingState.idle));
     await engine.stop();
@@ -647,6 +673,8 @@ class OrviaMusicPlayer extends BaseAudioHandler
         _preloadedTrackId == track.id;
 
     try {
+      _errorHandler.registerAttempt(track.id);
+      await _recentlyPlayedTracker.flushCurrentPlay();
       _updateCurrentTrack(track);
 
       if (doPlay) {
@@ -663,7 +691,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
       engine.setLoadingState();
       isResolving.add(true);
 
-      EngineResult result;
+      EngineResult? result;
 
       if (canUsePreloaded) {
         isOffline.add(_preloadedTrackOffline);
@@ -671,7 +699,20 @@ class OrviaMusicPlayer extends BaseAudioHandler
             ? await engine.crossfadeToPreloaded(engine.crossfadeDuration)
             : await engine.activatePreloaded(autoPlay: doPlay);
         _clearPreloadedMarker();
-      } else {
+
+        // If the preloaded stream failed due to expired URL (401/403/410),
+        // invalidate preload and fall back to fresh network resolution below.
+        if (result is EngineFailure &&
+            _errorHandler.categorizeError(result.error) ==
+                PlayerErrorType.sourceExpired) {
+          log('Preloaded stream expired (${result.error}), falling back to fresh resolution',
+              name: 'OrviaMusicPlayer');
+          engine.clearPreload();
+          result = null;
+        }
+      }
+
+      if (result == null) {
         await engine.stop(keepLoadingState: true);
         if (!alive()) return;
 
@@ -679,10 +720,20 @@ class OrviaMusicPlayer extends BaseAudioHandler
           _resolveWithFallback(track).timeout(const Duration(seconds: 15)),
         );
         final resolved = await _currentResolveOp!.valueOrCancellation();
-        if (resolved == null || !alive()) return;
+        if (resolved == null || !alive()) {
+          if (_playCompleter == token) {
+            isResolving.add(false);
+            await engine.stop(keepLoadingState: false);
+            complete();
+          }
+          return;
+        }
 
         resolvedTrack = resolved.$1;
-        if (resolvedTrack.id != track.id) _updateCurrentTrack(resolvedTrack);
+        if (resolvedTrack.id != track.id) {
+          _queueManager.replaceTrackById(track.id, resolvedTrack);
+          _updateCurrentTrack(resolvedTrack);
+        }
         isOffline.add(resolved.$2.isOffline);
 
         result = await engine.openDirect(
@@ -692,11 +743,26 @@ class OrviaMusicPlayer extends BaseAudioHandler
         );
       }
 
-      if (!alive()) return;
+      if (!alive()) {
+        if (_playCompleter == token) {
+          isResolving.add(false);
+          await engine.stop(keepLoadingState: false);
+          complete();
+        }
+        return;
+      }
+
+      final isSharedTrack = _queueManager.queueTitle.value == 'Shared Track';
 
       if (result is EngineFailure) {
-        isResolving.add(false);
-        await engine.stop(keepLoadingState: false);
+        if (_playCompleter == token) {
+          isResolving.add(false);
+          await engine.stop(keepLoadingState: false);
+        }
+        if (isSharedTrack) {
+          SnackbarService.showMessage('Unable to play shared track: ${resolvedTrack.title}');
+          return complete();
+        }
         _errorHandler.handleError(
           _errorHandler.categorizeError(result.error),
           result.error.toString(),
@@ -710,26 +776,37 @@ class OrviaMusicPlayer extends BaseAudioHandler
         await engine.seek(initialPosition);
       }
 
-      isResolving.add(false);
       _errorHandler.clearError();
       _preResolveNextTrack();
       _checkRelatedSongs();
-      complete();
     } on TimeoutException catch (e) {
-      isResolving.add(false);
-      await engine.stop(keepLoadingState: false);
+      if (_playCompleter == token) {
+        await engine.stop(keepLoadingState: false);
+      }
       if (!alive()) return;
+      if (_queueManager.queueTitle.value == 'Shared Track') {
+        SnackbarService.showMessage('Connection timed out while loading shared track: ${track.title}');
+        return;
+      }
       _errorHandler.handleError(
           PlayerErrorType.networkDropped, 'Network timeout', track, e);
-      complete();
     } catch (e, stack) {
-      isResolving.add(false);
-      await engine.stop(keepLoadingState: false);
+      if (_playCompleter == token) {
+        await engine.stop(keepLoadingState: false);
+      }
       if (!alive()) return;
       log('Play failed: ${track.title}: $e',
           name: 'OrviaMusicPlayer', stackTrace: stack);
+      if (_queueManager.queueTitle.value == 'Shared Track') {
+        SnackbarService.showMessage('Unable to play shared track: ${track.title}');
+        return;
+      }
       _errorHandler.handleError(
           _errorHandler.categorizeError(e), e.toString(), resolvedTrack, e);
+    } finally {
+      if (_playCompleter == token) {
+        isResolving.add(false);
+      }
       complete();
     }
   }
@@ -766,7 +843,14 @@ class OrviaMusicPlayer extends BaseAudioHandler
     final msg = error.toString().toLowerCase();
     return msg.contains('no streams returned') ||
         msg.contains('plugin is not loaded') ||
-        msg.contains('plugin not found');
+        msg.contains('plugin not found') ||
+        msg.contains('chartprovider') ||
+        msg.contains('invalid request type') ||
+        msg.contains('cannot resolve stream') ||
+        msg.contains('no playable stream') ||
+        msg.contains('stream not found') ||
+        msg.contains('failed to resolve stream') ||
+        msg.contains('malformed media id');
   }
 
   // ─── Preload ───────────────────────────────────────────────────────────────
@@ -825,8 +909,11 @@ class OrviaMusicPlayer extends BaseAudioHandler
     final track = _queueManager.currentTrack;
     if (track == null) return;
     _errorHandler.clearError();
+    final resumePos = _lastKnownPosition > Duration.zero
+        ? _lastKnownPosition
+        : engine.position;
     await _enqueuePlayTrack(track,
-        doPlay: true, initialPosition: engine.position);
+        doPlay: true, initialPosition: resumePos);
   }
 
   // ─── Related Songs ────────────────────────────────────────────────────────
@@ -847,6 +934,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
         queue: _queueManager.tracks,
         currentPlayingIdx: _queueManager.currentIndex,
         loopMode: loopMode.value,
+        isFromPlaylist: fromPlaylist.value,
       );
     } finally {
       _checkingRelated = false;
@@ -951,7 +1039,10 @@ class OrviaMusicPlayer extends BaseAudioHandler
     if (_isDisposed) return;
     final changed = _queueManager.replaceTrackById(replacement.id, replacement);
     if (!changed) return;
-    if (_currentTrack.id == replacement.id) _updateCurrentTrack(replacement);
+    if (_currentTrack.id == replacement.id ||
+        isMatchingTrackId(_currentTrack.id, replacement.id)) {
+      _updateCurrentTrack(replacement);
+    }
   }
 
   // ─── Queue Operations ─────────────────────────────────────────────────────
@@ -961,7 +1052,30 @@ class OrviaMusicPlayer extends BaseAudioHandler
       {bool doPlay = true, Duration? initialPosition}) async {
     _errorHandler.resetCircuitBreaker();
     _shouldResumeAfterInterruption = false;
-    await _enqueuePlayTrack(mediaItemToTrack(mediaItem),
+    final track = mediaItemToTrack(mediaItem);
+    var idx = _queueManager.tracks.indexWhere(
+      (t) => t.id == track.id || isMatchingTrackId(t.id, track.id),
+    );
+    if (idx == -1 && track.title.trim().isNotEmpty) {
+      idx = _queueManager.tracks.indexWhere(
+        (t) => t.title.trim().toLowerCase() == track.title.trim().toLowerCase(),
+      );
+    }
+    if (idx == -1 &&
+        _queueManager.currentTrack != null &&
+        (_queueManager.currentTrack!.id == track.id ||
+            isMatchingTrackId(_queueManager.currentTrack!.id, track.id) ||
+            _queueManager.currentTrack!.title.trim().toLowerCase() ==
+                track.title.trim().toLowerCase())) {
+      idx = _queueManager.currentIndex;
+    }
+    if (idx != -1) {
+      _queueManager.jumpTo(idx);
+    } else {
+      fromPlaylist.add(false);
+      _queueManager.updateQueue([track], startIndex: 0);
+    }
+    await _enqueuePlayTrack(track,
         doPlay: doPlay, initialPosition: initialPosition);
   }
 
@@ -975,11 +1089,13 @@ class OrviaMusicPlayer extends BaseAudioHandler
   Future<void> _internalSkipToNext() async {
     _isAdvancing = true;
     try {
+      await _recentlyPlayedTracker.flushCurrentPlay();
       final advanced = _queueManager.advanceToNext(loopMode: loopMode.value);
       if (advanced) {
         final next = _queueManager.currentTrack;
         if (next != null) await _enqueuePlayTrack(next, doPlay: true);
       } else {
+        fromPlaylist.add(false);
         _playCompleter?.operation.cancel();
         _playCompleter = null;
         _currentResolveOp?.cancel();
@@ -1000,6 +1116,7 @@ class OrviaMusicPlayer extends BaseAudioHandler
   Future<void> _internalSkipToPrevious() async {
     _isAdvancing = true;
     try {
+      await _recentlyPlayedTracker.flushCurrentPlay();
       final advanced =
           _queueManager.advanceToPrevious(loopMode: loopMode.value);
       if (advanced) {
@@ -1034,12 +1151,12 @@ class OrviaMusicPlayer extends BaseAudioHandler
     int idx = 0,
     bool doPlay = false,
     bool shuffling = false,
+    bool isFromPlaylist = true,
   }) async {
     _errorHandler.resetCircuitBreaker();
     _shouldResumeAfterInterruption = false;
     _isAdvancing = true;
     try {
-      fromPlaylist.add(true);
       _relatedSongsManager.clearRelatedSongs();
       _clearPreloadedMarker();
 
@@ -1056,6 +1173,10 @@ class OrviaMusicPlayer extends BaseAudioHandler
             duration: const Duration(seconds: 2));
         return;
       }
+
+      // Explicit flag protects all legitimate playlists/albums (including
+      // one-track playlists) from artist-radio injection.
+      fromPlaylist.add(isFromPlaylist);
 
       int newIdx = 0;
       if (trackToPlay != null) {
@@ -1093,9 +1214,20 @@ class OrviaMusicPlayer extends BaseAudioHandler
           {bool atLast = false}) async =>
       _queueManager.addTracks(tracks, atLast: atLast);
 
-  Future<void> updateQueueTracks(List<Track> tracks,
-      {bool doPlay = false, int startIndex = 0}) async {
-    _queueManager.updateQueue(tracks, startIndex: startIndex);
+  Future<void> updateQueueTracks(
+    List<Track> tracks, {
+    bool doPlay = false,
+    int startIndex = 0,
+    String? queueTitle,
+    bool preserveTitle = false,
+  }) async {
+    fromPlaylist.add(false);
+    _queueManager.updateQueue(
+      tracks,
+      startIndex: startIndex,
+      queueTitle: queueTitle,
+      preserveTitle: preserveTitle,
+    );
     if (doPlay) {
       final t = _queueManager.currentTrack;
       if (t != null) await _enqueuePlayTrack(t, doPlay: true);
@@ -1120,14 +1252,24 @@ class OrviaMusicPlayer extends BaseAudioHandler
       _queueManager.moveTrack(oldIndex, newIndex);
 
   void clearQueue() {
+    fromPlaylist.add(false);
     _clearPreloadedMarker();
     _queueManager.clearQueue();
   }
 
   @override
-  Future<void> updateQueue(List<MediaItem> queue,
-      {bool doPlay = false}) async {
-    _queueManager.updateQueue(queue.map(mediaItemToTrack).toList());
+  Future<void> updateQueue(
+    List<MediaItem> queue, {
+    bool doPlay = false,
+    String? queueTitle,
+    bool preserveTitle = false,
+  }) async {
+    fromPlaylist.add(false);
+    _queueManager.updateQueue(
+      queue.map(mediaItemToTrack).toList(),
+      queueTitle: queueTitle,
+      preserveTitle: preserveTitle,
+    );
     if (doPlay) {
       final t = _queueManager.currentTrack;
       if (t != null) await _enqueuePlayTrack(t, doPlay: true);

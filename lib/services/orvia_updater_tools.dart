@@ -4,60 +4,27 @@ import 'dart:io';
 import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
+import 'package:Orvia/services/updater/app_version.dart';
+import 'package:Orvia/services/updater/orvia_update_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
+/// Accurate semantic version and build comparison.
+/// Returns true if and only if [newVer]+[newBuild] is newer than [currentVer]+[currentBuild].
 bool isUpdateAvailable(
     String currentVer, String currentBuild, String newVer, String newBuild,
     {bool checkBuild = true}) {
-  // Normalize versions and builds and compare component-wise.
-  List<int> parseVersion(String v) {
-    v = v.replaceFirst(RegExp(r'^v'), '');
-    final parts = v.split('.');
-    return parts.map((p) {
-      final m = RegExp(r'^(\d+)').firstMatch(p);
-      return m != null ? int.parse(m.group(1)!) : 0;
-    }).toList();
-  }
-
-  List<int> currentParts = parseVersion(currentVer);
-  List<int> newParts = parseVersion(newVer);
-
-  final maxLen = currentParts.length > newParts.length
-      ? currentParts.length
-      : newParts.length;
-  for (int i = 0; i < maxLen; i++) {
-    final cur = i < currentParts.length ? currentParts[i] : 0;
-    final neu = i < newParts.length ? newParts[i] : 0;
-    if (neu > cur) return true;
-    if (neu < cur) return false;
-  }
-
-  if (checkBuild && !Platform.isLinux) {
-    int parseBuild(String b) {
-      try {
-        final parsed = int.parse(b);
-        return parsed > 1000 ? parsed % 1000 : parsed;
-      } catch (_) {
-        final m = RegExp(r'(\d+)').firstMatch(b);
-        return m != null ? int.parse(m.group(1)!) : 0;
-      }
-    }
-
-    final curBuild = parseBuild(currentBuild);
-    final newBuildNum = parseBuild(newBuild);
-    if (newBuildNum > curBuild) return true;
-    if (newBuildNum < curBuild) return false;
-  }
-
-  return false;
+  final cur = AppVersion.tryParse(currentVer, checkBuild ? currentBuild : null);
+  final neu = AppVersion.tryParse(newVer, checkBuild ? newBuild : null);
+  if (cur == null || neu == null) return false;
+  return neu.isAppUpdateOver(cur, checkBuildNumber: checkBuild);
 }
 
+/// Legacy SourceForge update checker (kept for compatibility, returns structured result).
 Future<Map<String, dynamic>> sourceforgeUpdate(
     {Duration timeout = const Duration(seconds: 6)}) async {
   String platform = Platform.operatingSystem;
   if (platform != 'linux' && platform != 'android' && platform != 'win') {
-    // normalize unknowns to win for SourceForge naming
     platform = 'win';
   }
   const url = 'https://sourceforge.net/projects/orvia/best_release.json';
@@ -70,7 +37,6 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
         'Mozilla/5.0 (Linux; Android 13;) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36',
   };
 
-  // Use a single known-working header set (desktop UA + accept + referer).
   final headers = {
     'user-agent': userAgent['win']!,
     'accept': 'application/json, text/javascript, */*; q=0.01',
@@ -82,19 +48,9 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
         await http.get(Uri.parse(url), headers: headers).timeout(timeout);
     log("SourceForge response status code: ${response.statusCode}",
         name: 'UpdaterTools');
-    if (response.statusCode == 403) {
-      try {
-        final snippet = response.body.length > 200
-            ? response.body.substring(0, 200)
-            : response.body;
-        log('SourceForge 403 response snippet: $snippet', name: 'UpdaterTools');
-      } catch (_) {}
-      throw Exception('SourceForge returned 403');
-    }
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      // Prefer platform-specific release entry when available
       String platformKey = 'windows';
       if (Platform.isLinux) {
         platformKey = 'linux';
@@ -109,7 +65,6 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
           : null;
       entry ??= data['release'];
 
-      // extract url/filename from the chosen entry first, fall back to release
       final releaseUrl = (entry != null && entry['url'] != null)
           ? entry['url'] as String
           : (data['release']?['url'] ?? '');
@@ -117,7 +72,6 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
           ? entry['filename'] as String
           : (data['release']?['filename'] ?? '');
 
-      // decode percent-encoding and normalize
       try {
         filename = Uri.decodeFull(filename);
       } catch (_) {}
@@ -126,7 +80,6 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
         decodedUrl = Uri.decodeFull(releaseUrl);
       } catch (_) {}
 
-      // try to find version/build in filename, then url
       final versionRegex = RegExp(r'v(\d+(?:\.\d+)*)');
       final buildRegex = RegExp(r'\+(\d+)');
 
@@ -138,25 +91,26 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
       final version = versionMatch?.group(1) ?? '';
       final build = buildMatch?.group(1) ?? '';
 
+      final hasUpdate = isUpdateAvailable(
+        packageInfo.version,
+        packageInfo.buildNumber,
+        version.isNotEmpty ? version : '0.0.0',
+        build.isNotEmpty ? build : '0',
+        checkBuild: platform != 'linux',
+      );
+
       return {
         'source': 'sourceforge',
+        'status': hasUpdate ? 'updateAvailable' : 'upToDate',
         'newVer': version,
         'newBuild': build,
         'download_url': releaseUrl,
         'currVer': packageInfo.version,
-        'currBuild': (int.tryParse(packageInfo.buildNumber) ?? 0) > 1000
-            ? ((int.tryParse(packageInfo.buildNumber) ?? 0) % 1000).toString()
-            : packageInfo.buildNumber,
-        'results': isUpdateAvailable(
-          packageInfo.version,
-          packageInfo.buildNumber,
-          version.isNotEmpty ? version : '0.0.0',
-          build.isNotEmpty ? build : '0',
-          checkBuild: platform == 'linux' ? false : true,
-        ),
+        'currBuild': packageInfo.buildNumber,
+        'results': hasUpdate,
       };
     } else {
-      throw Exception('SourceForge returned ${response.statusCode}');
+      throw HttpException('SourceForge returned ${response.statusCode}');
     }
   } catch (e, st) {
     log('SourceForge update check failed: $e\n$st', name: 'UpdaterTools');
@@ -164,10 +118,14 @@ Future<Map<String, dynamic>> sourceforgeUpdate(
   }
 }
 
+/// Legacy GitHub update checker.
+///
+/// NOTE: The upstream repository endpoint may return 404 if releases are unpublished.
+/// Callers must handle exceptions without interpreting a failure as "up-to-date".
 Future<Map<String, dynamic>> githubUpdate(
     {Duration timeout = const Duration(seconds: 6)}) async {
   const url =
-      'https://api.github.com/repos/HemantKArya/Orvia/releases/latest';
+      'https://api.github.com/repos/Ankitcodes30/Orvia/releases/latest';
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   try {
     final response = await http.get(Uri.parse(url)).timeout(timeout);
@@ -176,35 +134,34 @@ Future<Map<String, dynamic>> githubUpdate(
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       final tag = (data['tag_name'] as String?) ?? '';
-      // tag might be like v2.7.11+12 or v2.7.11
       final tagParts = tag.split('+');
       final versionPart =
           tagParts.isNotEmpty ? tagParts[0].replaceFirst('v', '') : '';
       final buildPart = tagParts.length > 1 ? tagParts[1] : '';
 
-      // Attempt to extract download url from assets if possible
       String? download = extractUpUrl(data);
       download ??= data['html_url'] ?? '';
 
+      final hasUpdate = isUpdateAvailable(
+        packageInfo.version,
+        packageInfo.buildNumber,
+        versionPart.isNotEmpty ? versionPart : '0.0.0',
+        buildPart.isNotEmpty ? buildPart : '0',
+        checkBuild: true,
+      );
+
       return {
         'source': 'github',
+        'status': hasUpdate ? 'updateAvailable' : 'upToDate',
         'newVer': versionPart,
         'newBuild': buildPart,
         'download_url': download,
         'currVer': packageInfo.version,
-        'currBuild': (int.tryParse(packageInfo.buildNumber) ?? 0) > 1000
-            ? ((int.tryParse(packageInfo.buildNumber) ?? 0) % 1000).toString()
-            : packageInfo.buildNumber,
-        'results': isUpdateAvailable(
-          packageInfo.version,
-          packageInfo.buildNumber,
-          versionPart.isNotEmpty ? versionPart : '0.0.0',
-          buildPart.isNotEmpty ? buildPart : '0',
-          checkBuild: true,
-        ),
+        'currBuild': packageInfo.buildNumber,
+        'results': hasUpdate,
       };
     } else {
-      throw Exception('GitHub returned ${response.statusCode}');
+      throw HttpException('GitHub returned ${response.statusCode}');
     }
   } catch (e, st) {
     log('GitHub update check failed: $e\n$st', name: 'UpdaterTools');
@@ -212,62 +169,104 @@ Future<Map<String, dynamic>> githubUpdate(
   }
 }
 
-/// New public API: try GitHub first, then SourceForge; return a consistent map.
-Future<Map<String, dynamic>> getAppUpdates() async {
-  // Try GitHub first, then SourceForge, produce an `updates` map and attach changelogs.
-  Map<String, dynamic> updates;
-  try {
-    updates = await githubUpdate();
-  } catch (e) {
-    log('GitHub check failed, trying SourceForge: $e', name: 'UpdaterTools');
-    try {
-      updates = await sourceforgeUpdate();
-    } catch (e2) {
-      log('SourceForge check failed: $e2', name: 'UpdaterTools');
-      // Final fallback: return structured failure map with current info
-      try {
-        final packageInfo = await PackageInfo.fromPlatform();
-        updates = {
-          'results': false,
-          'error': 'Failed to check remote releases',
-          'currVer': packageInfo.version,
-          'currBuild': packageInfo.buildNumber,
-          'source': 'none',
-        };
-      } catch (e3) {
-        updates = {
-          'results': false,
-          'error':
-              'Failed to check remote releases and failed to read local package info',
-          'source': 'none',
-        };
-      }
-    }
+/// Formats user-facing release notes into structured changelog markdown.
+/// Uses the authoritative version and build number from release metadata.
+/// Provides a graceful user-friendly fallback if release notes are missing/empty.
+/// Never outputs technical package/dependency lists.
+String formatReleaseNotesAsChangelog({
+  required String version,
+  String? buildNumber,
+  String? releaseNotes,
+}) {
+  final cleanVersion = version.trim().replaceFirst(RegExp(r'^v'), '');
+  final cleanBuild = buildNumber?.trim();
+  final versionTag = (cleanBuild != null && cleanBuild.isNotEmpty)
+      ? '$cleanVersion+$cleanBuild'
+      : cleanVersion;
+
+  final trimmedNotes = releaseNotes?.trim() ?? '';
+
+  if (trimmedNotes.isEmpty) {
+    return '''
+## [$versionTag]
+
+### What's New
+- Bug fixes and performance improvements.
+''';
   }
 
+  // If already formatted with markdown version headings, return as-is
+  if (trimmedNotes.contains(RegExp(r'^##\s+\[', multiLine: true))) {
+    return trimmedNotes;
+  }
+
+  final List<String> bulletPoints = [];
+  if (trimmedNotes.contains('\n')) {
+    for (final rawLine in trimmedNotes.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      if (line.startsWith('-') || line.startsWith('*')) {
+        bulletPoints.add(line.replaceFirst(RegExp(r'^[-*]\s*'), ''));
+      } else {
+        bulletPoints.add(line);
+      }
+    }
+  } else if (trimmedNotes.contains(', ')) {
+    for (final part in trimmedNotes.split(', ')) {
+      final t = part.trim();
+      if (t.isNotEmpty) bulletPoints.add(t);
+    }
+  } else {
+    bulletPoints.add(trimmedNotes);
+  }
+
+  final items = bulletPoints.map((bp) => '- $bp').join('\n');
+
+  return '''
+## [$versionTag]
+
+### What's New
+$items
+''';
+}
+
+/// Primary update check API: checks the configured release manifest via [OrviaUpdateService].
+/// Returns a structured map containing results, status ('updateAvailable', 'upToDate', 'checkFailed'),
+/// version info, and error message if the check could not be completed.
+///
+/// NEVER reports 'up-to-date' when the check failed!
+Future<Map<String, dynamic>> getAppUpdates() async {
+  final checkResult = await OrviaUpdateService.instance.checkForUpdates();
+  final Map<String, dynamic> updates = checkResult.toLegacyMap();
+
   try {
-    // Contains the latest changelog read by the user. [eg. v2.11.6+171] (can be null)
-    final readChangelogs = await SettingsDAO(DBProvider.db)
-        .getSettingStr(SettingKeys.readChangelogs);
-    final currVer = "v${updates['currVer']}";
-    final newVer = "v${updates['newVer']}";
+    if (DBProvider.isInitialized) {
+      final readChangelogs = await SettingsDAO(DBProvider.db)
+          .getSettingStr(SettingKeys.readChangelogs);
+      final currVer = "v${updates['currVer']}";
+      final newVer = "v${updates['newVer']}";
 
-    log('Current version: $currVer, New version: $newVer, Read changelogs: $readChangelogs',
-        name: 'UpdaterTools');
+      log('Current version: $currVer, New version: $newVer, Read changelogs: $readChangelogs',
+          name: 'UpdaterTools');
 
-    if (currVer == newVer &&
-        (readChangelogs == null || readChangelogs != currVer)) {
-      final changelogText = await fetchChangelog();
-      updates['changelogs'] = changelogText;
-    } else {
-      updates['changelogs'] = null;
+      if (currVer == newVer &&
+          (readChangelogs == null || readChangelogs != currVer)) {
+        final ver = checkResult.currentVersion ?? updates['currVer'] ?? '';
+        final build = checkResult.currentBuild ?? updates['currBuild'];
+        final changelogText = formatReleaseNotesAsChangelog(
+          version: ver,
+          buildNumber: build,
+          releaseNotes: checkResult.releaseNotes,
+        );
+        updates['changelogs'] = changelogText;
+      } else {
+        updates['changelogs'] = null;
+      }
     }
   } catch (e, st) {
     log('Attaching changelog failed: $e\n$st', name: 'UpdaterTools');
     updates['changelogs'] = null;
   }
-
-  // log('Update check completed: $updates', name: 'UpdaterTools');
 
   return updates;
 }
@@ -277,7 +276,7 @@ Future<Map<String, dynamic>> getAppUpdates() async {
 Future<String?> fetchChangelog(
     {Duration timeout = const Duration(seconds: 6)}) async {
   const changelogUrl =
-      'https://hemantkarya.github.io/Orvia/CHANGELOG.md';
+      'https://ankitcodes30.github.io/Orvia/CHANGELOG.md';
   try {
     final response = await http.get(Uri.parse(changelogUrl)).timeout(timeout);
     if (response.statusCode == 200) {
@@ -297,20 +296,13 @@ Future<String?> fetchChangelog(
 Future<Map<String, dynamic>> getLatestVersion() async => await getAppUpdates();
 
 String? extractUpUrl(Map<String, dynamic> data) {
-  // List<String> urls = [];
-
+  if (data["assets"] is! List) return null;
   for (var element in (data["assets"] as List)) {
-    // urls.add(element["browser_download_url"]);
-    if (element["browser_download_url"].toString().contains("windows")) {
-      if (Platform.isWindows) {
-        return element["browser_download_url"].toString();
-      }
-    } else if (element["browser_download_url"].toString().contains("android")) {
-      if (Platform.isAndroid) {
-        return element["browser_download_url"].toString();
-      }
-    } else {
-      continue;
+    final url = element["browser_download_url"]?.toString() ?? '';
+    if (url.contains("windows") && Platform.isWindows) {
+      return url;
+    } else if (url.contains("android") && Platform.isAndroid) {
+      return url;
     }
   }
   return null;

@@ -15,7 +15,7 @@ import 'package:Orvia/src/rust/api/plugin/types.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 
 const int _kResolutionConcurrency = 5;
-const Duration _kPluginTimeout = Duration(seconds: 10);
+const Duration _kPluginTimeout = Duration(seconds: 30);
 const double _kMinConfidence = 0.45;
 const int _kMaxCandidatesPerTrack = 5;
 

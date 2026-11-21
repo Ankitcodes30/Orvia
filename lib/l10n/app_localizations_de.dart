@@ -1153,7 +1153,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updateCheckTitle => 'Update-Suche';
 
   @override
-  String get updateUpToDate => 'Orvia🌸 ist auf dem neuesten Stand!!!';
+  String get updateUpToDate => 'Orvia ist auf dem neuesten Stand!!!';
 
   @override
   String get updateViewPreRelease => 'Neueste Pre-Release ansehen';
@@ -1164,7 +1164,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get updateNewVersionAvailable => 'Neue Version von Orvia🌸 verfügbar!';
+  String get updateNewVersionAvailable => 'Neue Version von Orvia verfügbar!';
 
   @override
   String updateVersion(String ver, String build) {
@@ -1988,7 +1988,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String updateAvailableBody(String ver, String build) {
-    return 'Neue Version von Orvia🌸 verfügbar!\n\nVersion: $ver+$build';
+    return 'Neue Version von Orvia verfügbar!\n\nVersion: $ver+$build';
   }
 
   @override

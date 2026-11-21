@@ -18,6 +18,7 @@ import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
+import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 
@@ -91,6 +92,11 @@ class _PlaylistViewState extends State<PlaylistView> {
     if (!mounted) return;
 
     await cubit.loadMoreTracks();
+    if (mounted) {
+      setState(() {
+        _targetPlaylistName = null;
+      });
+    }
   }
 
   Future<void> _playFromPlaylist(
@@ -492,9 +498,13 @@ class _PlaylistViewState extends State<PlaylistView> {
 
   Widget _buildInfo(CurrentPlaylistState state, AppLocalizations l10n,
       {required bool isCentered}) {
-    final creatorText = l10n.playlistByCreator(
-        state.playlist.artists?.map((a) => a.name).join(', ') ??
+    final isCreatorsChoice =
+        CreatorsChoiceService.isCreatorsChoice(state.playlist.title);
+    final creatorName = isCreatorsChoice
+        ? 'A.K.'
+        : (state.playlist.artists?.map((a) => a.name).join(', ') ??
             l10n.playlistYou);
+    final creatorText = l10n.playlistByCreator(creatorName);
 
     return Column(
       crossAxisAlignment:
@@ -676,10 +686,12 @@ class _PlaylistViewState extends State<PlaylistView> {
 
   Widget _buildTrackList(CurrentPlaylistState state) {
     final tracks = state.playlist.tracks;
+
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final track = tracks[index];
+
           return AnimatedListItem(
             index: index,
             child: SongCardWidget(
@@ -691,7 +703,8 @@ class _PlaylistViewState extends State<PlaylistView> {
                 context,
                 track,
                 onDelete: () => _removeTrack(context, track),
-                showDelete: true,
+                showDelete: !CreatorsChoiceService.isCreatorsChoice(
+                    state.playlist.title),
                 showSinglePlay: true,
               ),
             ),
@@ -705,6 +718,9 @@ class _PlaylistViewState extends State<PlaylistView> {
 
   void _removeTrack(BuildContext context, Track track) {
     final cubit = context.read<CurrentPlaylistCubit>();
+    if (CreatorsChoiceService.isCreatorsChoice(cubit.state.playlist.title)) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     cubit.removeTrack(track);
     SnackbarService.showMessage(

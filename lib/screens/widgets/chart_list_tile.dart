@@ -124,30 +124,21 @@ class ChartListTile extends StatelessWidget {
                   width: isMobile ? 54 : 64,
                   decoration: BoxDecoration(
                     color: const Color(0xFF111111),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.08),
                       width: 1,
                     ),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: imgUrl.isNotEmpty
-                      ? LoadImageCached(
-                          imageUrl: imgUrl,
-                          fit: BoxFit.cover,
-                        )
-                      : const Center(
-                          child: Opacity(
-                            opacity: 0.25,
-                            child: Image(
-                              image: AssetImage(
-                                  'assets/icons/OrviaLogo_System.png'),
-                              width: 24,
-                              height: 24,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+                  child: LoadImageCached(
+                    imageUrl: imgUrl,
+                    fallbackUrl: imgUrl.isNotEmpty ? imgUrl : null,
+                    mediaId: trackId,
+                    width: isMobile ? 54 : 64,
+                    height: isMobile ? 54 : 64,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(width: 16),
 

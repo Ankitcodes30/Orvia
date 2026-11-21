@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:Orvia/screens/widgets/paging_scroll.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
@@ -16,6 +17,7 @@ class CategoryLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (category.trim().isEmpty) return const SizedBox.shrink();
     return SizedBox(
       width: 40,
       child: Padding(
@@ -55,18 +57,20 @@ class ColumnsCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (list.isEmpty) return Container();
+    if (list.isEmpty) return const SizedBox.shrink();
 
     final double itemWidth =
         ResponsiveBreakpoints.of(context).smallerOrEqualTo(TABLET)
             ? (MediaQuery.of(context).size.width - 40) * 0.88
             : (MediaQuery.of(context).size.width - 40) * 0.48;
 
+    final int effectiveRows = math.max(1, math.min(columnSize, list.length));
+
     final List<Widget> cards = List.generate(
-      (list.length / columnSize).ceil(),
+      (list.length / effectiveRows).ceil(),
       (index) {
-        final startIndex = index * columnSize;
-        final endIndex = (startIndex + columnSize).clamp(0, list.length);
+        final startIndex = index * effectiveRows;
+        final endIndex = (startIndex + effectiveRows).clamp(0, list.length);
         final currentRow = list.sublist(startIndex, endIndex);
 
         return SizedBox(
@@ -83,7 +87,7 @@ class ColumnsCards extends StatelessWidget {
     return Stack(
       children: [
         SizedBox(
-          height: 70 * columnSize.toDouble() + 10,
+          height: 70 * effectiveRows.toDouble() + 10,
           child: ListView(
             controller: scrollController, // Use the passed scrollController
             shrinkWrap: true,

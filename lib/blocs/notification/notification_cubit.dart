@@ -17,17 +17,17 @@ class NotificationCubit extends Cubit<NotificationState> {
       : _notificationDao = notificationDao,
         super(NotificationInitial()) {
     getLatestVersion().then((value) {
-      if (value["results"]) {
-        if (int.parse(value["currBuild"]) < int.parse(value["newBuild"])) {
-          _notificationDao.putNotification(
-            title: "Update Available",
-            body:
-                "New Version of Orvia🌸 is now available!! Version: ${value["newVer"]} + ${value["newBuild"]}",
-            type: "app_update",
-            unique: true,
-          );
-        }
+      if (value["results"] == true) {
+        _notificationDao.putNotification(
+          title: "Update Available",
+          body:
+              "New Version of Orvia is now available!! Version: ${value["newVer"]} + ${value["newBuild"]}",
+          type: "app_update",
+          unique: true,
+        );
       }
+    }).catchError((e) {
+      log("Notification update check ignored error: $e");
     });
     getNotification();
   }

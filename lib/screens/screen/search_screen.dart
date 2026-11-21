@@ -31,9 +31,11 @@ import 'package:Orvia/src/rust/api/plugin/models.dart' as plugin_models;
 
 class SearchScreen extends StatefulWidget {
   final String searchQuery;
+  final String prefillQuery;
   const SearchScreen({
     Key? key,
     this.searchQuery = "",
+    this.prefillQuery = "",
   }) : super(key: key);
 
   @override
@@ -89,6 +91,8 @@ class _SearchScreenState extends State<SearchScreen> {
     if (widget.searchQuery.isNotEmpty) {
       _textEditingController.text = widget.searchQuery;
       _doSearch(widget.searchQuery);
+    } else if (widget.prefillQuery.isNotEmpty) {
+      _textEditingController.text = widget.prefillQuery;
     }
   }
 
@@ -789,8 +793,10 @@ class _SuggestionsSliver extends StatelessWidget {
         }
 
         if (state is SearchSuggestionLoaded) {
-          final dbList =
-              state.dbSuggestionList.map((e) => e.values.first).toList();
+          final dbList = state.dbSuggestionList
+              .map((e) => e['query'] ?? '')
+              .where((q) => q.isNotEmpty)
+              .toList();
           final apiList = state.suggestionList;
           final entityList = state.entitySuggestionList;
           final isPluginLoading = state.isPluginLoading;
@@ -842,7 +848,12 @@ class _SuggestionsSliver extends StatelessWidget {
           final children = <Widget>[
             const SizedBox(height: 12),
             if (dbList.isNotEmpty) ...[
-              _buildSuggestionSectionHeader('Recent', MingCute.history_line),
+              _buildSuggestionSectionHeader(
+                context,
+                'Recent',
+                MingCute.history_line,
+                onClearAll: () => _confirmClearAll(context),
+              ),
               ...dbList.asMap().entries.map((e) => _SuggestionTile(
                     suggestion: e.value,
                     icon: MingCute.history_line,
@@ -871,7 +882,7 @@ class _SuggestionsSliver extends StatelessWidget {
             ],
             if (apiList.isNotEmpty) ...[
               _buildSuggestionSectionHeader(
-                  'Suggestions', MingCute.search_2_line),
+                  context, 'Suggestions', MingCute.search_2_line),
               ...apiList.asMap().entries.map((e) => _SuggestionTile(
                     suggestion: e.value,
                     icon: MingCute.search_line,
@@ -885,7 +896,7 @@ class _SuggestionsSliver extends StatelessWidget {
             ],
             if (entityList.isNotEmpty) ...[
               _buildSuggestionSectionHeader(
-                  'Top Results', MingCute.sparkles_2_line),
+                  context, 'Top Results', MingCute.sparkles_2_line),
               ...entityList.asMap().entries.map((e) => _EntitySuggestionTile(
                     entity: e.value,
                     globalIndex: e.key + dbList.length + apiList.length,
@@ -911,7 +922,69 @@ class _SuggestionsSliver extends StatelessWidget {
     );
   }
 
-  Widget _buildSuggestionSectionHeader(String title, IconData icon) {
+  void _confirmClearAll(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Default_Theme.themeColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Default_Theme.primaryColor1.withValues(alpha: 0.1),
+          ),
+        ),
+        title: const Text(
+          'Clear Search History?',
+          style: TextStyle(
+            color: Default_Theme.primaryColor1,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete all recent search history?',
+          style: TextStyle(
+            color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Default_Theme.primaryColor1.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Default_Theme.accentColor1,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context
+                  .read<SearchSuggestionBloc>()
+                  .add(const SearchSuggestionClearAll());
+            },
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon, {
+    VoidCallback? onClearAll,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
       child: Row(
@@ -920,12 +993,30 @@ class _SuggestionsSliver extends StatelessWidget {
               size: 14,
               color: Default_Theme.primaryColor1.withValues(alpha: 0.5)),
           const SizedBox(width: 8),
-          Text(title,
-              style: Default_Theme.secondoryTextStyleMedium.copyWith(
-                  color: Default_Theme.primaryColor1.withValues(alpha: 0.55),
-                  fontSize: 11.5,
-                  letterSpacing: 1.1,
-                  fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(title,
+                style: Default_Theme.secondoryTextStyleMedium.copyWith(
+                    color: Default_Theme.primaryColor1.withValues(alpha: 0.55),
+                    fontSize: 11.5,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700)),
+          ),
+          if (onClearAll != null)
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: onClearAll,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  'Clear all',
+                  style: Default_Theme.secondoryTextStyleMedium.copyWith(
+                    color: Default_Theme.accentColor2,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1286,7 +1377,8 @@ class _SliverSearchResults extends StatelessWidget {
             ),
           ),
         if (tracks.isNotEmpty) ...[
-          _sliverSectionHeader(AppLocalizations.of(context)!.searchTracks),
+          _sliverSectionHeader(
+              '${AppLocalizations.of(context)!.searchTracks} (${tracks.length})'),
           SliverPadding(
             padding: const EdgeInsets.only(bottom: 12),
             sliver: SliverList(
@@ -1301,7 +1393,11 @@ class _SliverSearchResults extends StatelessWidget {
                       onTap: () => context
                           .read<OrviaPlayerCubit>()
                           .orviaPlayer
-                          .updateQueueTracks([track], doPlay: true),
+                          .updateQueueTracks(
+                        [track],
+                        doPlay: true,
+                        queueTitle: 'Search',
+                      ),
                       onOptionsTap: () => showMoreBottomSheet(context, track,
                           showSinglePlay: true),
                     ),
@@ -1313,19 +1409,22 @@ class _SliverSearchResults extends StatelessWidget {
           ),
         ],
         if (albums.isNotEmpty) ...[
-          _sliverSectionHeader(AppLocalizations.of(context)!.searchAlbums),
+          _sliverSectionHeader(
+              '${AppLocalizations.of(context)!.searchAlbums} (${albums.length})'),
           _buildResponsiveGrid(albums
               .map((a) => AlbumCard(album: a, pluginId: pluginId))
               .toList()),
         ],
         if (artists.isNotEmpty) ...[
-          _sliverSectionHeader(AppLocalizations.of(context)!.searchArtists),
+          _sliverSectionHeader(
+              '${AppLocalizations.of(context)!.searchArtists} (${artists.length})'),
           _buildResponsiveGrid(artists
               .map((a) => ArtistCard(artist: a, pluginId: pluginId))
               .toList()),
         ],
         if (playlists.isNotEmpty) ...[
-          _sliverSectionHeader(AppLocalizations.of(context)!.searchPlaylists),
+          _sliverSectionHeader(
+              '${AppLocalizations.of(context)!.searchPlaylists} (${playlists.length})'),
           _buildResponsiveGrid(playlists
               .map((p) => PlaylistCard(playlist: p, pluginId: pluginId))
               .toList()),
@@ -1461,4 +1560,3 @@ class NebulaPainter extends CustomPainter {
   bool shouldRepaint(covariant NebulaPainter oldDelegate) =>
       oldDelegate.color1 != color1 || oldDelegate.color2 != color2;
 }
-

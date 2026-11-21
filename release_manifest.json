@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "app_name": "Orvia",
+  "min_supported_version": "3.0.0",
+  "channels": {
+    "stable": {
+      "version": "3.0.7",
+      "build_number": 6,
+      "release_notes": "Protected built-in Creator's Choice playlist with verified ownership by A.K., compact 47-track playlist sharing with v2 codec, polished official Orvia master logo in Check for Updates, and production release v3.0.7+6.",
+      "published_at": "2026-10-24T15:40:00Z",
+      "platforms": {
+        "android": {
+          "download_url": "https://ankitcodes30.github.io/Orvia/downloads/app-release.apk",
+          "sha256": "519d3cae43f5f05251a109ff07dd472bd6648b1e9c350efdd079721d1117fc75",
+          "file_size": 61833518
+        },
+        "windows": {
+          "download_url": "https://ankitcodes30.github.io/Orvia/downloads/Orvia-Windows.zip",
+          "sha256": "f4649c9d4c625ad0c07ec3be07ebbabfbd0cdf0a9195cc0bec1a25eba2d17971",
+          "file_size": 35416557
+        }
+      }
+    }
+  }
+}

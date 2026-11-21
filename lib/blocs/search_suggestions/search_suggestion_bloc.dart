@@ -92,6 +92,22 @@ class SearchSuggestionBloc
         log("Error Clearing Search History: $e", name: "SearchSuggestionBloc");
       }
     });
+
+    on<SearchSuggestionClearAll>((event, emit) async {
+      try {
+        await _searchHistoryDao.clearAllSearchHistory();
+        if (state is SearchSuggestionLoaded) {
+          emit(SearchSuggestionLoaded(
+            state.suggestionList,
+            const [],
+            entitySuggestionList: state.entitySuggestionList,
+            isPluginLoading: state.isPluginLoading,
+          ));
+        }
+      } catch (e) {
+        log("Error Clearing All Search History: $e", name: "SearchSuggestionBloc");
+      }
+    });
   }
 
   /// Returns a tuple of (query strings, entity suggestions) from the plugin.

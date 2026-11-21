@@ -9,6 +9,7 @@ import 'package:Orvia/screens/screen/home_views/setting_views/download_setting.d
 import 'package:Orvia/screens/screen/home_views/setting_views/lastfm_setting.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/player_setting.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/updates_setting.dart';
+import 'package:Orvia/screens/screen/home_views/setting_views/account_sync_setting.dart';
 import 'package:Orvia/screens/screen/plugin_manager_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -75,6 +76,13 @@ class SettingsView extends StatelessWidget {
                     icon: MingCute.download_3_fill,
                     iconColor: Default_Theme.accentColor2,
                     onTap: () => _navigate(context, const UpdatesSettings()),
+                  ),
+                  _SettingsTile(
+                    title: 'Account & Cloud Sync',
+                    subtitle: 'Guest mode, cloud backup & library restore',
+                    icon: MingCute.user_star_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const AccountSyncSettings()),
                   ),
                 ],
               ),

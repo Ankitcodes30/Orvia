@@ -11,14 +11,16 @@ import 'dart:io';
 
 import 'package:Orvia/core/models/exported.dart' hide MediaItem;
 import 'package:Orvia/core/models/media_playlist_model.dart';
+import 'package:Orvia/core/utils/track_identity.dart';
 import 'package:audio_service/audio_service.dart';
 
 /// Convert a plugin [Track] to an audio_service [MediaItem].
 ///
 /// Used at the player→OS boundary for notifications and lock screen.
 MediaItem trackToMediaItem(Track track) {
-  final artistStr = track.artists.isNotEmpty
-      ? track.artists.map((a) => a.name).join(', ')
+  final cleanArtists = TrackIdentity.sanitizeArtistSummaries(track.artists);
+  final artistStr = cleanArtists.isNotEmpty
+      ? cleanArtists.map((a) => a.name).join(', ')
       : 'Unknown Artist';
 
   return MediaItem(

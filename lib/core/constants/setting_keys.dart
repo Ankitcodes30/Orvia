@@ -8,6 +8,8 @@ class SettingKeys {
 
   // ── App behaviour ───────────────────────────────────────────────────────────
   static const String autoUpdateNotify = "auto_update_notify";
+  static const String updateManifestUrl = "update_manifest_url";
+  static const String updateChannel = "update_channel";
   static const String autoSlideCharts = "auto_slide_charts";
 
   // ── Playback ────────────────────────────────────────────────────────────────

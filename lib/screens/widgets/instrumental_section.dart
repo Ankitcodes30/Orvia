@@ -6,6 +6,8 @@ import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/sign_board_widget.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
+import 'package:Orvia/services/catalogue/curated_playlists_service.dart';
+import 'package:Orvia/routes/search_navigation.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,11 +23,16 @@ class InstrumentalSection extends StatefulWidget {
 }
 
 class _InstrumentalSectionState extends State<InstrumentalSection> {
-  String _selectedFilter = 'Sitar';
+  String _selectedFilter = 'A.K. Music World';
   bool _isLoading = false;
   String? _error;
+  bool _isExpanded = false;
+
+  static const int _kInitialVisibleCount = 4;
 
   static const List<String> _filters = [
+    'A.K. Music World',
+    'Curated Classics',
     'Sitar',
     'Flute',
     'Tabla',
@@ -40,6 +47,8 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
   ];
 
   static const Map<String, String> _filterQueries = {
+    'A.K. Music World': 'A.K. MUSIC WORLD piano',
+    'Curated Classics': 'Bollywood Instrumental Classics',
     'Sitar': 'Sitar Instrumental Indian',
     'Flute': 'Bansuri Flute Instrumental',
     'Tabla': 'Tabla Solo Classical',
@@ -60,7 +69,11 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
   @override
   void initState() {
     super.initState();
-    _fetchInstrumentTracks(_selectedFilter);
+    _tracksCache['A.K. Music World'] =
+        CuratedPlaylistsService.getAkMusicWorldTracks();
+    _tracksCache['Curated Classics'] =
+        CuratedPlaylistsService.getInstrumentalTracks();
+    _selectedFilter = 'A.K. Music World';
   }
 
   Future<void> _fetchInstrumentTracks(String filter) async {
@@ -157,6 +170,11 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
   @override
   Widget build(BuildContext context) {
     final currentTracks = _tracksCache[_selectedFilter] ?? const [];
+    final visibleCount = _isExpanded
+        ? currentTracks.length
+        : (currentTracks.length > _kInitialVisibleCount
+            ? _kInitialVisibleCount
+            : currentTracks.length);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -250,8 +268,8 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 36),
               child: Center(
-                child:
-                    CircularProgressIndicator(color: Default_Theme.accentColor2),
+                child: CircularProgressIndicator(
+                    color: Default_Theme.accentColor2),
               ),
             )
           else if (_error != null)
@@ -260,7 +278,8 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
               child: Center(
                 child: Column(
                   children: [
-                    Text(_error!, style: const TextStyle(color: Colors.white70)),
+                    Text(_error!,
+                        style: const TextStyle(color: Colors.white70)),
                     const SizedBox(height: 10),
                     ElevatedButton.icon(
                       onPressed: () => _fetchInstrumentTracks(_selectedFilter),
@@ -297,6 +316,7 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
                           ),
                           doPlay: true,
                           idx: 0,
+                          isFromPlaylist: false,
                         );
                   },
                   icon: const Icon(MingCute.play_fill, size: 16),
@@ -304,8 +324,8 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Default_Theme.accentColor2,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -321,15 +341,17 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
                           ),
                           doPlay: true,
                           shuffling: true,
+                          isFromPlaylist: false,
                         );
                   },
                   icon: const Icon(MingCute.shuffle_line, size: 16),
                   label: const Text('Shuffle'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white70,
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    side:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -341,7 +363,7 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: currentTracks.length > 8 ? 8 : currentTracks.length,
+              itemCount: visibleCount,
               itemBuilder: (context, index) {
                 final track = currentTracks[index];
                 return SongCardWidget(
@@ -360,10 +382,60 @@ class _InstrumentalSectionState extends State<InstrumentalSection> {
                           ),
                           doPlay: true,
                           idx: index,
+                          isFromPlaylist: false,
                         );
                   },
                 );
               },
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (currentTracks.length > _kInitialVisibleCount) ...[
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isExpanded = !_isExpanded;
+                      });
+                    },
+                    icon: Icon(
+                      _isExpanded ? MingCute.up_line : MingCute.down_line,
+                      size: 16,
+                      color: Default_Theme.accentColor2,
+                    ),
+                    label: Text(
+                      _isExpanded
+                          ? 'Show less'
+                          : 'Show more (${currentTracks.length - _kInitialVisibleCount} more)',
+                      style: const TextStyle(
+                        color: Default_Theme.accentColor2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                TextButton.icon(
+                  onPressed: () => SearchNavigation.openWithPrefill(
+                    context,
+                    _filterQueries[_selectedFilter] ??
+                        '$_selectedFilter Instrumental',
+                  ),
+                  icon: const Icon(
+                    MingCute.list_check_line,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                  label: const Text(
+                    'Explore More',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],

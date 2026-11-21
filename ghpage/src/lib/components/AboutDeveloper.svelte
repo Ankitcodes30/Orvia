@@ -3,32 +3,38 @@
 <section class="about-developer">
   <h2>Who Am I?</h2>
   <p class="about-subtitle">
-    Hi, I'm Hemant—a developer who codes for fun and shares open-source projects to learn, grow, and help others discover new possibilities.
+    Hi, I'm Ankit—a developer passionate about open-source, building sleek modern tools, and creating exceptional audio experiences.
   </p>
   <div class="contact-buttons">
-  <a href="https://x.com/iamhemantindia" class="contact-btn x" target="_blank" rel="noopener noreferrer" aria-label="Hemant on X" title="X - iamhemantindia">
-      <i class="fa-brands fa-x-twitter"></i>
-      X
-    </a>
-  <a href="https://linkedin.com/in/iamhemantindia" class="contact-btn linkedin" target="_blank" rel="noopener noreferrer" aria-label="Hemant on LinkedIn" title="LinkedIn - iamhemantindia">
+    <a href="https://www.linkedin.com/in/ankit-kumbhare-024465366" class="contact-btn linkedin" target="_blank" rel="noopener noreferrer" aria-label="Ankit on LinkedIn" title="LinkedIn - Ankit Kumbhare">
       <i class="fa-brands fa-linkedin"></i>
       LinkedIn
     </a>
-  <a href="https://github.com/HemantKArya" class="contact-btn github" target="_blank" rel="noopener noreferrer" aria-label="Hemant on GitHub" title="GitHub - HemantKArya">
+    <a href="https://github.com/Ankitcodes30" class="contact-btn github" target="_blank" rel="noopener noreferrer" aria-label="Ankit on GitHub" title="GitHub - Ankitcodes30">
       <i class="fa-brands fa-github"></i>
       GitHub
     </a>
-  <a href="https://instagram.com/iamhemantindia" class="contact-btn instagram" target="_blank" rel="noopener noreferrer" aria-label="Hemant on Instagram" title="Instagram - iamhemantindia">
-      <i class="fa-brands fa-instagram"></i>
-      Instagram
-    </a>
-  <a href="mailto:iamhemantindia@protonmail.com" class="contact-btn email" aria-label="Email Hemant" title="Email Hemant">
+    <a href="mailto:ankitkumbhare301@gmail.com" class="contact-btn email" aria-label="Email Ankit" title="Email Ankit">
       <i class="fa-solid fa-envelope"></i>
       Email Me
     </a>
+  </div>
+  <p class="about-disclaimer">
+    A non-commercial, experimental audio player built to explore background media lifecycles and cross-platform UI. Does not host or store any media.
+  </p>
 </section>
 
 <style>
+  .about-disclaimer {
+    font-size: 11.5px;
+    opacity: 0.7;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 1.4rem auto 0.4rem;
+    max-width: 580px;
+    line-height: 1.5;
+    text-align: center;
+    letter-spacing: 0.2px;
+  }
   .about-developer {
     text-align: center;
     /* Reduce top padding so title sits closer to the section top */

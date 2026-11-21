@@ -6,7 +6,9 @@ import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/core/models/exported.dart';
+import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/services/player/player_engine.dart';
+import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 List<int> generateRandomIndices(int length) {
@@ -404,13 +406,25 @@ class QueueManager {
   }
 
   /// Replace the entire queue with new tracks.
-  void updateQueue(List<Track> tracks, {int startIndex = 0}) {
+  void updateQueue(
+    List<Track> tracks, {
+    int startIndex = 0,
+    String? queueTitle,
+    bool preserveTitle = false,
+  }) {
     final seenIds = <String>{};
     final deduped =
         tracks.where((t) => seenIds.add(t.id)).toList(growable: false);
     _queue.add(deduped);
     _currentIndex =
         startIndex.clamp(0, deduped.isEmpty ? 0 : deduped.length - 1);
+    if (!preserveTitle) {
+      this.queueTitle.add(
+            (queueTitle != null && queueTitle.trim().isNotEmpty)
+                ? queueTitle.trim()
+                : (deduped.length == 1 ? 'Direct Play' : 'Queue'),
+          );
+    }
     if (shuffleMode.value && deduped.isNotEmpty) {
       _shuffleList = generateRandomIndices(deduped.length);
       _shuffleIndex = 0;
@@ -424,7 +438,9 @@ class QueueManager {
     final queue = List<Track>.from(_queue.value);
     var changed = false;
     for (var i = 0; i < queue.length; i++) {
-      if (queue[i].id == mediaId) {
+      if (queue[i].id == mediaId ||
+          isMatchingTrackId(queue[i].id, mediaId) ||
+          isMatchingTrackId(queue[i].id, replacement.id)) {
         queue[i] = replacement;
         changed = true;
       }
@@ -485,6 +501,14 @@ class QueueManager {
   /// field (title, artists, artwork, plugin-stamped ID) is correct and
   /// the tracks are immediately resolvable by [MediaResolverService].
   Future<bool> restoreQueueState() async {
+    if (OrviaDeepLinkService.hasPendingDeepLink ||
+        OrviaDeepLinkService.isHandlingDeepLink ||
+        OrviaDeepLinkService.hasHandledColdStartDeepLink ||
+        _queue.value.isNotEmpty) {
+      log('Aborting restoreQueueState: deep link active or queue already populated',
+          name: 'QueueManager');
+      return false;
+    }
     try {
       final dao = SettingsDAO(DBProvider.db);
       final raw = await dao.getSettingStr(SettingKeys.lastQueueState);
@@ -499,6 +523,14 @@ class QueueManager {
       final tracks = <Track>[];
       for (final id in trackIds) {
         if (id is! String || id.isEmpty) continue;
+        if (OrviaDeepLinkService.hasPendingDeepLink ||
+            OrviaDeepLinkService.isHandlingDeepLink ||
+            OrviaDeepLinkService.hasHandledColdStartDeepLink ||
+            _queue.value.isNotEmpty) {
+          log('Aborting restoreQueueState mid-load: incoming deep link detected',
+              name: 'QueueManager');
+          return false;
+        }
         try {
           final track = await trackDao.getTrackByMediaId(id);
           if (track != null) tracks.add(track);
@@ -507,6 +539,15 @@ class QueueManager {
         }
       }
       if (tracks.isEmpty) return false;
+
+      if (OrviaDeepLinkService.hasPendingDeepLink ||
+          OrviaDeepLinkService.isHandlingDeepLink ||
+          OrviaDeepLinkService.hasHandledColdStartDeepLink ||
+          _queue.value.isNotEmpty) {
+        log('Aborting restoreQueueState before loadTracks: incoming deep link detected',
+            name: 'QueueManager');
+        return false;
+      }
 
       final idx = (data['currentIndex'] as int?)
               ?.clamp(0, tracks.length - 1) ??

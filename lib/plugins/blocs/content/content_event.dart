@@ -10,11 +10,13 @@ class SearchContent extends ContentEvent {
   final String query;
   final ContentSearchFilter filter;
   final String? pageToken;
+  final String? pluginId;
 
   const SearchContent({
     required this.query,
     this.filter = ContentSearchFilter.all,
     this.pageToken,
+    this.pluginId,
   });
 }
 

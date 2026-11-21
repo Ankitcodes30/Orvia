@@ -84,7 +84,7 @@ abstract class CargoKitBuildTask extends DefaultTask {
             // large crates (lofty, wit-component, rand) OOM with default jobs on
             // constrained hosts (rustc-LLVM out of memory / 0xc0000409).
             // Cargo maps CARGO_BUILD_JOBS to build.jobs. Fall back to "1" if OOM persists.
-            environment "CARGO_BUILD_JOBS", "2"
+            environment "CARGO_BUILD_JOBS", "1"
         }
     }
 }
@@ -97,7 +97,7 @@ class CargoKitPlugin implements Plugin<Project> {
         _findFlutterPlugin(rootProject.childProjects)
     }
 
-   private Plugin _findFlutterPlugin(Map projects) {
+    private Plugin _findFlutterPlugin(Map projects) {
         for (project in projects) {
             for (plugin in project.value.getPlugins()) {
                 if (plugin.class.name == "com.flutter.gradle.FlutterPlugin") {
@@ -139,8 +139,8 @@ class CargoKitPlugin implements Plugin<Project> {
 
             def platforms = com.flutter.gradle.FlutterPluginUtils.getTargetPlatforms(project).collect()
 
-            // Same thing addFlutterDependencies does in flutter.gradle
-            if (buildType == "debug") {
+            // Same thing addFlutterDependencies does in flutter.gradle - only add when platforms is empty
+            if (buildType == "debug" && platforms.isEmpty()) {
                 platforms.add("android-x86")
                 platforms.add("android-x64")
             }

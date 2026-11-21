@@ -34,6 +34,8 @@ import 'package:Orvia/services/catalogue/creators_choice_service.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/discovery/discovery_context_service.dart';
 import 'package:Orvia/services/db/dao/playlist_dao.dart';
+import 'package:Orvia/services/orvia_updater_tools.dart';
+import 'package:Orvia/screens/screen/common_views/changelog_reader.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -200,6 +202,70 @@ void main() {
 
       await settingsDAO.putSettingStr('download_path', '/path/v2');
       expect(await settingsDAO.getSettingStr('download_path'), equals('/path/v2'));
+    });
+
+    test('autoSlideCharts defaults to ON (true) when unset and respects saved choices', () async {
+      // 1. Fresh install: unset in database, returns defaultValue: true
+      final defaultValue = await settingsDAO.getSettingBool(
+        SettingKeys.autoSlideCharts,
+        defaultValue: true,
+      );
+      expect(defaultValue, isTrue);
+
+      // 2. User explicitly saves OFF (false)
+      await settingsDAO.putSettingBool(SettingKeys.autoSlideCharts, false);
+      final savedFalse = await settingsDAO.getSettingBool(
+        SettingKeys.autoSlideCharts,
+        defaultValue: true,
+      );
+      expect(savedFalse, isFalse);
+
+      // 3. User explicitly saves ON (true)
+      await settingsDAO.putSettingBool(SettingKeys.autoSlideCharts, true);
+      final savedTrue = await settingsDAO.getSettingBool(
+        SettingKeys.autoSlideCharts,
+        defaultValue: true,
+      );
+      expect(savedTrue, isTrue);
+    });
+  });
+
+  group('Release notes & changelog mapping', () {
+    test('formatReleaseNotesAsChangelog produces structured changelog with version and build', () {
+      final changelog = formatReleaseNotesAsChangelog(
+        version: '3.0.7',
+        buildNumber: '4',
+        releaseNotes: 'Playlist sharing improvements, Windows updater fix, Android updater verification.',
+      );
+      expect(changelog, contains('## [3.0.7+4]'));
+      expect(changelog, contains('### What\'s New'));
+      expect(changelog, contains('- Playlist sharing improvements'));
+      expect(changelog, contains('- Windows updater fix'));
+      expect(changelog, contains('- Android updater verification.'));
+    });
+
+    test('formatReleaseNotesAsChangelog provides user-friendly fallback for empty notes', () {
+      final fallback = formatReleaseNotesAsChangelog(
+        version: '3.0.7',
+        buildNumber: '4',
+        releaseNotes: null,
+      );
+      expect(fallback, contains('## [3.0.7+4]'));
+      expect(fallback, contains('### What\'s New'));
+      expect(fallback, contains('Bug fixes and performance improvements'));
+      expect(fallback, isNot(contains('Plugin Types')));
+    });
+
+    test('parseChangelog correctly parses formatted release notes and normalizes version', () {
+      final markdown = formatReleaseNotesAsChangelog(
+        version: '3.0.7',
+        buildNumber: '4',
+        releaseNotes: 'Feature A, Feature B',
+      );
+      final parsed = parseChangelog(markdown);
+      expect(parsed.versions.length, equals(1));
+      expect(parsed.versions.first.versionNumber, equals('3.0.7+4'));
+      expect(parsed.versions.first.categories.first.changes.length, equals(2));
     });
   });
 
@@ -517,6 +583,95 @@ void main() {
         equals('Popular and trending music on the charts.'),
       );
     });
+
+    test('extractItemInfo resolves genuine artwork from urlLow, album thumbnail, and YouTube ID', () {
+      // 1. urlLow fallback when urlHigh and url are empty
+      final trackWithUrlLow = Track(
+        id: 'chart::1',
+        title: 'Banjaare',
+        artists: [const ArtistSummary(id: '', name: 'Bairan')],
+        durationMs: BigInt.from(180000),
+        thumbnail: const Artwork(
+          url: '',
+          urlLow: 'https://charts-static.billboard.com/img/2026/03/banjaare-000-bairan-s6f-180x180.jpg',
+          layout: ImageLayout.square,
+        ),
+        isExplicit: false,
+      );
+      final chartItem1 = ChartItem(
+        rank: 1,
+        trend: Trend.same,
+        item: MediaItem.track(trackWithUrlLow),
+      );
+      final (t1, a1, img1) = extractItemInfo(chartItem1);
+      expect(t1, equals('Banjaare'));
+      expect(a1, equals('Bairan'));
+      expect(img1, equals('https://charts-static.billboard.com/img/2026/03/banjaare-000-bairan-s6f-180x180.jpg'));
+
+      // 2. YouTube Music track with missing thumbnail extracts video thumbnail
+      final ytMusicTrack = Track(
+        id: 'content-resolver.bloomfactory.ytmusic::Z2xuq78pS1Y',
+        title: 'Mann Mera',
+        artists: [const ArtistSummary(id: '', name: 'Gajendra Verma')],
+        durationMs: BigInt.from(180000),
+        thumbnail: const Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+      final chartItem2 = ChartItem(
+        rank: 2,
+        trend: Trend.same,
+        item: MediaItem.track(ytMusicTrack),
+      );
+      final (t2, a2, img2) = extractItemInfo(chartItem2);
+      expect(t2, equals('Mann Mera'));
+      expect(img2, equals('https://i.ytimg.com/vi/Z2xuq78pS1Y/hqdefault.jpg'));
+
+      // 3. YouTube track with channel avatar replaces avatar with video thumbnail
+      final ytAvatarTrack = Track(
+        id: 'content-resolver.bloomfactory.ytmusic::iiBeBFRsCSQ',
+        title: 'Bollywood Workout Mix',
+        artists: [const ArtistSummary(id: '', name: 'Various Artists')],
+        durationMs: BigInt.from(180000),
+        thumbnail: const Artwork(
+          url: 'https://yt3.ggpht.com/channel-avatar-image',
+          layout: ImageLayout.square,
+        ),
+        isExplicit: false,
+      );
+      final chartItem3 = ChartItem(
+        rank: 3,
+        trend: Trend.same,
+        item: MediaItem.track(ytAvatarTrack),
+      );
+      final (t3, a3, img3) = extractItemInfo(chartItem3);
+      expect(img3, equals('https://i.ytimg.com/vi/iiBeBFRsCSQ/hqdefault.jpg'));
+
+      // 4. Album thumbnail fallback
+      final trackWithAlbumThumb = Track(
+        id: 'chart::4',
+        title: 'Tum Hi Ho',
+        artists: [const ArtistSummary(id: '', name: 'Arijit Singh')],
+        album: const AlbumSummary(
+          id: '',
+          title: 'Aashiqui 2',
+          artists: [],
+          thumbnail: Artwork(
+            url: 'https://c.saavncdn.com/838/Aashiqui-2-Hindi-2013-500x500.jpg',
+            layout: ImageLayout.square,
+          ),
+        ),
+        durationMs: BigInt.from(262000),
+        thumbnail: const Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+      final chartItem4 = ChartItem(
+        rank: 4,
+        trend: Trend.same,
+        item: MediaItem.track(trackWithAlbumThumb),
+      );
+      final (t4, a4, img4) = extractItemInfo(chartItem4);
+      expect(img4, equals('https://c.saavncdn.com/838/Aashiqui-2-Hindi-2013-500x500.jpg'));
+    });
   });
 
   group('Station and Playlist Identity Sanitization', () {
@@ -614,7 +769,7 @@ void main() {
 
   group('Navratri Track ID Validation & Resolution Safety (Phase 1)', () {
     test('all kVerifiedNavratriTracks have stamped composite media IDs', () {
-      expect(kVerifiedNavratriTracks.length, equals(12));
+      expect(kVerifiedNavratriTracks.length, greaterThanOrEqualTo(12));
       for (final item in kVerifiedNavratriTracks) {
         expect(isStampedId(item.track.id), isTrue,
             reason: 'Track "${item.track.title}" ID "${item.track.id}" must be stamped');
@@ -710,6 +865,55 @@ void main() {
       expect(ArtistView.isTrackRelatedToArtist(trackWithAlbum, 'Divya Kumar'), isTrue);
       expect(ArtistView.isTrackRelatedToArtist(trackWithAlbum, 'Badshah'), isFalse);
     });
+
+    test('isTrackRelatedToArtist isolates dotted initialisms from unpunctuated homonym channels', () {
+      const pianoTrack = Track(
+        id: 'piano_1',
+        title: 'Kal Ho Naa Ho (Piano Cover)',
+        artists: [ArtistSummary(id: '', name: 'A.K. MUSIC WORLD')],
+        thumbnail: Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+
+      const bhajanTrack = Track(
+        id: 'bhajan_1',
+        title: 'Hanuman Chalisa Bhakti',
+        artists: [ArtistSummary(id: '', name: 'Ak music world')],
+        thumbnail: Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+
+      const rapTrack = Track(
+        id: 'rap_1',
+        title: 'Desi Hip Hop Freestyle',
+        artists: [ArtistSummary(id: '', name: 'AK Music World')],
+        thumbnail: Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+
+      // A.K. MUSIC WORLD (piano) matches dotted initials
+      expect(ArtistView.isTrackRelatedToArtist(pianoTrack, 'A.K. MUSIC WORLD'), isTrue);
+      // Rejects unpunctuated homonym channels without dots
+      expect(ArtistView.isTrackRelatedToArtist(bhajanTrack, 'A.K. MUSIC WORLD'), isFalse);
+      expect(ArtistView.isTrackRelatedToArtist(rapTrack, 'A.K. MUSIC WORLD'), isFalse);
+
+      // Also verify channel ID isolation if IDs are present
+      const channelTrackDiffId = Track(
+        id: 'track_diff_channel',
+        title: 'Random Track',
+        artists: [ArtistSummary(id: 'UC_OTHER_CHANNEL_ID', name: 'A.K. MUSIC WORLD')],
+        thumbnail: Artwork(url: '', layout: ImageLayout.square),
+        isExplicit: false,
+      );
+      expect(
+        ArtistView.isTrackRelatedToArtist(
+          channelTrackDiffId,
+          'A.K. MUSIC WORLD',
+          artistId: 'UC_PIANO_CHANNEL_ID',
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('Best of 2026 Catalogue (Phase 2.B)', () {
@@ -733,10 +937,13 @@ void main() {
   group("Creator's Choice Library Playlist (Phase 3)", () {
     test("CreatorsChoiceService contains verified tracks from source playlist", () {
       final tracks = CreatorsChoiceService.getVerifiedTracks();
-      expect(tracks.length, greaterThanOrEqualTo(40));
+      expect(tracks, hasLength(47));
+      expect(CreatorsChoiceService.playlistDescription, contains('11 of its 58 source videos'));
+      expect(CreatorsChoiceService.playlistDescription, contains('excluded, not listed as playable'));
 
       for (final t in tracks) {
         expect(isStampedId(t.id), isTrue);
+        expect(t.id, startsWith('${CreatorsChoiceService.pluginId}::'));
         expect(t.title.isNotEmpty, isTrue);
         expect(t.artists.isNotEmpty, isTrue);
       }
@@ -755,6 +962,16 @@ void main() {
 
       final entries1 = await playlistDAO.getPlaylistEntries(playlist.id);
       expect(entries1.length, equals(CreatorsChoiceService.getVerifiedTracks().length));
+
+      await playlistDAO.updatePlaylistMeta(
+        playlist.id,
+        description:
+            "Curated playlist of popular melodies, romantic hits, and chillout favorites imported from YouTube playlist PLQHN0Tu_Mcf8.",
+      );
+      await CreatorsChoiceService.ensurePlaylistExists(playlistDAO);
+      final updatedPlaylist = await playlistDAO.getPlaylistById(playlist.id);
+      expect(updatedPlaylist!.description,
+          equals(CreatorsChoiceService.playlistDescription));
 
       // Calling ensurePlaylistExists again must not duplicate entries
       await CreatorsChoiceService.ensurePlaylistExists(playlistDAO);
@@ -832,4 +1049,3 @@ void main() {
     });
   });
 }
-

@@ -32,8 +32,18 @@ RETRY_DELAYS = [1, 2, 2, 4, 4, 6, 8, 10]  # backoff sequence
 _temp_worktree = None
 _temp_branch = None
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 def log(msg=""):
-    print(msg, flush=True)
+    try:
+        print(msg, flush=True)
+    except Exception:
+        print(msg.encode("ascii", "replace").decode("ascii"), flush=True)
 
 def find_pkg_manager():
     for name in ("npm", "pnpm", "yarn"):
@@ -325,6 +335,30 @@ def copy_repositories_into_build(repo_root: Path):
         log(f"⚠️ Failed to copy repositories.json -> {dest}: {e}")
         return False
 
+
+def copy_manifest_into_build(repo_root: Path):
+    """Copy release_manifest.json into build dir if present."""
+    candidates = [
+        repo_root / BUILD_SOURCE / "release_manifest.json",
+        repo_root / BUILD_SOURCE / "static" / "release_manifest.json",
+        repo_root / "docs" / "release_manifest.json",
+    ]
+    build_dir = (repo_root / BUILD_DIR).resolve()
+    if not build_dir.exists():
+        return False
+
+    for src in candidates:
+        if src.exists():
+            dest = build_dir / "release_manifest.json"
+            try:
+                shutil.copy2(src, dest)
+                log(f"📄 Copied release_manifest.json -> {dest}")
+                return True
+            except Exception as e:
+                log(f"⚠️ Failed to copy release_manifest.json -> {dest}: {e}")
+                return False
+    return False
+
 def commit_and_push(wt: Path):
     # run_stream(["git", "config", "user.name", "ghpage-deployer"], cwd=wt, check=False)
     # run_stream(["git", "config", "user.email", "ghpage-deployer@example.com"], cwd=wt, check=False)
@@ -391,6 +425,12 @@ def main():
         copy_repositories_into_build(repo_root)
     except Exception as e:
         log(f"⚠️ Failed while copying repositories.json: {e}")
+
+    # Copy release_manifest.json so the updater can query official updates
+    try:
+        copy_manifest_into_build(repo_root)
+    except Exception as e:
+        log(f"⚠️ Failed while copying release_manifest.json: {e}")
 
     # Prepare temp worktree (from HEAD) and unique orphan branch
     try:

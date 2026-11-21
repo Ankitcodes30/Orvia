@@ -545,6 +545,8 @@ class _ListOfPlaylists extends StatelessWidget {
         playlist.playlistName,
         playlistId: playlist.playlistId,
         isPinned: playlist.isPinned,
+        artworkUrl: playlist.coverImgUrl,
+        storageKey: playlist.storageKey,
       );
     }
 
