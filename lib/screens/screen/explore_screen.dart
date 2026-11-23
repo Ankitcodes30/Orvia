@@ -593,7 +593,6 @@ class CustomDiscoverBar extends StatelessWidget {
           ),
           const Spacer(),
           const HistoryIcon(),
-          const StatisticsIcon(),
           const ListenTogetherIcon(),
           const SiteIcon(),
           const SettingsIcon(),
@@ -702,6 +701,7 @@ class SettingsIcon extends StatelessWidget {
     return IconButton(
       padding: const EdgeInsets.all(5),
       constraints: const BoxConstraints(),
+      tooltip: 'Account & Settings',
       onPressed: () {
         Navigator.push(
           context,
@@ -709,9 +709,9 @@ class SettingsIcon extends StatelessWidget {
         );
       },
       icon: const Icon(
-        MingCute.settings_3_line,
+        MingCute.user_3_line,
         color: Default_Theme.primaryColor1,
-        size: 30.0,
+        size: 28.0,
       ),
     );
   }

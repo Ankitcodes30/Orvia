@@ -10,6 +10,8 @@ import 'package:Orvia/screens/screen/home_views/setting_views/lastfm_setting.dar
 import 'package:Orvia/screens/screen/home_views/setting_views/player_setting.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/updates_setting.dart';
 import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
+import 'package:Orvia/screens/screen/home_views/timer_view.dart';
+import 'package:Orvia/screens/screen/home_views/statistics_screen.dart';
 import 'package:Orvia/screens/screen/plugin_manager_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -73,6 +75,13 @@ class SettingsView extends StatelessWidget {
                     icon: MingCute.airpods_fill,
                     iconColor: Default_Theme.accentColor2,
                     onTap: () => _navigate(context, const PlayerSettings()),
+                  ),
+                  _SettingsTile(
+                    title: AppLocalizations.of(context)!.timerTitle,
+                    subtitle: 'Stop music automatically after a set duration',
+                    icon: MingCute.stopwatch_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const TimerView()),
                   ),
                 ],
               ),
@@ -147,6 +156,13 @@ class SettingsView extends StatelessWidget {
                     iconColor: Default_Theme.accentColor2,
                     isHighlightIcon: true,
                     onTap: () => _navigate(context, const ListenTogetherScreen()),
+                  ),
+                  _SettingsTile(
+                    title: 'Listening Statistics',
+                    subtitle: 'View your total listening time, top tracks and artists',
+                    icon: MingCute.chart_bar_line,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const StatisticsScreen()),
                   ),
                   _SettingsTile(
                     title: AppLocalizations.of(context)!.settingsPlugins,

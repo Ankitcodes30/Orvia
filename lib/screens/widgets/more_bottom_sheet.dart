@@ -19,6 +19,7 @@ import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/smart_replace_dialog.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
 import 'package:Orvia/screens/widgets/tempo_pitch_sheet.dart';
+import 'package:Orvia/screens/screen/home_views/timer_view.dart';
 import 'package:Orvia/services/song_metadata_refresh_service.dart';
 
 void showMoreBottomSheet(
@@ -248,6 +249,19 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             onTap: (ctx) {
                               Navigator.pop(ctx);
                               showTempoPitchSheet(parentContext);
+                            },
+                          ),
+                          _CompactTile(
+                            icon: MingCute.stopwatch_line,
+                            title: l10n.timerTitle,
+                            onTap: (ctx) {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                parentContext,
+                                MaterialPageRoute(
+                                  builder: (_) => const TimerView(),
+                                ),
+                              );
                             },
                           ),
 
