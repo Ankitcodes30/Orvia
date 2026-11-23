@@ -242,7 +242,7 @@ class _ListenTogetherScreenState extends State<ListenTogetherScreen> {
         children: [
           Row(
             children: [
-              const Icon(MingCute.broadcast_line, color: Default_Theme.accentColor2, size: 22),
+              const Icon(Icons.podcasts_rounded, color: Default_Theme.accentColor2, size: 22),
               const SizedBox(width: 10),
               const Text(
                 'Host a Session',
@@ -292,7 +292,7 @@ class _ListenTogetherScreenState extends State<ListenTogetherScreen> {
         children: [
           Row(
             children: [
-              const Icon(MingCute.login_circle_line, color: Default_Theme.accentColor2, size: 22),
+              const Icon(Icons.login_rounded, color: Default_Theme.accentColor2, size: 22),
               const SizedBox(width: 10),
               const Text(
                 'Join Friend\'s Room',

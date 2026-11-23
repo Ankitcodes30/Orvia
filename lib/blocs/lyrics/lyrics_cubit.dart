@@ -7,6 +7,7 @@ import 'package:Orvia/core/adapters/track_adapter.dart';
 import 'package:Orvia/core/constants/setting_keys.dart';
 import 'package:Orvia/core/models/exported.dart' hide Lyrics;
 import 'package:Orvia/core/models/lyrics_models.dart';
+import 'package:Orvia/services/lyrics/lrclib_service.dart';
 import 'package:Orvia/services/db/dao/lyrics_dao.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/meta_resolver/cross_plugin_resolver.dart';
@@ -72,6 +73,33 @@ class LyricsCubit extends Cubit<LyricsState> {
       emit(LyricsLoaded(cached, track));
       log('Lyrics loaded for ID: ${track.id} [Offline]', name: 'LyricsCubit');
       return;
+    }
+
+    // 1. Query LRCLIB for accurate real-time synchronized karaoke lyrics
+    try {
+      final lrclibLyrics = await LrcLibLyricsService.fetchLyrics(
+        trackId: track.id,
+        title: track.title,
+        artist: _artistStr(track),
+        album: track.album?.title,
+        durationSec: track.durationMs != null
+            ? (track.durationMs! ~/ BigInt.from(1000)).toInt()
+            : null,
+      );
+
+      if (_isStale(requestId)) return;
+
+      if (lrclibLyrics != null) {
+        emit(LyricsLoaded(lrclibLyrics, track));
+        _autoSave(lrclibLyrics);
+        log(
+          'Lyrics loaded for ID: ${track.id} [LRCLIB/synced: ${lrclibLyrics.lyricsSynced != null}]',
+          name: 'LyricsCubit',
+        );
+        return;
+      }
+    } catch (e) {
+      log('LRCLIB fetch error: $e', name: 'LyricsCubit');
     }
 
     final priority = await _loadPriority();

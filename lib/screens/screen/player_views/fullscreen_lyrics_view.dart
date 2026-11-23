@@ -11,6 +11,7 @@ import 'package:Orvia/screens/widgets/up_next_panel.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
+import 'package:Orvia/utils/romanizer_util.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,7 @@ class FullscreenLyricsView extends StatefulWidget {
 
 class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
   bool _showControls = true;
+  bool _showRomanization = false;
   Timer? _hideControlsTimer;
   final UpNextPanelController _upNextPanelController = UpNextPanelController();
 
@@ -159,6 +161,7 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
                               lyricOffset: _lyricOffset,
                               onInteraction: _onInteraction,
                               isDesktop: isDesktop,
+                              showRomanization: _showRomanization,
                             )
                           : state.lyrics.lyricsPlain.isNotEmpty
                               ? _buildPlainLyrics(state, isDesktop)
@@ -362,6 +365,17 @@ class _FullscreenLyricsViewState extends State<FullscreenLyricsView> {
                 ),
               ),
               const SizedBox(width: 16),
+              IconButton(
+                tooltip: _showRomanization ? 'Original Lyrics' : 'Romanize (English script)',
+                onPressed: () {
+                  setState(() => _showRomanization = !_showRomanization);
+                },
+                icon: Icon(
+                  Icons.translate_rounded,
+                  color: _showRomanization ? Default_Theme.accentColor2 : Colors.white70,
+                  size: 24,
+                ),
+              ),
               BlocBuilder<LyricsCubit, LyricsState>(
                 builder: (context, state) {
                   return IconButton(
@@ -614,6 +628,7 @@ class FullscreenSyncedLyrics extends StatefulWidget {
   final Duration lyricOffset;
   final VoidCallback? onInteraction;
   final bool isDesktop;
+  final bool showRomanization;
 
   const FullscreenSyncedLyrics({
     required this.state,
@@ -621,6 +636,7 @@ class FullscreenSyncedLyrics extends StatefulWidget {
     required this.lyricOffset,
     this.onInteraction,
     this.isDesktop = false,
+    this.showRomanization = false,
     super.key,
   });
 
@@ -775,6 +791,10 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
                 ? lyrics[index + 1].start
                 : lyric.start + const Duration(seconds: 5);
 
+            final romanized = widget.showRomanization && RomanizerUtil.containsDevanagari(lyric.text)
+                ? RomanizerUtil.romanize(lyric.text)
+                : null;
+
             return GestureDetector(
               onTap: () {
                 widget.onInteraction?.call();
@@ -785,6 +805,7 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
               },
               child: _KaraokeLyricLine(
                 text: lyric.text,
+                romanizedText: romanized,
                 startTime: lyric.start,
                 endTime: nextStart,
                 isActive: isCurrentLine,
@@ -807,6 +828,7 @@ class _FullscreenSyncedLyricsState extends State<FullscreenSyncedLyrics> {
 /// fill animation without the no-op tween layer.
 class _KaraokeLyricLine extends StatelessWidget {
   final String text;
+  final String? romanizedText;
   final Duration startTime;
   final Duration endTime;
   final bool isActive;
@@ -816,6 +838,7 @@ class _KaraokeLyricLine extends StatelessWidget {
 
   const _KaraokeLyricLine({
     required this.text,
+    this.romanizedText,
     required this.startTime,
     required this.endTime,
     required this.isActive,
@@ -841,45 +864,62 @@ class _KaraokeLyricLine extends StatelessWidget {
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 300),
               opacity: isActive ? 1.0 : (isPast ? 0.25 : 0.4),
-              child: isActive
-                  ? ValueListenableBuilder<Duration>(
-                      valueListenable: positionNotifier,
-                      builder: (context, currentPosition, child) {
-                        final elapsed = currentPosition.inMilliseconds -
-                            startTime.inMilliseconds;
-                        final total =
-                            endTime.inMilliseconds - startTime.inMilliseconds;
-                        final double progress =
-                            total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 1.0;
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  isActive
+                      ? ValueListenableBuilder<Duration>(
+                          valueListenable: positionNotifier,
+                          builder: (context, currentPosition, child) {
+                            final elapsed = currentPosition.inMilliseconds -
+                                startTime.inMilliseconds;
+                            final total =
+                                endTime.inMilliseconds - startTime.inMilliseconds;
+                            final double progress =
+                                total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 1.0;
 
-                        // FIX M-08: Direct ShaderMask with current progress.
-                        // No TweenAnimationBuilder needed — positionNotifier
-                        // already provides smooth sub-second updates.
-                        return ShaderMask(
-                          shaderCallback: (Rect bounds) {
-                            return LinearGradient(
-                              colors: [
-                                Colors.white,
-                                Colors.white.withValues(alpha: 0.35)
-                              ],
-                              stops: [
-                                progress,
-                                (progress + 0.05).clamp(0.0, 1.0)
-                              ],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ).createShader(bounds);
+                            return ShaderMask(
+                              shaderCallback: (Rect bounds) {
+                                return LinearGradient(
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white.withValues(alpha: 0.35)
+                                  ],
+                                  stops: [
+                                    progress,
+                                    (progress + 0.05).clamp(0.0, 1.0)
+                                  ],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.srcIn,
+                              child: child!,
+                            );
                           },
-                          blendMode: BlendMode.srcIn,
-                          child: child!,
-                        );
-                      },
-                      child: Text(text,
-                          textAlign: TextAlign.center, style: textStyle),
-                    )
-                  : Text(text,
+                          child: Text(text,
+                              textAlign: TextAlign.center, style: textStyle),
+                        )
+                      : Text(text,
+                          textAlign: TextAlign.center,
+                          style: textStyle.copyWith(color: Colors.white)),
+                  if (romanizedText != null && romanizedText != text) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      romanizedText!,
                       textAlign: TextAlign.center,
-                      style: textStyle.copyWith(color: Colors.white)),
+                      style: TextStyle(
+                        fontSize: isDesktop ? 20 : 16,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.white.withValues(
+                          alpha: isActive ? 0.85 : 0.45,
+                        ),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),

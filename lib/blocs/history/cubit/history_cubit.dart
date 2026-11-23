@@ -11,6 +11,7 @@ part 'history_state.dart';
 /// Uses [HistoryDAO.getHistory] (no limit) to fetch all recorded plays.
 class HistoryCubit extends Cubit<HistoryState> {
   final HistoryDAO _historyDao;
+  HistoryDAO get historyDao => _historyDao;
   StreamSubscription<void>? _watcher;
 
   HistoryCubit({required HistoryDAO historyDao})

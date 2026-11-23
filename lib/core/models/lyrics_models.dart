@@ -5,6 +5,7 @@ import 'package:Orvia/src/rust/api/plugin/models.dart' as plugin_models;
 
 enum LyricsProvider {
   plugin,
+  lrclib,
   none,
 }
 
@@ -122,26 +123,37 @@ class ParsedLyrics {
   }
 
   void parseLyrics(String syncedLyrics) {
-    //LRC fromat is [mm:ss.xx] lyrics
-    final regex = RegExp(r'\[(\d+):(\d+)\.(\d+)\] (.+)');
-    final matches = regex.allMatches(syncedLyrics);
+    lyrics.clear();
+    // LRC format is [mm:ss.xx] or [mm:ss.xxx] with optional text
+    final regex = RegExp(r'\[(\d+):(\d+)(?:\.(\d+))?\]\s*(.*)');
+    final lines = syncedLyrics.split('\n');
 
-    for (var match in matches) {
-      final min = int.parse(match.group(1)!);
-      final sec = int.parse(match.group(2)!);
-      final milli = int.parse(match.group(3)!);
-      final text = match.group(4)!;
-      lyrics.add(
-        ParsedLyric(
-          text: text,
-          start: Duration(
-            minutes: min,
-            seconds: sec.toInt(),
-            milliseconds: milli,
+    for (var line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      final match = regex.firstMatch(trimmed);
+      if (match != null) {
+        final min = int.tryParse(match.group(1) ?? '0') ?? 0;
+        final sec = int.tryParse(match.group(2) ?? '0') ?? 0;
+        final frac = match.group(3) ?? '0';
+        int milli = int.tryParse(frac) ?? 0;
+        if (frac.length == 1) milli *= 100;
+        if (frac.length == 2) milli *= 10;
+        final text = match.group(4) ?? '';
+
+        lyrics.add(
+          ParsedLyric(
+            text: text,
+            start: Duration(
+              minutes: min,
+              seconds: sec,
+              milliseconds: milli,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
+    lyrics.sort((a, b) => a.start.compareTo(b.start));
     log("ParsedLyrics: ${lyrics.length}");
   }
 
