@@ -89,6 +89,8 @@ class ReleaseChannel {
       platformKey = 'macos';
     } else if (Platform.isWindows) {
       platformKey = 'windows';
+    } else if (Platform.isIOS) {
+      platformKey = 'ios';
     }
     return platforms[platformKey] ?? platforms['all'] ?? platforms['default'];
   }
