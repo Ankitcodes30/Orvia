@@ -116,6 +116,8 @@ class PlayerEngine {
       BehaviorSubject.seeded(Duration.zero);
   final BehaviorSubject<double> _volumeSubject = BehaviorSubject.seeded(1.0);
   final BehaviorSubject<double> _speedSubject = BehaviorSubject.seeded(1.0);
+  final BehaviorSubject<double> _pitchSubject = BehaviorSubject.seeded(1.0);
+  double _pitch = 1.0;
 
   final StreamController<void> _completionController =
       StreamController<void>.broadcast();
@@ -293,6 +295,7 @@ class PlayerEngine {
   Duration get buffered => _bufferedSubject.value;
   double get volume => _volumeSubject.value;
   double get speed => _speedSubject.value;
+  double get pitch => _pitchSubject.value;
   LoopMode get loopMode => _loopMode;
   Stream<EngineState> get stateStream => _stateSubject.stream;
   Stream<bool> get playingStream => _playingSubject.stream;
@@ -301,6 +304,7 @@ class PlayerEngine {
   Stream<Duration> get bufferedStream => _bufferedSubject.stream;
   Stream<double> get volumeStream => _volumeSubject.stream;
   Stream<double> get speedStream => _speedSubject.stream;
+  Stream<double> get pitchStream => _pitchSubject.stream;
   Stream<void> get completionStream => _completionController.stream;
   Stream<String> get errorStream => _errorController.stream;
 
@@ -597,8 +601,35 @@ class PlayerEngine {
 
   Future<void> setSpeed(double speed) async {
     if (_disposed) return;
-    await _active.setRate(speed);
-    _speedSubject.add(speed);
+    final clamped = speed.clamp(0.5, 2.0);
+    await _active.setRate(clamped);
+    _speedSubject.add(clamped);
+  }
+
+  Future<void> setPitch(double pitch) async {
+    if (_disposed) return;
+    _pitch = pitch.clamp(0.5, 2.0);
+    _pitchSubject.add(_pitch);
+    for (final p in [_playerA, _playerB]) {
+      final platform = p.platform;
+      if (platform is NativePlayer) {
+        try {
+          await platform.setProperty('pitch', _pitch.toString());
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Automatically resets playback tempo and pitch to default (1.0)
+  /// so modifications never leak across different tracks.
+  Future<void> resetPlaybackSpeedAndPitch() async {
+    if (_disposed) return;
+    if (_speedSubject.value != 1.0) {
+      await setSpeed(1.0);
+    }
+    if (_pitchSubject.value != 1.0) {
+      await setPitch(1.0);
+    }
   }
 
   Future<void> setLoopMode(LoopMode mode) async {
@@ -812,6 +843,7 @@ class PlayerEngine {
     await _bufferedSubject.close();
     await _volumeSubject.close();
     await _speedSubject.close();
+    await _pitchSubject.close();
     await _completionController.close();
     await _errorController.close();
     await _eqEnabledSubject.close();

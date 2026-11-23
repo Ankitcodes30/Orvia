@@ -9,6 +9,7 @@ import 'package:Orvia/screens/screen/home_views/setting_views/download_setting.d
 import 'package:Orvia/screens/screen/home_views/setting_views/lastfm_setting.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/player_setting.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/updates_setting.dart';
+import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
 import 'package:Orvia/screens/screen/plugin_manager_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
@@ -45,41 +46,24 @@ class SettingsView extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
-              // ── Group 1: Core App & Plugins ──
+              // ── Group 1: Appearance (Metrolist Style) ──
+              const _SectionHeader(title: 'APPEARANCE'),
               _SettingsSection(
                 children: [
                   _SettingsTile(
-                    title: AppLocalizations.of(context)!.settingsPlugins,
-                    subtitle:
-                        AppLocalizations.of(context)!.settingsPluginsSubtitle,
-                    icon: MingCute.plugin_2_fill,
-                    iconColor: Default_Theme.accentColor2,
-                    isHighlightIcon:
-                        true, // Gives the accent color a bit more pop
-                    onTap: () =>
-                        _navigate(context, const PluginManagerScreen()),
-                  ),
-                  _SettingsTile(
-                    title: AppLocalizations.of(context)!.settingsPluginDefaults,
+                    title: AppLocalizations.of(context)!.settingsUIElements,
                     subtitle: AppLocalizations.of(context)!
-                        .settingsPluginDefaultsSubtitle,
-                    icon: MingCute.settings_6_fill,
+                        .settingsUIElementsSubtitle,
+                    icon: MingCute.display_fill,
                     iconColor: Default_Theme.accentColor2,
-                    onTap: () =>
-                        _navigate(context, const PluginDefaultsSettings()),
-                  ),
-                  _SettingsTile(
-                    title: AppLocalizations.of(context)!.settingsUpdates,
-                    subtitle:
-                        AppLocalizations.of(context)!.settingsUpdatesSubtitle,
-                    icon: MingCute.download_3_fill,
-                    iconColor: Default_Theme.accentColor2,
-                    onTap: () => _navigate(context, const UpdatesSettings()),
+                    onTap: () => _navigate(context, const AppUISettings()),
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
 
-              // ── Group 2: Playback & Media ──
+              // ── Group 2: Player & Audio ──
+              const _SectionHeader(title: 'PLAYER & AUDIO'),
               _SettingsSection(
                 children: [
                   _SettingsTile(
@@ -90,6 +74,40 @@ class SettingsView extends StatelessWidget {
                     iconColor: Default_Theme.accentColor2,
                     onTap: () => _navigate(context, const PlayerSettings()),
                   ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // ── Group 3: Content & Region ──
+              const _SectionHeader(title: 'CONTENT & REGION'),
+              _SettingsSection(
+                children: [
+                  _SettingsTile(
+                    title:
+                        AppLocalizations.of(context)!.settingsLanguageCountry,
+                    subtitle: AppLocalizations.of(context)!
+                        .settingsLanguageCountrySubtitle,
+                    icon: MingCute.globe_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const CountrySettings()),
+                  ),
+                  _SettingsTile(
+                    title: AppLocalizations.of(context)!.settingsPluginDefaults,
+                    subtitle: AppLocalizations.of(context)!
+                        .settingsPluginDefaultsSubtitle,
+                    icon: MingCute.settings_6_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () =>
+                        _navigate(context, const PluginDefaultsSettings()),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // ── Group 4: Storage & Downloads ──
+              const _SectionHeader(title: 'STORAGE & DOWNLOADS'),
+              _SettingsSection(
+                children: [
                   _SettingsTile(
                     title: AppLocalizations.of(context)!.settingsDownloads,
                     subtitle:
@@ -97,6 +115,14 @@ class SettingsView extends StatelessWidget {
                     icon: MingCute.folder_download_fill,
                     iconColor: Default_Theme.accentColor2,
                     onTap: () => _navigate(context, const DownloadSettings()),
+                  ),
+                  _SettingsTile(
+                    title: AppLocalizations.of(context)!.settingsStorage,
+                    subtitle:
+                        AppLocalizations.of(context)!.settingsStorageSubtitle,
+                    icon: MingCute.coin_2_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const BackupSettings()),
                   ),
                   _SettingsTile(
                     title: AppLocalizations.of(context)!.settingsLocalTracks,
@@ -108,34 +134,28 @@ class SettingsView extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
 
-              // ── Group 3: Preferences & Integrations ──
+              // ── Group 5: Services & Social ──
+              const _SectionHeader(title: 'SERVICES & SOCIAL'),
               _SettingsSection(
                 children: [
                   _SettingsTile(
-                    title: AppLocalizations.of(context)!.settingsUIElements,
-                    subtitle: AppLocalizations.of(context)!
-                        .settingsUIElementsSubtitle,
-                    icon: MingCute.display_fill,
+                    title: 'Listen Together',
+                    subtitle: 'Host or join synchronized listening rooms',
+                    icon: MingCute.group_line,
                     iconColor: Default_Theme.accentColor2,
-                    onTap: () => _navigate(context, const AppUISettings()),
+                    isHighlightIcon: true,
+                    onTap: () => _navigate(context, const ListenTogetherScreen()),
                   ),
                   _SettingsTile(
-                    title:
-                        AppLocalizations.of(context)!.settingsLanguageCountry,
-                    subtitle: AppLocalizations.of(context)!
-                        .settingsLanguageCountrySubtitle,
-                    icon: MingCute.globe_fill,
-                    iconColor: Default_Theme.accentColor2,
-                    onTap: () => _navigate(context, const CountrySettings()),
-                  ),
-                  _SettingsTile(
-                    title: AppLocalizations.of(context)!.settingsStorage,
+                    title: AppLocalizations.of(context)!.settingsPlugins,
                     subtitle:
-                        AppLocalizations.of(context)!.settingsStorageSubtitle,
-                    icon: MingCute.coin_2_fill,
+                        AppLocalizations.of(context)!.settingsPluginsSubtitle,
+                    icon: MingCute.plugin_2_fill,
                     iconColor: Default_Theme.accentColor2,
-                    onTap: () => _navigate(context, const BackupSettings()),
+                    onTap: () =>
+                        _navigate(context, const PluginManagerScreen()),
                   ),
                   _SettingsTile(
                     title: AppLocalizations.of(context)!.settingsLastFM,
@@ -147,22 +167,32 @@ class SettingsView extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
 
-              // ── Group 4: Info ──
+              // ── Group 6: About & Updates ──
+              const _SectionHeader(title: 'ABOUT & UPDATES'),
               _SettingsSection(
                 children: [
+                  _SettingsTile(
+                    title: AppLocalizations.of(context)!.settingsUpdates,
+                    subtitle:
+                        AppLocalizations.of(context)!.settingsUpdatesSubtitle,
+                    icon: MingCute.download_3_fill,
+                    iconColor: Default_Theme.accentColor2,
+                    onTap: () => _navigate(context, const UpdatesSettings()),
+                  ),
                   _SettingsTile(
                     title: AppLocalizations.of(context)!.settingsAbout,
                     subtitle:
                         AppLocalizations.of(context)!.settingsAboutSubtitle,
-                    icon: MingCute.github_fill,
+                    icon: MingCute.flower_4_fill,
                     iconColor: Default_Theme.accentColor2,
                     onTap: () => _navigate(context, const About()),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 32), // Bottom padding
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -320,6 +350,28 @@ class _SettingsTile extends StatelessWidget {
               size: 22,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 8, top: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: Default_Theme.accentColor2.withValues(alpha: 0.95),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
         ),
       ),
     );

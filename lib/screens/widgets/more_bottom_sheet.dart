@@ -18,6 +18,7 @@ import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/smart_replace_dialog.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
+import 'package:Orvia/screens/widgets/tempo_pitch_sheet.dart';
 import 'package:Orvia/services/song_metadata_refresh_service.dart';
 
 void showMoreBottomSheet(
@@ -239,6 +240,14 @@ class _TrackOptionsBottomSheet extends StatelessWidget {
                             onTap: (ctx) {
                               Navigator.pop(ctx);
                               showSmartReplaceDialog(parentContext, song);
+                            },
+                          ),
+                          _CompactTile(
+                            icon: Icons.speed_rounded,
+                            title: 'Tempo & Pitch',
+                            onTap: (ctx) {
+                              Navigator.pop(ctx);
+                              showTempoPitchSheet(parentContext);
                             },
                           ),
 

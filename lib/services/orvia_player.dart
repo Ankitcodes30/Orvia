@@ -559,6 +559,22 @@ class OrviaMusicPlayer extends BaseAudioHandler
   }
 
   @override
+  Future<void> setSpeed(double speed) async {
+    if (_isDisposed) return;
+    await engine.setSpeed(speed);
+  }
+
+  Future<void> setPitch(double pitch) async {
+    if (_isDisposed) return;
+    await engine.setPitch(pitch);
+  }
+
+  double get speed => engine.speed;
+  double get pitch => engine.pitch;
+  Stream<double> get speedStream => engine.speedStream;
+  Stream<double> get pitchStream => engine.pitchStream;
+
+  @override
   Future<void> stop() async {
     _errorHandler.resetCircuitBreaker();
     _shouldResumeAfterInterruption = false;
@@ -712,6 +728,9 @@ class OrviaMusicPlayer extends BaseAudioHandler
 
       isResolving.add(false);
       _errorHandler.clearError();
+      // Auto-reset speed and pitch on every new track so modifications from
+      // a previous song never leak into subsequent tracks.
+      await engine.resetPlaybackSpeedAndPitch();
       _preResolveNextTrack();
       _checkRelatedSongs();
       complete();

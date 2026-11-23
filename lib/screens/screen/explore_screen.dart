@@ -41,6 +41,9 @@ import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
 import 'package:Orvia/screens/widgets/whats_hot_near_you.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
+import 'package:Orvia/screens/widgets/category_chips_bar.dart';
+import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
+import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -285,114 +288,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 SliverList(
                   delegate: SliverChildListDelegate(
                     [
-                      CaraouselWidget(
-                        key: _carouselKey,
-                        onFestiveTap: _scrollToFestiveSpecial,
+                      const SizedBox(height: 8),
+                      // 1. Metrolist-style Top Category Chips (Podcasts, Romance, Workout, etc.)
+                      CategoryChipsBar(
+                        onCategorySelected: (category) {
+                          SnackbarService.showMessage('Browsing $category');
+                        },
                       ),
-                      // 2. Recently Played directly beneath the carousel
-                      Padding(
-                        padding: const EdgeInsets.only(top: 15.0),
-                        child: BlocBuilder<RecentlyCubit, RecentlyCubitState>(
-                          builder: (context, state) {
-                            if (state is RecentlyCubitInitial) {
-                              return const Center(
-                                child: SizedBox(
-                                  height: 60,
-                                  width: 60,
-                                  child: CircularProgressIndicator(
-                                    color: Default_Theme.accentColor2,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (state.tracks.isNotEmpty) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0, vertical: 4.0),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          AppLocalizations.of(context)!
-                                              .exploreRecently,
-                                          style: Default_Theme.primaryTextStyle
-                                              .merge(
-                                            const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              color:
-                                                  Default_Theme.primaryColor1,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const HistoryView(),
-                                              ),
-                                            );
-                                          },
-                                          child: const Text(
-                                            'See All',
-                                            style: TextStyle(
-                                              color: Default_Theme.accentColor2,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  TabSongListWidget(
-                                    list: state.tracks.map((e) {
-                                      return SongCardWidget(
-                                        song: e,
-                                        onTap: () {
-                                          context
-                                              .read<OrviaPlayerCubit>()
-                                              .orviaPlayer
-                                              .loadPlaylist(
-                                                Playlist(
-                                                  tracks: state.tracks,
-                                                  title: 'Recently',
-                                                ),
-                                                idx: state.tracks.indexOf(e),
-                                                doPlay: true,
-                                              );
-                                        },
-                                        onOptionsTap: () => showMoreBottomSheet(
-                                          context,
-                                          e,
-                                          showSinglePlay: true,
-                                          showRemoveFromHistory: true,
-                                          onRemoveFromHistory: () {
-                                            context
-                                                .read<RecentlyCubit>()
-                                                .removeTrack(e.id);
-                                            SnackbarService.showMessage(
-                                                'Removed from Recently Played');
-                                          },
-                                        ),
-                                      );
-                                    }).toList(),
-                                    category: '',
-                                    columnSize: 3,
-                                  ),
-                                ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
+                      const SizedBox(height: 12),
+                      // 2. Metrolist-style 3x3 Speed Dial Grid with 9th-slot Interactive Dice
+                      BlocBuilder<RecentlyCubit, RecentlyCubitState>(
+                        builder: (context, state) {
+                          return SpeedDialSection(tracks: state.tracks);
+                        },
                       ),
+                      const SizedBox(height: 12),
                       BlocBuilder<SettingsCubit, SettingsState>(
                         builder: (context, state) {
                           if (state.lFMPicks) {
@@ -681,9 +591,9 @@ class CustomDiscoverBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          const NotificationIcon(),
+          const HistoryIcon(),
+          const ListenTogetherIcon(),
           const SiteIcon(),
-          const TimerIcon(),
           const SettingsIcon(),
         ],
       ),
@@ -800,6 +710,52 @@ class SettingsIcon extends StatelessWidget {
         MingCute.settings_3_line,
         color: Default_Theme.primaryColor1,
         size: 30.0,
+      ),
+    );
+  }
+}
+
+class HistoryIcon extends StatelessWidget {
+  const HistoryIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const HistoryView()),
+        );
+      },
+      icon: const Icon(
+        MingCute.history_line,
+        color: Default_Theme.primaryColor1,
+        size: 26.0,
+      ),
+    );
+  }
+}
+
+class ListenTogetherIcon extends StatelessWidget {
+  const ListenTogetherIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ListenTogetherScreen()),
+        );
+      },
+      icon: const Icon(
+        MingCute.group_line,
+        color: Default_Theme.primaryColor1,
+        size: 26.0,
       ),
     );
   }
