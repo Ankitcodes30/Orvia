@@ -1,50 +1,38 @@
-import 'dart:math';
-import 'dart:ui';
-
-import 'package:Orvia/blocs/add_to_playlist/cubit/add_to_playlist_cubit.dart';
-import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
-import 'package:Orvia/blocs/mini_player/mini_player_cubit.dart';
-import 'package:Orvia/blocs/player_overlay/player_overlay_cubit.dart';
-import 'package:Orvia/core/constants/route_paths.dart';
-import 'package:Orvia/core/theme/app_theme.dart';
-import 'package:Orvia/screens/widgets/media_metadata_links.dart';
-import 'package:Orvia/utils/load_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:responsive_framework/responsive_framework.dart';
+import 'package:share_plus/share_plus.dart';
+
+import 'package:Orvia/blocs/library/cubit/library_items_cubit.dart';
+import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
+import 'package:Orvia/blocs/mini_player/mini_player_cubit.dart';
+import 'package:Orvia/blocs/player_overlay/player_overlay_cubit.dart';
+import 'package:Orvia/core/theme/app_theme.dart';
+import 'package:Orvia/screens/screen/player_views/fullscreen_lyrics_view.dart';
+import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
+import 'package:Orvia/screens/widgets/snackbar.dart';
+import 'package:Orvia/services/player/player_engine.dart';
+import 'package:Orvia/utils/load_image.dart';
 
 class MiniPlayerWidget extends StatelessWidget {
-  const MiniPlayerWidget({Key? key}) : super(key: key);
+  const MiniPlayerWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<MiniPlayerCubit, MiniPlayerState>(
       builder: (context, state) {
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 350),
+          duration: const Duration(milliseconds: 300),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) {
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 1.5),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
-              child: FadeTransition(
-                opacity: animation,
-                child: child,
-              ),
-            );
-          },
-          child: state.isVisible
-              ? MiniPlayerCard(key: const ValueKey('mini_player'), state: state)
-              : const SizedBox.shrink(key: ValueKey('empty')),
+          child: state.isVisible && state.track != null
+              ? MiniPlayerCard(
+                  key: const ValueKey('metrolist_mini_player'),
+                  state: state,
+                )
+              : const SizedBox.shrink(key: ValueKey('empty_player')),
         );
       },
     );
@@ -59,596 +47,473 @@ class MiniPlayerCard extends StatefulWidget {
   State<MiniPlayerCard> createState() => _MiniPlayerCardState();
 }
 
-class _MiniPlayerCardState extends State<MiniPlayerCard>
-    with TickerProviderStateMixin {
-  double _dragOffset = 0;
-  double _snapStartOffset = 0;
-  late final AnimationController _snapController;
-  late final AnimationController _waveController;
-
-  static const double _cardHeight = 72;
-  static const double _artworkSize = 52;
-  static const double _swipeThreshold = 80;
+class _MiniPlayerCardState extends State<MiniPlayerCard> {
+  bool _isLiked = false;
 
   @override
   void initState() {
     super.initState();
-    _snapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..addListener(_onSnapTick);
-
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-
-    _syncAnimations();
+    _checkLikedState();
   }
 
   @override
   void didUpdateWidget(covariant MiniPlayerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.state.isPlaying != widget.state.isPlaying) {
-      _syncAnimations();
+    if (oldWidget.state.track?.id != widget.state.track?.id) {
+      _checkLikedState();
     }
   }
 
-  void _syncAnimations() {
-    if (widget.state.isPlaying) {
-      _waveController.repeat();
-    } else {
-      _waveController.stop();
+  Future<void> _checkLikedState() async {
+    final track = widget.state.track;
+    if (track == null) return;
+    try {
+      final liked = await context.read<LibraryItemsCubit>().isTrackLiked(track);
+      if (mounted) setState(() => _isLiked = liked);
+    } catch (_) {
+      if (mounted) setState(() => _isLiked = false);
     }
   }
 
-  void _onSnapTick() {
-    setState(() {
-      _dragOffset = lerpDouble(
-        _snapStartOffset,
-        0,
-        Curves.easeOutCubic.transform(_snapController.value),
-      )!;
-    });
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = d.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  @override
-  void dispose() {
-    _snapController
-      ..removeListener(_onSnapTick)
-      ..dispose();
-    _waveController.dispose();
-    super.dispose();
-  }
-
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    if (_snapController.isAnimating) _snapController.stop();
-    setState(() {
-      _dragOffset += details.delta.dx * 0.85;
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
+  void _showVolumeDialog(BuildContext context) {
     final player = context.read<OrviaPlayerCubit>().orviaPlayer;
-
-    if (_dragOffset < -_swipeThreshold || velocity < -600) {
-      HapticFeedback.mediumImpact();
-      player.skipToNext();
-    } else if (_dragOffset > _swipeThreshold || velocity > 600) {
-      HapticFeedback.mediumImpact();
-      player.skipToPrevious();
-    }
-
-    _snapStartOffset = _dragOffset;
-    _snapController.forward(from: 0);
-  }
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    if ((details.primaryVelocity ?? 0) < -200) {
-      HapticFeedback.lightImpact();
-      context.read<PlayerOverlayCubit>().showPlayer();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final song = widget.state.track!;
-    final isDesktop = ResponsiveBreakpoints.of(context).isDesktop;
-    final thumbUrl = song.thumbnail.urlLow ?? song.thumbnail.url;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        context.read<PlayerOverlayCubit>().showPlayer();
-      },
-      onHorizontalDragUpdate: _onHorizontalDragUpdate,
-      onHorizontalDragEnd: _onHorizontalDragEnd,
-      onVerticalDragEnd: _onVerticalDragEnd,
-      child: Transform.translate(
-        offset: Offset(_dragOffset, 0),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              height: _cardHeight,
-              child: Stack(
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Default_Theme.themeColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Volume',
+            style: TextStyle(color: Default_Theme.primaryColor1, fontSize: 16),
+          ),
+          content: StreamBuilder<double>(
+            stream: player.engine.volumeStream,
+            initialData: player.engine.volume,
+            builder: (context, snapshot) {
+              final vol = snapshot.data ?? 1.0;
+              return Row(
                 children: [
-                  _BlurredBackground(
-                    imageUrl: thumbUrl,
-                    mediaId: song.id,
+                  Icon(
+                    vol == 0 ? MingCute.volume_mute_line : MingCute.volume_line,
+                    color: Default_Theme.primaryColor1,
                   ),
-                  _GlassOverlay(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      children: [
-                        _Artwork(
-                          imageUrl: thumbUrl,
-                          fallbackUrl: song.thumbnail.url,
-                          mediaId: song.id,
-                          size: _artworkSize,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _TrackInfo(
-                            song: song,
-                            waveController: _waveController,
-                            isPlaying: widget.state.isPlaying,
-                          ),
-                        ),
-                        if (isDesktop)
-                          _ControlButton(
-                            icon: FontAwesome.backward_step_solid,
-                            size: 20,
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              context
-                                  .read<OrviaPlayerCubit>()
-                                  .orviaPlayer
-                                  .skipToPrevious();
-                            },
-                          ),
-                        _PlayPauseButton(state: widget.state),
-                        if (isDesktop)
-                          _ControlButton(
-                            icon: FontAwesome.forward_step_solid,
-                            size: 20,
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              context
-                                  .read<OrviaPlayerCubit>()
-                                  .orviaPlayer
-                                  .skipToNext();
-                            },
-                          ),
-                        _ControlButton(
-                          icon: FontAwesome.plus_solid,
-                          size: 18,
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            context.read<AddToPlaylistCubit>().setTrack(song);
-                            context.pushNamed(RoutePaths.addToPlaylistScreen);
-                          },
-                        ),
-                      ],
+                  Expanded(
+                    child: Slider(
+                      value: vol.clamp(0.0, 1.0),
+                      activeColor: Default_Theme.accentColor2,
+                      inactiveColor: Default_Theme.primaryColor1.withValues(alpha: 0.2),
+                      onChanged: (newVol) {
+                        player.engine.setVolume(newVol);
+                      },
                     ),
                   ),
-                  if (!widget.state.isCompleted) const _GlowingProgressBar(),
-                  Positioned(
-                    top: 0,
-                    left: 24,
-                    right: 24,
-                    child: Container(
-                      height: 0.5,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [
-                          Colors.white.withValues(alpha: 0),
-                          Colors.white.withValues(alpha: 0.15),
-                          Colors.white.withValues(alpha: 0),
-                        ]),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BlurredBackground extends StatelessWidget {
-  final String imageUrl;
-  final String? mediaId;
-  const _BlurredBackground({required this.imageUrl, this.mediaId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: Transform.scale(
-        scale: 1.6,
-        child: ImageFiltered(
-          imageFilter: ImageFilter.blur(
-            sigmaX: 40,
-            sigmaY: 40,
-            tileMode: TileMode.clamp,
-          ),
-          child: LoadImageCached(
-            imageUrl: imageUrl,
-            mediaId: mediaId,
-            placeholderUrl: resolveSongPlaceholder(mediaId: mediaId),
-            fit: BoxFit.cover,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassOverlay extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.black.withValues(alpha: 0.45),
-              Colors.black.withValues(alpha: 0.60),
-            ],
-          ),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 0.5,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-    );
-  }
-}
-
-class _Artwork extends StatelessWidget {
-  final String imageUrl;
-  final String fallbackUrl;
-  final double size;
-  final String? mediaId;
-
-  const _Artwork({
-    required this.imageUrl,
-    required this.fallbackUrl,
-    this.mediaId,
-    required this.size,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: LoadImageCached(
-          imageUrl: imageUrl,
-          fallbackUrl: fallbackUrl,
-          mediaId: mediaId,
-          placeholderUrl: resolveSongPlaceholder(mediaId: mediaId),
-          fit: BoxFit.cover,
-        ),
-      ),
-    );
-  }
-}
-
-class _TrackInfo extends StatelessWidget {
-  final dynamic song;
-  final AnimationController waveController;
-  final bool isPlaying;
-
-  const _TrackInfo({
-    required this.song,
-    required this.waveController,
-    required this.isPlaying,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            if (isPlaying) ...[
-              _NowPlayingWave(controller: waveController),
-              const SizedBox(width: 7),
-            ],
-            Expanded(
-              child: Text(
-                song.title,
-                style: const TextStyle(
-                  fontFamily: 'Unageo',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        TrackMetadataLinks(
-          track: song,
-          style: TextStyle(
-            fontFamily: 'Unageo',
-            fontWeight: FontWeight.w600,
-            fontSize: 11.5,
-            color: Colors.white.withValues(alpha: 0.55),
-            letterSpacing: 0.1,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-}
-
-class _NowPlayingWave extends StatelessWidget {
-  final AnimationController controller;
-  const _NowPlayingWave({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        return CustomPaint(
-          size: const Size(18, 14),
-          painter: _WavePainter(
-            progress: controller.value,
-            color: Colors.white,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _WavePainter extends CustomPainter {
-  final double progress;
-  final Color color;
-
-  _WavePainter({required this.progress, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    const barCount = 4;
-    final spacing = size.width / barCount;
-
-    for (int i = 0; i < barCount; i++) {
-      final phase = i * 0.8;
-      final amplitude = size.height * 0.4;
-      final wave = sin((progress * 2 * pi) + phase);
-      final barHeight = (amplitude * (wave + 1) / 2) + (size.height * 0.15);
-
-      final x = (i * spacing) + spacing / 2;
-      final top = (size.height - barHeight) / 2;
-      final bottom = top + barHeight;
-
-      canvas.drawLine(Offset(x, top), Offset(x, bottom), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_WavePainter oldDelegate) =>
-      oldDelegate.progress != progress;
-}
-
-class _PlayPauseButton extends StatelessWidget {
-  final MiniPlayerState state;
-  const _PlayPauseButton({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    if (state.isLoading || state.isResolving) {
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.read<OrviaPlayerCubit>().orviaPlayer.pause();
-        },
-        child: const Padding(
-          padding: EdgeInsets.all(12),
-          child: SizedBox.square(
-            dimension: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (state.hasError) {
-      return _ControlButton(
-        icon: MingCute.refresh_3_line,
-        size: 22,
-        onPressed: () {
-          HapticFeedback.mediumImpact();
-          context.read<OrviaPlayerCubit>().orviaPlayer.play();
-        },
-      );
-    }
-
-    if (state.isCompleted) {
-      return _ControlButton(
-        icon: FontAwesome.rotate_right_solid,
-        size: 22,
-        onPressed: () {
-          HapticFeedback.mediumImpact();
-          context.read<OrviaPlayerCubit>().orviaPlayer.rewind();
-        },
-      );
-    }
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        state.isPlaying
-            ? context.read<OrviaPlayerCubit>().orviaPlayer.pause()
-            : context.read<OrviaPlayerCubit>().orviaPlayer.play();
-      },
-      child: Container(
-        width: 42,
-        height: 42,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.12),
-          border: Border.all(
-              color: Colors.white.withValues(alpha: 0.15), width: 0.5),
-        ),
-        child: Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, anim) =>
-                ScaleTransition(scale: anim, child: child),
-            child: Icon(
-              state.isPlaying
-                  ? FontAwesome.pause_solid
-                  : FontAwesome.play_solid,
-              key: ValueKey(state.isPlaying),
-              size: 18,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ControlButton extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final VoidCallback onPressed;
-
-  const _ControlButton({
-    required this.icon,
-    required this.size,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon,
-              size: size, color: Colors.white.withValues(alpha: 0.85)),
-        ),
-      ),
-    );
-  }
-}
-
-class _GlowingProgressBar extends StatelessWidget {
-  const _GlowingProgressBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 3,
-      child: StreamBuilder<ProgressBarStreams>(
-        stream: context.watch<OrviaPlayerCubit>().progressStreams,
-        builder: (context, snapshot) {
-          double fraction = 0;
-          if (snapshot.hasData && snapshot.data!.duration != Duration.zero) {
-            fraction = (snapshot.data!.position.inMilliseconds /
-                    snapshot.data!.duration.inMilliseconds)
-                .clamp(0.0, 1.0);
-          }
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth * fraction;
-              return Stack(
-                children: [
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    width: width,
-                    height: 6,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: Default_Theme.accentColor2
-                                .withValues(alpha: 0.6),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    height: 3,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: width,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.horizontal(
-                          right: Radius.circular(2),
-                        ),
-                        gradient: LinearGradient(colors: [
-                          Colors.white.withValues(alpha: 0.8),
-                          Colors.white.withValues(alpha: 0.6),
-                        ]),
-                      ),
+                  Text(
+                    '${(vol * 100).toInt()}%',
+                    style: const TextStyle(
+                      color: Default_Theme.primaryColor1,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               );
             },
-          );
-        },
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = widget.state.track!;
+    final isDesktop = ResponsiveBreakpoints.of(context).isDesktop;
+    final playerCubit = context.read<OrviaPlayerCubit>();
+    final player = playerCubit.orviaPlayer;
+    final isPlaying = widget.state.isPlaying;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1919).withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── 1. Metrolist Top Interactive Seek Line ──
+          StreamBuilder<ProgressBarStreams>(
+            stream: playerCubit.progressStreams,
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+              final position = data?.position ?? Duration.zero;
+              final duration = data?.duration ?? Duration.zero;
+              final totalMs = duration.inMilliseconds;
+              final currentMs = position.inMilliseconds.clamp(0, totalMs > 0 ? totalMs : 0);
+              final progressFraction = totalMs > 0 ? (currentMs / totalMs).clamp(0.0, 1.0) : 0.0;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Row(
+                  children: [
+                    // Position label (left)
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        _formatDuration(position),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Default_Theme.primaryColor1.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Scrubbable Progress Line (middle)
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onHorizontalDragUpdate: (details) {
+                              if (totalMs <= 0) return;
+                              final ratio = (details.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                              final target = Duration(milliseconds: (ratio * totalMs).toInt());
+                              player.seek(target);
+                            },
+                            onTapDown: (details) {
+                              if (totalMs <= 0) return;
+                              final ratio = (details.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                              final target = Duration(milliseconds: (ratio * totalMs).toInt());
+                              player.seek(target);
+                            },
+                            child: SizedBox(
+                              height: 18,
+                              child: Center(
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.centerLeft,
+                                  children: [
+                                    // Inactive track
+                                    Container(
+                                      height: 3.5,
+                                      width: constraints.maxWidth,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    // Active progress track
+                                    Container(
+                                      height: 3.5,
+                                      width: constraints.maxWidth * progressFraction,
+                                      decoration: BoxDecoration(
+                                        color: Default_Theme.accentColor2,
+                                        borderRadius: BorderRadius.circular(2),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Default_Theme.accentColor2.withValues(alpha: 0.4),
+                                            blurRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Scrubber knob
+                                    Positioned(
+                                      left: (constraints.maxWidth * progressFraction - 4).clamp(0.0, constraints.maxWidth - 8),
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Duration label (right)
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        _formatDuration(duration),
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Default_Theme.primaryColor1.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          // ── 2. Metrolist Controls Row ──
+          Row(
+            children: [
+              // ── Left: Thumbnail + Title/Artist + Quick Actions ──
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: LoadImageCached(
+                    imageUrl: track.thumbnail.url,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      track.artists.isNotEmpty
+                          ? track.artists.first.name
+                          : track.album?.title ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Default_Theme.primaryColor1.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Share Button
+              IconButton(
+                icon: const Icon(MingCute.share_2_line, size: 19),
+                color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  SharePlus.instance.share(ShareParams(text: track.url ?? track.title));
+                },
+              ),
+
+              // Heart (Like/Favorite) Button
+              IconButton(
+                icon: Icon(
+                  _isLiked ? MingCute.heart_fill : MingCute.heart_line,
+                  size: 20,
+                  color: _isLiked
+                      ? Default_Theme.accentColor2
+                      : Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                ),
+                onPressed: () async {
+                  HapticFeedback.lightImpact();
+                  final target = !_isLiked;
+                  await context.read<LibraryItemsCubit>().setTrackLiked(track, target);
+                  if (mounted) {
+                    setState(() => _isLiked = target);
+                    SnackbarService.showMessage(
+                      target ? 'Added to Favorites' : 'Removed from Favorites',
+                    );
+                  }
+                },
+              ),
+
+              // More 3-dots Button
+              IconButton(
+                icon: const Icon(MingCute.more_2_line, size: 19),
+                color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                onPressed: () {
+                  showMoreBottomSheet(context, track, showSinglePlay: true);
+                },
+              ),
+
+              // ── Center: Previous + Pill Play/Pause + Next ──
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(MingCute.skip_previous_fill, size: 22),
+                color: Colors.white,
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  player.skipToPrevious();
+                },
+              ),
+              const SizedBox(width: 4),
+
+              // Metrolist Pill Play/Pause Button
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  if (isPlaying) {
+                    player.pause();
+                  } else {
+                    player.play();
+                  }
+                },
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Default_Theme.accentColor2,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPlaying ? MingCute.pause_fill : MingCute.play_fill,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isPlaying ? 'Pause' : 'Play',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+
+              IconButton(
+                icon: const Icon(MingCute.skip_forward_fill, size: 22),
+                color: Colors.white,
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  player.skipToNext();
+                },
+              ),
+
+              // ── Right: Desktop Extra Controls (Lyrics, Shuffle, Repeat, Volume, Queue) ──
+              if (isDesktop) ...[
+                const SizedBox(width: 10),
+                // Lyrics Button
+                IconButton(
+                  icon: const Icon(MingCute.music_2_line, size: 19),
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                  onPressed: () {
+                    Navigator.of(context).push(PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const FullscreenLyricsView(),
+                      transitionsBuilder: (_, a, __, c) =>
+                          FadeTransition(opacity: a, child: c),
+                      transitionDuration: const Duration(milliseconds: 300),
+                    ));
+                  },
+                ),
+
+                // Miniplayer / Full screen viewer Button
+                IconButton(
+                  icon: const Icon(Icons.smart_display_outlined, size: 20),
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                  onPressed: () {
+                    context.read<PlayerOverlayCubit>().showPlayer();
+                  },
+                ),
+
+                // Shuffle Button
+                StreamBuilder<bool>(
+                  stream: player.shuffleMode,
+                  builder: (context, snap) {
+                    final isShuffle = snap.data ?? false;
+                    return IconButton(
+                      icon: Icon(
+                        isShuffle ? MingCute.shuffle_fill : MingCute.shuffle_line,
+                        size: 19,
+                        color: isShuffle
+                            ? Default_Theme.accentColor2
+                            : Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                      ),
+                      onPressed: () {
+                        player.shuffle(!isShuffle);
+                      },
+                    );
+                  },
+                ),
+
+                // Repeat Button
+                StreamBuilder<LoopMode>(
+                  stream: player.loopMode,
+                  builder: (context, snap) {
+                    final loop = snap.data ?? LoopMode.off;
+                    final isOne = loop == LoopMode.one;
+                    final isActive = loop != LoopMode.off;
+                    return IconButton(
+                      icon: Icon(
+                        isOne ? MingCute.repeat_one_line : MingCute.repeat_line,
+                        size: 19,
+                        color: isActive
+                            ? Default_Theme.accentColor2
+                            : Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                      ),
+                      onPressed: () {
+                        if (loop == LoopMode.off) {
+                          player.setLoopMode(LoopMode.all);
+                        } else if (loop == LoopMode.all) {
+                          player.setLoopMode(LoopMode.one);
+                        } else {
+                          player.setLoopMode(LoopMode.off);
+                        }
+                      },
+                    );
+                  },
+                ),
+
+                // Volume Button
+                IconButton(
+                  icon: const Icon(MingCute.volume_line, size: 19),
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                  onPressed: () => _showVolumeDialog(context),
+                ),
+
+                // Queue Button
+                IconButton(
+                  icon: const Icon(MingCute.playlist_line, size: 19),
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.7),
+                  onPressed: () {
+                    context.read<PlayerOverlayCubit>().showPlayer();
+                  },
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
 }
-

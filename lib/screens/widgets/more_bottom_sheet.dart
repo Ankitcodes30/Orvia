@@ -24,6 +24,7 @@ import 'package:Orvia/screens/widgets/tempo_pitch_sheet.dart';
 import 'package:Orvia/screens/screen/home_views/timer_view.dart';
 import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 import 'package:Orvia/services/song_metadata_refresh_service.dart';
+import 'package:Orvia/services/speed_dial/speed_dial_service.dart';
 
 void showMoreBottomSheet(
   BuildContext context,
@@ -284,6 +285,28 @@ class _TrackOptionsBottomSheetState extends State<_TrackOptionsBottomSheet> {
                               ctx.read<AddToPlaylistCubit>().setTrack(widget.song);
                               Navigator.pop(ctx);
                               router.pushNamed(RoutePaths.addToPlaylistScreen);
+                            },
+                          ),
+                          _CompactTile(
+                            icon: SpeedDialService.isPinned(widget.song.id)
+                                ? Icons.push_pin_outlined
+                                : MingCute.pin_line,
+                            title: SpeedDialService.isPinned(widget.song.id)
+                                ? 'Unpin from Speed Dial'
+                                : 'Pin to Speed Dial',
+                            onTap: (ctx) async {
+                              final isPinned =
+                                  SpeedDialService.isPinned(widget.song.id);
+                              Navigator.pop(ctx);
+                              if (isPinned) {
+                                await SpeedDialService.unpin(widget.song.id);
+                                SnackbarService.showMessage(
+                                    'Unpinned from Speed Dial');
+                              } else {
+                                await SpeedDialService.pinTrack(widget.song);
+                                SnackbarService.showMessage(
+                                    'Pinned to Speed Dial');
+                              }
                             },
                           ),
                           _CompactTile(

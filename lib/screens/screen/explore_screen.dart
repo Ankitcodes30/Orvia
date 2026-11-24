@@ -38,6 +38,8 @@ import 'package:Orvia/screens/widgets/metrolist_mood_view.dart';
 import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
+import 'package:go_router/go_router.dart';
+import 'package:Orvia/core/constants/route_paths.dart';
 import 'package:Orvia/screens/widgets/category_chips_bar.dart';
 import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
 import 'package:Orvia/core/utils/track_identity.dart';
@@ -700,18 +702,62 @@ class CustomDiscoverBar extends StatelessWidget {
       surfaceTintColor: Default_Theme.themeColor,
       backgroundColor: Default_Theme.themeColor,
       title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            AppLocalizations.of(context)!.exploreDiscover,
-            style: Default_Theme.primaryTextStyle.merge(
-              const TextStyle(
-                fontSize: 34,
-                color: Default_Theme.primaryColor1,
+          // Metrolist Search Bar
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                context.goNamed(RoutePaths.searchScreen);
+              },
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Default_Theme.primaryColor1.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Default_Theme.primaryColor1.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      MingCute.search_2_line,
+                      size: 18,
+                      color: Default_Theme.primaryColor1.withValues(alpha: 0.6),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Search music...',
+                      style: TextStyle(
+                        color: Default_Theme.primaryColor1.withValues(alpha: 0.55),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Default_Theme.primaryColor1.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Ctrl+K',
+                        style: TextStyle(
+                          color: Default_Theme.primaryColor1.withValues(alpha: 0.65),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           const HistoryIcon(),
           const ListenTogetherIcon(),
           const SiteIcon(),
