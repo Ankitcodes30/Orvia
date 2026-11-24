@@ -5,6 +5,7 @@ import 'package:Orvia/src/rust/api/plugin/models.dart' as plugin_models;
 
 enum LyricsProvider {
   plugin,
+  lrclib,
   none,
 }
 
@@ -38,14 +39,11 @@ class Lyrics {
     this.mediaID,
     this.offset,
   }) {
-    if (parsedLyrics == null && lyricsSynced != null && lyricsSynced!.trim().isNotEmpty) {
-      final parsed = ParsedLyrics(
-        syncedLyrics: lyricsSynced!,
+    if (lyricsSynced != null) {
+      parsedLyrics = ParsedLyrics(
+        syncedLyrics: lyricsSynced ?? '',
         duration: duration ?? '',
       );
-      if (parsed.lyrics.isNotEmpty) {
-        parsedLyrics = parsed;
-      }
     }
   }
 
@@ -125,41 +123,35 @@ class ParsedLyrics {
   }
 
   void parseLyrics(String syncedLyrics) {
-    // Robust LRC parser: supports [mm:ss], [mm:ss.xx], [mm:ss.xxx] with or without space after bracket
+    lyrics.clear();
+    // LRC format is [mm:ss.xx] or [mm:ss.xxx] with optional text
     final regex = RegExp(r'\[(\d+):(\d+)(?:\.(\d+))?\]\s*(.*)');
-    final lines = syncedLyrics.split(RegExp(r'\r?\n'));
+    final lines = syncedLyrics.split('\n');
 
-    for (final line in lines) {
+    for (var line in lines) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;
       final match = regex.firstMatch(trimmed);
-      if (match == null) continue;
+      if (match != null) {
+        final min = int.tryParse(match.group(1) ?? '0') ?? 0;
+        final sec = int.tryParse(match.group(2) ?? '0') ?? 0;
+        final frac = match.group(3) ?? '0';
+        int milli = int.tryParse(frac) ?? 0;
+        if (frac.length == 1) milli *= 100;
+        if (frac.length == 2) milli *= 10;
+        final text = match.group(4) ?? '';
 
-      final min = int.parse(match.group(1)!);
-      final sec = int.parse(match.group(2)!);
-      final fractionStr = match.group(3);
-      int millis = 0;
-      if (fractionStr != null && fractionStr.isNotEmpty) {
-        if (fractionStr.length == 1) {
-          millis = int.parse(fractionStr) * 100;
-        } else if (fractionStr.length == 2) {
-          // Centiseconds: [00:11.20] -> 200 ms
-          millis = int.parse(fractionStr) * 10;
-        } else {
-          millis = int.parse(fractionStr.substring(0, 3));
-        }
-      }
-      final text = match.group(4)?.trim() ?? '';
-      lyrics.add(
-        ParsedLyric(
-          text: text,
-          start: Duration(
-            minutes: min,
-            seconds: sec,
-            milliseconds: millis,
+        lyrics.add(
+          ParsedLyric(
+            text: text,
+            start: Duration(
+              minutes: min,
+              seconds: sec,
+              milliseconds: milli,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
     lyrics.sort((a, b) => a.start.compareTo(b.start));
     log("ParsedLyrics: ${lyrics.length}");

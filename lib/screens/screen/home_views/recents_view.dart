@@ -3,6 +3,7 @@ import 'package:Orvia/blocs/history/cubit/history_cubit.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/core/models/media_playlist_model.dart';
 import 'package:Orvia/screens/screen/home_views/setting_views/storage_setting.dart';
+import 'package:Orvia/screens/screen/home_views/statistics_screen.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
@@ -23,6 +24,21 @@ class HistoryView extends StatelessWidget {
         appBar: AppBar(
           centerTitle: true,
           actions: [
+            IconButton(
+              icon: const Icon(
+                MingCute.chart_bar_line,
+                color: Default_Theme.primaryColor1,
+              ),
+              tooltip: 'Statistics',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StatisticsScreen(),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(
                 MingCute.settings_1_line,

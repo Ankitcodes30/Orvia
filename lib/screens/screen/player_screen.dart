@@ -9,20 +9,20 @@ import 'package:Orvia/screens/screen/home_views/setting_views/player_setting.dar
 import 'package:Orvia/screens/widgets/gradient_progress_bar.dart';
 import 'package:Orvia/screens/widgets/more_bottom_sheet.dart';
 import 'package:Orvia/screens/widgets/up_next_panel.dart';
+import 'package:Orvia/screens/widgets/volume_slider.dart';
 import 'package:Orvia/screens/widgets/media_metadata_links.dart';
 import 'package:Orvia/screens/screen/player_views/segments_sheet.dart';
 import 'package:Orvia/services/orvia_player.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/services/player/player_engine.dart';
 import 'package:Orvia/screens/widgets/like_widget.dart';
 import 'package:Orvia/screens/widgets/play_pause_widget.dart';
+import 'package:Orvia/screens/widgets/audio_video_switcher.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
-import 'package:Orvia/plugins/utils/media_id.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
 import 'package:Orvia/utils/pallete_generator.dart';
@@ -252,93 +252,47 @@ class _PlayerUI extends StatelessWidget {
   }
 }
 
-class CoverImageVolSlider extends StatefulWidget {
+class CoverImageVolSlider extends StatelessWidget {
   const CoverImageVolSlider({super.key});
-
-  @override
-  State<CoverImageVolSlider> createState() => _CoverImageVolSliderState();
-}
-
-class _CoverImageVolSliderState extends State<CoverImageVolSlider> {
-  int _lastDoubleTapMs = 0;
-  Offset? _lastTapDownOffset;
-  double _lastBoxWidth = 0;
-
-  void _onDoubleTapDown(TapDownDetails details, double width) {
-    _lastTapDownOffset = details.localPosition;
-    _lastBoxWidth = width;
-  }
-
-  void _onDoubleTap() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastDoubleTapMs < 400) {
-      return; // Debounce rapid double taps
-    }
-    _lastDoubleTapMs = now;
-
-    if (_lastTapDownOffset == null || _lastBoxWidth <= 0) return;
-
-    final isLeft = _lastTapDownOffset!.dx < (_lastBoxWidth / 2.0);
-    final player = context.read<OrviaPlayerCubit>().orviaPlayer;
-
-    HapticFeedback.lightImpact();
-    final currentPos = player.currentPosition;
-    final totalDuration = player.currentDuration;
-    if (isLeft) {
-      final target = currentPos - const Duration(seconds: 10);
-      player.seek(target < Duration.zero ? Duration.zero : target);
-    } else {
-      final target = currentPos + const Duration(seconds: 10);
-      final maxDuration =
-          totalDuration > Duration.zero ? totalDuration : target;
-      player.seek(target > maxDuration ? maxDuration : target);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final orviaPlayerCubit = context.read<OrviaPlayerCubit>();
 
-    return StreamBuilder<MediaItem?>(
-      stream: orviaPlayerCubit.orviaPlayer.mediaItem,
-      builder: (context, snapshot) {
-        final currentTrack =
-            orviaPlayerCubit.orviaPlayer.currentTrackInfo;
-        final highResUrl =
-            currentTrack.thumbnail.urlHigh ?? currentTrack.thumbnail.url;
-        final lowResUrl =
-            currentTrack.thumbnail.urlLow ?? currentTrack.thumbnail.url;
+    return VolumeDragController(
+      child: StreamBuilder<MediaItem?>(
+        stream: orviaPlayerCubit.orviaPlayer.mediaItem,
+        builder: (context, snapshot) {
+          final currentTrack =
+              orviaPlayerCubit.orviaPlayer.currentTrackInfo;
+          final highResUrl =
+              currentTrack.thumbnail.urlHigh ?? currentTrack.thumbnail.url;
+          final lowResUrl =
+              currentTrack.thumbnail.urlLow ?? currentTrack.thumbnail.url;
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final boxWidth = constraints.maxWidth;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onDoubleTapDown: (details) =>
-                  _onDoubleTapDown(details, boxWidth),
-              onDoubleTap: _onDoubleTap,
-              child: SizedBox.expand(
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: 1.0,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: LoadImageCached(
-                        imageUrl: highResUrl,
-                        fallbackUrl: lowResUrl,
-                        mediaId: currentTrack.id,
-                        placeholderUrl:
-                            resolveSongPlaceholder(mediaId: currentTrack.id),
-                        fit: BoxFit.contain,
-                      ),
+          return SizedBox.expand(
+            child: Center(
+              child: AudioVideoSurface(
+                track: currentTrack,
+                audioCoverWidget: AspectRatio(
+                  aspectRatio: 1.0,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: LoadImageCached(
+                      imageUrl: highResUrl,
+                      fallbackUrl: lowResUrl,
+                      mediaId: currentTrack.id,
+                      placeholderUrl:
+                          resolveSongPlaceholder(mediaId: currentTrack.id),
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -497,34 +451,17 @@ class _LikeButtonState extends State<_LikeButton> {
   String? _lastTrackId;
   bool _isLiked = false;
   StreamSubscription? _mediaSub;
-  StreamSubscription? _likeSub;
 
   @override
   void initState() {
     super.initState();
     final player = context.read<OrviaPlayerCubit>().orviaPlayer;
-    final libraryCubit = context.read<LibraryItemsCubit>();
-
     _mediaSub = player.mediaItem.listen((mi) {
       if (mi?.id != _lastTrackId) {
         _lastTrackId = mi?.id;
-        if (mounted) {
-          setState(() => _isLiked = false);
-        }
         _queryLikedState(mi);
       }
     });
-
-    _likeSub = libraryCubit.trackLikedStream.listen((event) {
-      final currentMedia = player.mediaItem.valueOrNull;
-      if (currentMedia != null &&
-          isMatchingTrackId(currentMedia.id, event.trackId)) {
-        if (mounted) {
-          setState(() => _isLiked = event.isLiked);
-        }
-      }
-    });
-
     _queryLikedState(player.mediaItem.valueOrNull);
   }
 
@@ -533,25 +470,19 @@ class _LikeButtonState extends State<_LikeButton> {
       if (mounted) setState(() => _isLiked = false);
       return;
     }
-    final targetId = mi.id;
     try {
       final liked = await context
           .read<LibraryItemsCubit>()
           .isTrackLiked(mediaItemToTrack(mi));
-      if (mounted && _lastTrackId == targetId) {
-        setState(() => _isLiked = liked);
-      }
+      if (mounted) setState(() => _isLiked = liked);
     } catch (_) {
-      if (mounted && _lastTrackId == targetId) {
-        setState(() => _isLiked = false);
-      }
+      if (mounted) setState(() => _isLiked = false);
     }
   }
 
   @override
   void dispose() {
     _mediaSub?.cancel();
-    _likeSub?.cancel();
     super.dispose();
   }
 
@@ -571,31 +502,19 @@ class _LikeButtonState extends State<_LikeButton> {
           isPlaying: isPlaying,
           isLiked: _isLiked,
           iconSize: 25,
-          onLiked: () async {
-            try {
-              await context
-                  .read<LibraryItemsCubit>()
-                  .setTrackLiked(mediaItemToTrack(currentMedia), true);
-              if (mounted) {
-                setState(() => _isLiked = true);
-                SnackbarService.showMessage(l10n.playerLiked(currentMedia.title));
-              }
-            } catch (e) {
-              SnackbarService.showMessage('Failed to update favourite');
-            }
+          onLiked: () {
+            context
+                .read<LibraryItemsCubit>()
+                .setTrackLiked(mediaItemToTrack(currentMedia), true);
+            setState(() => _isLiked = true);
+            SnackbarService.showMessage(l10n.playerLiked(currentMedia.title));
           },
-          onDisliked: () async {
-            try {
-              await context
-                  .read<LibraryItemsCubit>()
-                  .setTrackLiked(mediaItemToTrack(currentMedia), false);
-              if (mounted) {
-                setState(() => _isLiked = false);
-                SnackbarService.showMessage(l10n.playerUnliked(currentMedia.title));
-              }
-            } catch (e) {
-              SnackbarService.showMessage('Failed to update favourite');
-            }
+          onDisliked: () {
+            context
+                .read<LibraryItemsCubit>()
+                .setTrackLiked(mediaItemToTrack(currentMedia), false);
+            setState(() => _isLiked = false);
+            SnackbarService.showMessage(l10n.playerUnliked(currentMedia.title));
           },
         );
       },

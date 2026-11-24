@@ -40,6 +40,9 @@ import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
 import 'package:Orvia/screens/widgets/diwali_special_card.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
+import 'package:Orvia/screens/widgets/category_chips_bar.dart';
+import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
+import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/updater/in_app_update_manager.dart';
 
@@ -341,6 +344,8 @@ class _ExploreScreenState extends State<ExploreScreen>
                 SliverList(
                   delegate: SliverChildListDelegate(
                     [
+                      const CategoryChipsBar(),
+                      const SpeedDialSection(),
                       CaraouselWidget(
                         key: _carouselKey,
                         onFestiveTap: _scrollToFestiveSpecial,
@@ -729,11 +734,57 @@ class CustomDiscoverBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          const NotificationIcon(),
+          const HistoryIcon(),
+          const ListenTogetherIcon(),
           const SiteIcon(),
-          const TimerIcon(),
           const SettingsIcon(),
         ],
+      ),
+    );
+  }
+}
+
+class HistoryIcon extends StatelessWidget {
+  const HistoryIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const HistoryView()),
+        );
+      },
+      icon: const Icon(
+        MingCute.history_line,
+        color: Default_Theme.primaryColor1,
+        size: 26.0,
+      ),
+    );
+  }
+}
+
+class ListenTogetherIcon extends StatelessWidget {
+  const ListenTogetherIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      padding: const EdgeInsets.all(5),
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ListenTogetherScreen()),
+        );
+      },
+      icon: const Icon(
+        MingCute.group_line,
+        color: Default_Theme.primaryColor1,
+        size: 26.0,
       ),
     );
   }
@@ -838,6 +889,7 @@ class SettingsIcon extends StatelessWidget {
     return IconButton(
       padding: const EdgeInsets.all(5),
       constraints: const BoxConstraints(),
+      tooltip: 'Account & Settings',
       onPressed: () {
         Navigator.push(
           context,
@@ -845,9 +897,9 @@ class SettingsIcon extends StatelessWidget {
         );
       },
       icon: const Icon(
-        MingCute.settings_3_line,
+        MingCute.user_3_line,
         color: Default_Theme.primaryColor1,
-        size: 30.0,
+        size: 28.0,
       ),
     );
   }

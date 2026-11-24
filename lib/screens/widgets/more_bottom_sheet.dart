@@ -20,6 +20,8 @@ import 'package:Orvia/l10n/app_localizations.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/screens/widgets/smart_replace_dialog.dart';
 import 'package:Orvia/screens/widgets/song_tile.dart';
+import 'package:Orvia/screens/widgets/tempo_pitch_sheet.dart';
+import 'package:Orvia/screens/screen/home_views/timer_view.dart';
 import 'package:Orvia/services/share/orvia_deep_link_service.dart';
 import 'package:Orvia/services/song_metadata_refresh_service.dart';
 
@@ -211,7 +213,6 @@ class _TrackOptionsBottomSheetState extends State<_TrackOptionsBottomSheet> {
                                           .updateQueueTracks(
                                             [widget.song],
                                             doPlay: true,
-                                            queueTitle: 'Direct Play',
                                           );
                                       Navigator.pop(ctx);
                                       SnackbarService.showMessage(
@@ -291,6 +292,27 @@ class _TrackOptionsBottomSheetState extends State<_TrackOptionsBottomSheet> {
                             onTap: (ctx) {
                               Navigator.pop(ctx);
                               showSmartReplaceDialog(widget.parentContext, widget.song);
+                            },
+                          ),
+                          _CompactTile(
+                            icon: Icons.speed_rounded,
+                            title: 'Tempo & Pitch',
+                            onTap: (ctx) {
+                              Navigator.pop(ctx);
+                              showTempoPitchSheet(widget.parentContext);
+                            },
+                          ),
+                          _CompactTile(
+                            icon: MingCute.stopwatch_line,
+                            title: l10n.timerTitle,
+                            onTap: (ctx) {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                widget.parentContext,
+                                MaterialPageRoute(
+                                  builder: (_) => const TimerView(),
+                                ),
+                              );
                             },
                           ),
 

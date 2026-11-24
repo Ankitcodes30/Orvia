@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
+import 'package:http/http.dart' as http;
 import 'package:Orvia/services/db/dao/search_history_dao.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
 import 'package:Orvia/services/plugin/plugin_service.dart';
@@ -49,17 +51,26 @@ class SearchSuggestionBloc
           isPluginLoading: true,
         ));
 
-        final (queries, entities) = await _getPluginSuggestions(query);
+        // Fast parallel fetch: online suggestions + plugin suggestions
+        final results = await Future.wait([
+          _fetchOnlineSuggestions(query),
+          _getPluginSuggestions(query),
+        ]);
         if (_isDisposed || emit.isDone || version != _fetchVersion) return;
 
+        final onlineQueries = results[0] as List<String>;
+        final (pluginQueries, entities) =
+            results[1] as (List<String>, List<plugin_models.EntitySuggestion>);
+        final combinedQueries = [...pluginQueries, ...onlineQueries];
+
         emit(SearchSuggestionLoaded(
-          _dedupePluginQueries(queries, pastSearches),
+          _dedupePluginQueries(combinedQueries, pastSearches),
           pastSearches,
           entitySuggestionList: entities,
           isPluginLoading: false,
         ));
       },
-      transformer: _debounceRestartable(const Duration(milliseconds: 250)),
+      transformer: _debounceRestartable(const Duration(milliseconds: 120)),
     );
 
     on<SearchSuggestionSave>((event, emit) async {
@@ -90,22 +101,6 @@ class SearchSuggestionBloc
         }
       } catch (e) {
         log("Error Clearing Search History: $e", name: "SearchSuggestionBloc");
-      }
-    });
-
-    on<SearchSuggestionClearAll>((event, emit) async {
-      try {
-        await _searchHistoryDao.clearAllSearchHistory();
-        if (state is SearchSuggestionLoaded) {
-          emit(SearchSuggestionLoaded(
-            state.suggestionList,
-            const [],
-            entitySuggestionList: state.entitySuggestionList,
-            isPluginLoading: state.isPluginLoading,
-          ));
-        }
-      } catch (e) {
-        log("Error Clearing All Search History: $e", name: "SearchSuggestionBloc");
       }
     });
   }
@@ -211,6 +206,25 @@ class SearchSuggestionBloc
       searchSuggestions = [];
     }
     return searchSuggestions;
+  }
+
+  Future<List<String>> _fetchOnlineSuggestions(String query) async {
+    final clean = query.trim();
+    if (clean.isEmpty) return const [];
+    try {
+      final uri = Uri.parse(
+        'https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${Uri.encodeComponent(clean)}',
+      );
+      final response =
+          await http.get(uri).timeout(const Duration(milliseconds: 1500));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List && decoded.length > 1 && decoded[1] is List) {
+          return (decoded[1] as List).map((e) => e.toString()).toList();
+        }
+      }
+    } catch (_) {}
+    return const [];
   }
 
   @override
