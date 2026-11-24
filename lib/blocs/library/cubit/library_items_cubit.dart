@@ -147,6 +147,38 @@ class LibraryItemsCubit extends Cubit<LibraryItemsState> {
         }
       }
 
+      // Deduplicate multiple 'Liked songs' entries. Keep only the primary one (prefer the one with tracks).
+      final likedIndices = <int>[];
+      for (int i = 0; i < items.length; i++) {
+        if (items[i].playlistName == PlaylistDAO.likedSongsPlaylist ||
+            items[i].storageKey == PlaylistDAO.likedSongsPlaylist) {
+          likedIndices.add(i);
+        }
+      }
+
+      if (likedIndices.length > 1) {
+        likedIndices.sort((a, b) {
+          final countA = int.tryParse(items[a].subTitle?.split(' ').first ?? '0') ?? 0;
+          final countB = int.tryParse(items[b].subTitle?.split(' ').first ?? '0') ?? 0;
+          return countB.compareTo(countA); // descending: keep the one with most tracks
+        });
+        final toRemoveIndices = likedIndices.skip(1).toSet();
+        for (final idx in toRemoveIndices) {
+          final id = items[idx].playlistId;
+          if (id > 0) {
+            unawaited(_playlistDao.deletePlaylist(id));
+          }
+        }
+        final cleaned = <PlaylistItemProperties>[];
+        for (int i = 0; i < items.length; i++) {
+          if (!toRemoveIndices.contains(i)) {
+            cleaned.add(items[i]);
+          }
+        }
+        items.clear();
+        items.addAll(cleaned);
+      }
+
       final savedArtists = await _libraryDao.getSavedArtists();
       final savedAlbums = await _libraryDao.getSavedAlbums();
 

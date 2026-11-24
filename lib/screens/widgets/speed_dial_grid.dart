@@ -122,14 +122,14 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
       children: [
         // ── Section Title & Circular Arrow Action ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: Default_Theme.primaryColor1,
                 ),
@@ -142,8 +142,8 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
                   }
                 },
                 child: Container(
-                  width: 32,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     color: Default_Theme.accentColor2.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
@@ -152,7 +152,7 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
                     child: Icon(
                       MingCute.right_line,
                       color: Default_Theme.accentColor2,
-                      size: 18,
+                      size: 16,
                     ),
                   ),
                 ),
@@ -161,43 +161,48 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
           ),
         ),
 
-        // ── Compact 3x3 Grid (Metrolist Style: Exact Squares) ──
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1.0, // Exact compact square
+        // ── Compact, Well-Proportioned 3x3 Grid (Centered with MaxWidth) ──
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 390),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1.0, // Compact square
+                ),
+                itemCount: 9, // 8 music boxes + 1 dice box
+                itemBuilder: (context, index) {
+                  if (index == 8) {
+                    // Slot 9: Interactive Animated Dice Square
+                    return _buildDiceSlot(activeTracks);
+                  }
+
+                  if (index < activeTracks.length) {
+                    final track = activeTracks[index];
+                    return _buildSquareTrackTile(track, activeTracks, index);
+                  }
+
+                  return _buildEmptySlot();
+                },
+              ),
             ),
-            itemCount: 9, // 8 music boxes + 1 dice box
-            itemBuilder: (context, index) {
-              if (index == 8) {
-                // Slot 9: Interactive Animated Dice Square
-                return _buildDiceSlot(activeTracks);
-              }
-
-              if (index < activeTracks.length) {
-                final track = activeTracks[index];
-                return _buildSquareTrackTile(track, activeTracks, index);
-              }
-
-              return _buildEmptySlot();
-            },
           ),
         ),
 
         // ── Metrolist Pagination Dots Indicator ──
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 7,
-              height: 7,
+              width: 6,
+              height: 6,
               decoration: const BoxDecoration(
                 color: Default_Theme.accentColor2,
                 shape: BoxShape.circle,
@@ -223,14 +228,14 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
       ],
     );
   }
 
   Widget _buildSquareTrackTile(Track track, List<Track> allTracks, int index) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       onTap: () {
         context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
           Playlist(tracks: allTracks, title: 'Speed Dial'),
@@ -251,7 +256,7 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         );
       },
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -268,30 +273,30 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.1),
-                    Colors.black.withValues(alpha: 0.85),
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.black.withValues(alpha: 0.88),
                   ],
-                  stops: const [0.4, 0.65, 1.0],
+                  stops: const [0.35, 0.65, 1.0],
                 ),
               ),
             ),
             // Title overlay inside the card at bottom
             Positioned(
-              left: 7,
-              right: 7,
-              bottom: 6,
+              left: 6,
+              right: 6,
+              bottom: 5,
               child: Text(
                 track.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                   shadows: [
                     Shadow(
                       color: Colors.black87,
-                      blurRadius: 4,
+                      blurRadius: 3,
                       offset: Offset(0, 1),
                     ),
                   ],
@@ -317,15 +322,15 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         );
       },
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: () => _rollDiceAndPlaySurprise(candidateTracks),
         child: Container(
           decoration: BoxDecoration(
             color: const Color(0xFF2C3246).withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: Default_Theme.accentColor2.withValues(alpha: 0.35),
-              width: 1.5,
+              width: 1.2,
             ),
           ),
           child: Center(
@@ -341,19 +346,19 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
 
     switch (face) {
       case 1:
-        return _buildDot(12, dotColor);
+        return _buildDot(11, dotColor);
       case 2:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [_buildDot(9, dotColor), _buildDot(9, dotColor)],
+          children: [_buildDot(8, dotColor), _buildDot(8, dotColor)],
         );
       case 3:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildDot(8, dotColor),
-            _buildDot(8, dotColor),
-            _buildDot(8, dotColor),
+            _buildDot(7, dotColor),
+            _buildDot(7, dotColor),
+            _buildDot(7, dotColor),
           ],
         );
       case 4:
@@ -363,18 +368,18 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 14),
-                _buildDot(7, dotColor)
+                _buildDot(6, dotColor),
+                const SizedBox(width: 12),
+                _buildDot(6, dotColor)
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 14),
-                _buildDot(7, dotColor)
+                _buildDot(6, dotColor),
+                const SizedBox(width: 12),
+                _buildDot(6, dotColor)
               ],
             ),
           ],
@@ -386,22 +391,22 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 10),
-                _buildDot(7, dotColor),
-                const SizedBox(width: 10),
-                _buildDot(7, dotColor)
+                _buildDot(6, dotColor),
+                const SizedBox(width: 8),
+                _buildDot(6, dotColor),
+                const SizedBox(width: 8),
+                _buildDot(6, dotColor)
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 10),
-                _buildDot(7, dotColor),
-                const SizedBox(width: 10),
-                _buildDot(7, dotColor)
+                _buildDot(6, dotColor),
+                const SizedBox(width: 8),
+                _buildDot(6, dotColor),
+                const SizedBox(width: 8),
+                _buildDot(6, dotColor)
               ],
             ),
           ],
@@ -415,20 +420,20 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 20),
-                _buildDot(7, dotColor),
+                _buildDot(6, dotColor),
+                const SizedBox(width: 18),
+                _buildDot(6, dotColor),
               ],
             ),
-            const SizedBox(height: 6),
-            _buildDot(7, dotColor),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
+            _buildDot(6, dotColor),
+            const SizedBox(height: 5),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(7, dotColor),
-                const SizedBox(width: 20),
-                _buildDot(7, dotColor),
+                _buildDot(6, dotColor),
+                const SizedBox(width: 18),
+                _buildDot(6, dotColor),
               ],
             ),
           ],
@@ -446,7 +451,7 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         boxShadow: [
           BoxShadow(
             color: Colors.white.withValues(alpha: 0.3),
-            blurRadius: 3,
+            blurRadius: 2.5,
           ),
         ],
       ),
@@ -457,13 +462,13 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
     return Container(
       decoration: BoxDecoration(
         color: Default_Theme.primaryColor1.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
         child: Icon(
           MingCute.music_2_line,
           color: Default_Theme.primaryColor1.withValues(alpha: 0.2),
-          size: 22,
+          size: 20,
         ),
       ),
     );

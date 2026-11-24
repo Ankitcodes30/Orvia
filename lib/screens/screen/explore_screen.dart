@@ -41,6 +41,8 @@ import 'package:Orvia/screens/widgets/year_collections_section.dart';
 import 'package:Orvia/screens/widgets/category_chips_bar.dart';
 import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
 import 'package:Orvia/services/catalogue/category_tracks_service.dart';
+import 'package:Orvia/core/utils/track_identity.dart';
+import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/updater/in_app_update_manager.dart';
@@ -64,17 +66,88 @@ class _ExploreScreenState extends State<ExploreScreen>
   Timer? _festivalBoundaryTimer;
   String? _selectedCategory;
   List<Track>? _categoryTracks;
+  final Map<String, List<Track>> _categoryCache = {};
 
-  void _onCategorySelected(String category) {
-    setState(() {
-      if (category.trim().isEmpty) {
+  Future<void> _onCategorySelected(String category) async {
+    final cat = category.trim();
+    if (cat.isEmpty) {
+      setState(() {
         _selectedCategory = null;
         _categoryTracks = null;
-      } else {
-        _selectedCategory = category.trim();
-        _categoryTracks = CategoryTracksService.getTracksForCategory(_selectedCategory!);
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedCategory = cat;
+      if (_categoryCache.containsKey(cat)) {
+        _categoryTracks = _categoryCache[cat];
       }
     });
+
+    if (_categoryCache.containsKey(cat) && _categoryCache[cat]!.isNotEmpty) {
+      return;
+    }
+
+    try {
+      final resolvers = context.read<PluginBloc>().state.loadedContentResolvers;
+      if (resolvers.isEmpty) return;
+      final pluginId = _effectiveHomePluginId(resolvers);
+
+      String query = '$cat songs';
+      final lower = cat.toLowerCase();
+      if (lower == 'podcasts') {
+        query = 'Hindi podcasts';
+      } else if (lower == 'romance') {
+        query = 'Romantic Hindi songs';
+      } else if (lower == 'feel good') {
+        query = 'Feel good Hindi songs';
+      } else if (lower == 'workout') {
+        query = 'Gym workout motivational songs';
+      } else if (lower == 'relax') {
+        query = 'Peaceful relaxing songs';
+      } else if (lower == 'energize') {
+        query = 'High energy dance songs';
+      } else if (lower == 'party') {
+        query = 'Bollywood party hits';
+      } else if (lower == 'focus') {
+        query = 'Lofi study focus music';
+      }
+
+      final response = await ServiceLocator.pluginService.execute(
+        pluginId: pluginId,
+        request: PluginRequest.contentResolver(
+          ContentResolverCommand.search(
+            query: query,
+            filter: ContentSearchFilter.track,
+          ),
+        ),
+      ).timeout(const Duration(seconds: 10));
+
+      final tracks = <Track>[];
+      response.whenOrNull(
+        search: (results) {
+          for (final item in results.items) {
+            item.when(
+              track: (t) => tracks.add(t),
+              album: (_) {},
+              artist: (_) {},
+              playlist: (_) {},
+            );
+          }
+        },
+      );
+
+      if (tracks.isNotEmpty && mounted && _selectedCategory == cat) {
+        final top8 = TrackIdentity.deduplicateTracks(tracks).take(8).toList();
+        _categoryCache[cat] = top8;
+        setState(() {
+          _categoryTracks = top8;
+        });
+      }
+    } catch (e) {
+      log('Error fetching category tracks: $e', name: 'ExploreScreen');
+    }
   }
 
   @override

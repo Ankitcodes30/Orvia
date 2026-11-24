@@ -21,7 +21,6 @@ import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/services/player/player_engine.dart';
 import 'package:Orvia/screens/widgets/like_widget.dart';
 import 'package:Orvia/screens/widgets/play_pause_widget.dart';
-import 'package:Orvia/screens/widgets/audio_video_switcher.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/utils/load_image.dart';
@@ -272,20 +271,17 @@ class CoverImageVolSlider extends StatelessWidget {
 
           return SizedBox.expand(
             child: Center(
-              child: AudioVideoSurface(
-                track: currentTrack,
-                audioCoverWidget: AspectRatio(
-                  aspectRatio: 1.0,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: LoadImageCached(
-                      imageUrl: highResUrl,
-                      fallbackUrl: lowResUrl,
-                      mediaId: currentTrack.id,
-                      placeholderUrl:
-                          resolveSongPlaceholder(mediaId: currentTrack.id),
-                      fit: BoxFit.contain,
-                    ),
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LoadImageCached(
+                    imageUrl: highResUrl,
+                    fallbackUrl: lowResUrl,
+                    mediaId: currentTrack.id,
+                    placeholderUrl:
+                        resolveSongPlaceholder(mediaId: currentTrack.id),
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
