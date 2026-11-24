@@ -13,6 +13,8 @@ import 'package:Orvia/plugins/errors/plugin_exceptions.dart';
 import 'package:Orvia/screens/widgets/snackbar.dart';
 import 'package:Orvia/services/db/db_provider.dart';
 import 'package:Orvia/services/db/dao/settings_dao.dart';
+import 'package:Orvia/services/db/dao/history_dao.dart';
+import 'package:Orvia/services/db/dao/track_dao.dart';
 import 'package:Orvia/services/player/media_resolver_service.dart';
 import 'package:Orvia/services/player/player_engine.dart';
 import 'package:Orvia/services/player/player_error_handler.dart';
@@ -692,6 +694,15 @@ class OrviaMusicPlayer extends BaseAudioHandler
       _errorHandler.registerAttempt(track.id);
       await _recentlyPlayedTracker.flushCurrentPlay();
       _updateCurrentTrack(track);
+
+      // Immediately record to history so Speed Dial updates on song play
+      try {
+        final trackDao = TrackDAO(DBProvider.db);
+        final historyDao = HistoryDAO(DBProvider.db, trackDao);
+        unawaited(historyDao.recordPlay(track));
+      } catch (e) {
+        log('Immediate history record failed: $e', name: 'OrviaPlayer');
+      }
 
       if (doPlay) {
         final granted = await _activateAudioSession();

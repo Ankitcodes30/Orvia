@@ -15,8 +15,13 @@ import 'package:Orvia/utils/load_image.dart';
 
 class SpeedDialSection extends StatefulWidget {
   final List<Track>? tracks;
+  final String? categoryTitle;
 
-  const SpeedDialSection({super.key, this.tracks});
+  const SpeedDialSection({
+    super.key,
+    this.tracks,
+    this.categoryTitle,
+  });
 
   @override
   State<SpeedDialSection> createState() => _SpeedDialSectionState();
@@ -67,7 +72,8 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         SnackbarService.showMessage('No tracks available to shuffle yet!');
         return;
       }
-      final surpriseTrack = candidateTracks[math.Random().nextInt(candidateTracks.length)];
+      final surpriseTrack =
+          candidateTracks[math.Random().nextInt(candidateTracks.length)];
       final player = context.read<OrviaPlayerCubit>().orviaPlayer;
 
       player.loadPlaylist(
@@ -76,96 +82,155 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         doPlay: true,
       );
 
-      SnackbarService.showMessage('🎲 Rolled $_diceFace! Playing "${surpriseTrack.title}"');
+      SnackbarService.showMessage(
+          '🎲 Rolled $_diceFace! Playing "${surpriseTrack.title}"');
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final recentlyTracks = context.watch<RecentlyCubit>().state.tracks;
-    final availableTracks = (widget.tracks != null && widget.tracks!.isNotEmpty)
-        ? widget.tracks!
-        : (recentlyTracks.isNotEmpty
-            ? recentlyTracks
-            : CreatorsChoiceService.getVerifiedTracks());
-    final displayTracks = availableTracks.take(8).toList();
+    final List<Track> poolTracks;
+
+    if (widget.tracks != null && widget.tracks!.isNotEmpty) {
+      poolTracks = widget.tracks!;
+    } else if (recentlyTracks.isNotEmpty) {
+      poolTracks = recentlyTracks;
+    } else {
+      poolTracks = CreatorsChoiceService.getVerifiedTracks();
+    }
+
+    // Always ensure 8 candidate tracks for the grid (pad from curated if needed)
+    final displayTracks = <Track>[...poolTracks];
+    if (displayTracks.length < 8) {
+      final fallback = CreatorsChoiceService.getVerifiedTracks();
+      for (final t in fallback) {
+        if (!displayTracks.any((d) => d.id == t.id)) {
+          displayTracks.add(t);
+        }
+        if (displayTracks.length >= 8) break;
+      }
+    }
+    final activeTracks = displayTracks.take(8).toList();
+
+    final title = widget.categoryTitle != null
+        ? 'Speed dial • ${widget.categoryTitle}'
+        : 'Speed dial';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Section Title ──
+        // ── Section Title & Circular Arrow Action ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Speed dial',
-                style: TextStyle(
+              Text(
+                title,
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: Default_Theme.primaryColor1,
                 ),
               ),
-              IconButton(
-                icon: const Icon(
-                  MingCute.right_line,
-                  color: Default_Theme.primaryColor1,
-                  size: 20,
-                ),
-                onPressed: () {
-                  if (displayTracks.isNotEmpty) {
-                    _rollDiceAndPlaySurprise(displayTracks);
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (activeTracks.isNotEmpty) {
+                    _rollDiceAndPlaySurprise(activeTracks);
                   }
                 },
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Default_Theme.accentColor2.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      MingCute.right_line,
+                      color: Default_Theme.accentColor2,
+                      size: 18,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
 
-        // ── 3x3 Grid Layout ──
+        // ── Compact 3x3 Grid (Metrolist Style: Exact Squares) ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final itemWidth = (constraints.maxWidth - 16) / 3;
-              final itemHeight = itemWidth + 34; // Square image + 2 lines of text
+          padding: const EdgeInsets.symmetric(horizontal: 14.0),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1.0, // Exact compact square
+            ),
+            itemCount: 9, // 8 music boxes + 1 dice box
+            itemBuilder: (context, index) {
+              if (index == 8) {
+                // Slot 9: Interactive Animated Dice Square
+                return _buildDiceSlot(activeTracks);
+              }
 
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: itemWidth / itemHeight,
-                ),
-                itemCount: 9, // 8 music cards + 1 Dice
-                itemBuilder: (context, index) {
-                  if (index == 8) {
-                    // Slot 9: Interactive Animated Dice
-                    return _buildDiceSlot(itemWidth, displayTracks);
-                  }
+              if (index < activeTracks.length) {
+                final track = activeTracks[index];
+                return _buildSquareTrackTile(track, activeTracks, index);
+              }
 
-                  if (index < displayTracks.length) {
-                    final track = displayTracks[index];
-                    return _buildTrackSlot(track, displayTracks, index);
-                  }
-
-                  // Placeholder slot if user has fewer than 8 tracks
-                  return _buildEmptySlot(itemWidth);
-                },
-              );
+              return _buildEmptySlot();
             },
           ),
         ),
+
+        // ── Metrolist Pagination Dots Indicator ──
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: Default_Theme.accentColor2,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Default_Theme.primaryColor1.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Default_Theme.primaryColor1.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
       ],
     );
   }
 
-  Widget _buildTrackSlot(Track track, List<Track> allTracks, int index) {
+  Widget _buildSquareTrackTile(Track track, List<Track> allTracks, int index) {
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       onTap: () {
         context.read<OrviaPlayerCubit>().orviaPlayer.loadPlaylist(
           Playlist(tracks: allTracks, title: 'Speed Dial'),
@@ -185,66 +250,61 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
           },
         );
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Album artwork
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  LoadImageCached(
-                    imageUrl: track.thumbnail.url,
-                    fit: BoxFit.cover,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.4),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Full-bleed artwork
+            LoadImageCached(
+              imageUrl: track.thumbnail.url,
+              fit: BoxFit.cover,
+            ),
+            // Gradient scrim for text readability
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.1),
+                    Colors.black.withValues(alpha: 0.85),
+                  ],
+                  stops: const [0.4, 0.65, 1.0],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          // Song title
-          Text(
-            track.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Default_Theme.primaryColor1,
+            // Title overlay inside the card at bottom
+            Positioned(
+              left: 7,
+              right: 7,
+              bottom: 6,
+              child: Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          // Artist
-          Text(
-            track.artists.isNotEmpty
-                ? track.artists.map((a) => a.name).join(', ')
-                : 'Unknown Artist',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              color: Default_Theme.primaryColor1.withValues(alpha: 0.65),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildDiceSlot(double size, List<Track> candidateTracks) {
+  Widget _buildDiceSlot(List<Track> candidateTracks) {
     return AnimatedBuilder(
       animation: _diceController,
       builder: (context, child) {
@@ -257,12 +317,12 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
         );
       },
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: () => _rollDiceAndPlaySurprise(candidateTracks),
         child: Container(
           decoration: BoxDecoration(
-            color: Default_Theme.primaryColor1.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF2C3246).withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: Default_Theme.accentColor2.withValues(alpha: 0.35),
               width: 1.5,
@@ -277,24 +337,23 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
   }
 
   Widget _buildDiceFace(int face) {
-    // 5-dot dice arrangement or dynamic dots based on face
-    final dotColor = Default_Theme.primaryColor1.withValues(alpha: 0.85);
+    const dotColor = Colors.white;
 
     switch (face) {
       case 1:
-        return _buildDot(14, dotColor);
+        return _buildDot(12, dotColor);
       case 2:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [_buildDot(10, dotColor), _buildDot(10, dotColor)],
+          children: [_buildDot(9, dotColor), _buildDot(9, dotColor)],
         );
       case 3:
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildDot(9, dotColor),
-            _buildDot(9, dotColor),
-            _buildDot(9, dotColor),
+            _buildDot(8, dotColor),
+            _buildDot(8, dotColor),
+            _buildDot(8, dotColor),
           ],
         );
       case 4:
@@ -303,12 +362,20 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [_buildDot(8, dotColor), const SizedBox(width: 14), _buildDot(8, dotColor)],
+              children: [
+                _buildDot(7, dotColor),
+                const SizedBox(width: 14),
+                _buildDot(7, dotColor)
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [_buildDot(8, dotColor), const SizedBox(width: 14), _buildDot(8, dotColor)],
+              children: [
+                _buildDot(7, dotColor),
+                const SizedBox(width: 14),
+                _buildDot(7, dotColor)
+              ],
             ),
           ],
         );
@@ -318,38 +385,50 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [_buildDot(8, dotColor), const SizedBox(width: 12), _buildDot(8, dotColor), const SizedBox(width: 12), _buildDot(8, dotColor)],
+              children: [
+                _buildDot(7, dotColor),
+                const SizedBox(width: 10),
+                _buildDot(7, dotColor),
+                const SizedBox(width: 10),
+                _buildDot(7, dotColor)
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [_buildDot(8, dotColor), const SizedBox(width: 12), _buildDot(8, dotColor), const SizedBox(width: 12), _buildDot(8, dotColor)],
+              children: [
+                _buildDot(7, dotColor),
+                const SizedBox(width: 10),
+                _buildDot(7, dotColor),
+                const SizedBox(width: 10),
+                _buildDot(7, dotColor)
+              ],
             ),
           ],
         );
       case 5:
       default:
-        // Classic Metrolist 5-dot dice pattern
+        // Classic Metrolist 5-dot dice arrangement
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(8, dotColor),
-                const SizedBox(width: 22),
-                _buildDot(8, dotColor),
+                _buildDot(7, dotColor),
+                const SizedBox(width: 20),
+                _buildDot(7, dotColor),
               ],
             ),
             const SizedBox(height: 6),
-            _buildDot(8, dotColor),
+            _buildDot(7, dotColor),
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildDot(8, dotColor),
-                const SizedBox(width: 22),
-                _buildDot(8, dotColor),
+                _buildDot(7, dotColor),
+                const SizedBox(width: 20),
+                _buildDot(7, dotColor),
               ],
             ),
           ],
@@ -364,21 +443,27 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.3),
+            blurRadius: 3,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildEmptySlot(double size) {
+  Widget _buildEmptySlot() {
     return Container(
       decoration: BoxDecoration(
         color: Default_Theme.primaryColor1.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Center(
         child: Icon(
           MingCute.music_2_line,
           color: Default_Theme.primaryColor1.withValues(alpha: 0.2),
-          size: 24,
+          size: 22,
         ),
       ),
     );

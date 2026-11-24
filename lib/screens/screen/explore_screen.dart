@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-import 'package:Orvia/blocs/explore/cubit/explore_cubits.dart';
 import 'package:Orvia/blocs/internet_connectivity/cubit/connectivity_cubit.dart';
 import 'package:Orvia/blocs/lastdotfm/lastdotfm_cubit.dart';
 import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
@@ -38,10 +37,10 @@ import 'package:Orvia/screens/widgets/featured_artists_section.dart';
 import 'package:Orvia/screens/widgets/indian_browse_categories.dart';
 import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
-import 'package:Orvia/screens/widgets/diwali_special_card.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
 import 'package:Orvia/screens/widgets/category_chips_bar.dart';
 import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
+import 'package:Orvia/services/catalogue/category_tracks_service.dart';
 import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
 import 'package:Orvia/services/festival/festival_service.dart';
 import 'package:Orvia/services/updater/in_app_update_manager.dart';
@@ -63,6 +62,20 @@ class _ExploreScreenState extends State<ExploreScreen>
   bool _isRefreshing = false;
   DateTime? _lastReconnectRefreshTime;
   Timer? _festivalBoundaryTimer;
+  String? _selectedCategory;
+  List<Track>? _categoryTracks;
+
+  void _onCategorySelected(String category) {
+    setState(() {
+      if (category.trim().isEmpty) {
+        _selectedCategory = null;
+        _categoryTracks = null;
+      } else {
+        _selectedCategory = category.trim();
+        _categoryTracks = CategoryTracksService.getTracksForCategory(_selectedCategory!);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -111,31 +124,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  void _scrollToFestiveSpecial() {
-    final ctx = _festiveSectionKey.currentContext;
-    if (ctx != null) {
-      final disableAnim = MediaQuery.of(context).disableAnimations;
-      Scrollable.ensureVisible(
-        ctx,
-        duration:
-            disableAnim ? Duration.zero : const Duration(milliseconds: 650),
-        curve: Curves.easeInOutCubic,
-        alignment: 0.08,
-      );
-    } else {
-      final active = FestivalService.getActiveOrUpcomingFestival();
-      final isDiwali = active?.id.contains('diwali') == true ||
-          active?.name.toLowerCase().contains('diwali') == true;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => isDiwali
-              ? const DiwaliSpecialScreen()
-              : const NavratriSpecialScreen(),
-        ),
-      );
-    }
-  }
+
 
   Future<void> _handleRefresh({bool isAutoReconnect = false}) async {
     if (_isRefreshing) return;
@@ -344,104 +333,12 @@ class _ExploreScreenState extends State<ExploreScreen>
                 SliverList(
                   delegate: SliverChildListDelegate(
                     [
-                      const CategoryChipsBar(),
-                      const SpeedDialSection(),
-                      CaraouselWidget(
-                        key: _carouselKey,
-                        onFestiveTap: _scrollToFestiveSpecial,
+                      CategoryChipsBar(
+                        onCategorySelected: _onCategorySelected,
                       ),
-                      // 2. Recently Played directly beneath the carousel
-                      BlocBuilder<RecentlyCubit, RecentlyCubitState>(
-                        builder: (context, state) {
-                          if (state.tracks.isNotEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 15.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0, vertical: 4.0),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          AppLocalizations.of(context)!
-                                              .exploreRecently,
-                                          style: Default_Theme.primaryTextStyle
-                                              .merge(
-                                            const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              color:
-                                                  Default_Theme.primaryColor1,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const HistoryView(),
-                                              ),
-                                            );
-                                          },
-                                          child: const Text(
-                                            'See All',
-                                            style: TextStyle(
-                                              color: Default_Theme.accentColor2,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  TabSongListWidget(
-                                    list: state.tracks.map((e) {
-                                      return SongCardWidget(
-                                        song: e,
-                                        onTap: () {
-                                          context
-                                              .read<OrviaPlayerCubit>()
-                                              .orviaPlayer
-                                              .loadPlaylist(
-                                                Playlist(
-                                                  tracks: state.tracks,
-                                                  title: 'Recently',
-                                                ),
-                                                idx: state.tracks.indexOf(e),
-                                                doPlay: true,
-                                              );
-                                        },
-                                        onOptionsTap: () => showMoreBottomSheet(
-                                          context,
-                                          e,
-                                          showSinglePlay: true,
-                                          showRemoveFromHistory: true,
-                                          onRemoveFromHistory: () {
-                                            context
-                                                .read<RecentlyCubit>()
-                                                .removeTrack(e.id);
-                                            SnackbarService.showMessage(
-                                                'Removed from Recently Played');
-                                          },
-                                        ),
-                                      );
-                                    }).toList(),
-                                    category: '',
-                                    columnSize: 3,
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
+                      SpeedDialSection(
+                        tracks: _categoryTracks,
+                        categoryTitle: _selectedCategory,
                       ),
                       BlocBuilder<SettingsCubit, SettingsState>(
                         builder: (context, state) {

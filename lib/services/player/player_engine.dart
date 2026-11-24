@@ -79,6 +79,9 @@ class PlayerEngine {
   Player get _active => _aIsActive ? _playerA : _playerB;
   Player get _standby => _aIsActive ? _playerB : _playerA;
 
+  Player get activePlayer => _active;
+  Stream<Player> get activePlayerStream => _activePlayerSubject.stream;
+
   late final BehaviorSubject<Player> _activePlayerSubject;
 
   Duration crossfadeDuration = Duration.zero;

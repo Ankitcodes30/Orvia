@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsx_plus/iconsx_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:media_kit/media_kit.dart' hide Track;
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:Orvia/blocs/media_player/orvia_player_cubit.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 import 'package:Orvia/src/rust/api/plugin/models.dart';
 import 'package:Orvia/utils/load_image.dart';
@@ -21,12 +24,34 @@ class AudioVideoSurface extends StatefulWidget {
 
 class _AudioVideoSurfaceState extends State<AudioVideoSurface> {
   bool _isVideoMode = false;
+  VideoController? _videoController;
+  Player? _player;
+  bool _isPlaying = true;
+  bool _isMuted = false;
 
-  void _openMusicVideo() async {
-    final query = Uri.encodeComponent('${widget.track.title} ${widget.track.artists.map((a) => a.name).join(" ")} official music video');
-    final youtubeUri = Uri.parse('https://www.youtube.com/results?search_query=$query');
-    if (await canLaunchUrl(youtubeUri)) {
-      await launchUrl(youtubeUri, mode: LaunchMode.externalApplication);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initVideoController();
+  }
+
+  void _initVideoController() {
+    try {
+      final activePlayer =
+          context.read<OrviaPlayerCubit>().orviaPlayer.engine.activePlayer;
+      if (_player != activePlayer) {
+        _player = activePlayer;
+        _videoController = VideoController(activePlayer);
+        _isPlaying = activePlayer.state.playing;
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void didUpdateWidget(covariant AudioVideoSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.track.id != widget.track.id) {
+      _initVideoController();
     }
   }
 
@@ -35,13 +60,13 @@ class _AudioVideoSurfaceState extends State<AudioVideoSurface> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // ── Main Display: Cover Artwork OR Video Surface ──
+        // ── Main Display: Cover Artwork OR In-App Video Surface ──
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 350),
-          child: _isVideoMode ? _buildVideoSurface() : widget.audioCoverWidget,
+          child: _isVideoMode ? _buildInAppVideoPlayer() : widget.audioCoverWidget,
         ),
 
-        // ── Top Mode Pill (Audio / Video) ──
+        // ── Top Audio / Video Toggle Pill ──
         Positioned(
           top: 12,
           child: Container(
@@ -68,7 +93,10 @@ class _AudioVideoSurfaceState extends State<AudioVideoSurface> {
                   icon: MingCute.movie_fill,
                   label: 'Video',
                   isSelected: _isVideoMode,
-                  onTap: () => setState(() => _isVideoMode = true),
+                  onTap: () {
+                    _initVideoController();
+                    setState(() => _isVideoMode = true);
+                  },
                 ),
               ],
             ),
@@ -115,87 +143,148 @@ class _AudioVideoSurfaceState extends State<AudioVideoSurface> {
     );
   }
 
-  Widget _buildVideoSurface() {
+  Widget _buildInAppVideoPlayer() {
     return AspectRatio(
       aspectRatio: 1.0,
-      child: Container(
-        key: const ValueKey('video_surface'),
-        decoration: BoxDecoration(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          key: const ValueKey('in_app_video_surface'),
           color: Colors.black,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Default_Theme.accentColor2.withValues(alpha: 0.4),
-            width: 1.5,
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Darkened background thumbnail
-            Opacity(
-              opacity: 0.45,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: LoadImageCached(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1. Native in-app video renderer via media_kit_video
+              if (_videoController != null)
+                Video(
+                  controller: _videoController!,
+                  fit: BoxFit.cover,
+                  controls: NoVideoControls,
+                )
+              else
+                LoadImageCached(
                   imageUrl: widget.track.thumbnail.url,
                   fit: BoxFit.cover,
                 ),
+
+              // 2. Subtle gradient overlay for in-app controls
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.35),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.65),
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
               ),
-            ),
-            // Video overlay controls
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
+
+              // 3. Center In-App Play/Pause Toggle
+              Center(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(30),
+                  onTap: () {
+                    final player = _player;
+                    if (player != null) {
+                      player.playOrPause();
+                      setState(() {
+                        _isPlaying = !_isPlaying;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Default_Theme.accentColor2,
+                      color: Colors.black.withValues(alpha: 0.5),
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Default_Theme.accentColor2.withValues(alpha: 0.5),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        MingCute.play_fill,
-                        color: Colors.white,
-                        size: 32,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1.5,
                       ),
-                      onPressed: _openMusicVideo,
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Music Video Mode',
-                    style: TextStyle(
+                    child: Icon(
+                      _isPlaying ? MingCute.pause_fill : MingCute.play_fill,
                       color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                      size: 28,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      'Tap to watch official music video with lyrics sync',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12,
+                ),
+              ),
+
+              // 4. Bottom Video Control Bar (In-App)
+              Positioned(
+                bottom: 12,
+                left: 14,
+                right: 14,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Mute / Unmute
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        final player = _player;
+                        if (player != null) {
+                          final currentVol = player.state.volume;
+                          if (currentVol > 0) {
+                            player.setVolume(0);
+                            setState(() => _isMuted = true);
+                          } else {
+                            player.setVolume(100);
+                            setState(() => _isMuted = false);
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _isMuted
+                              ? MingCute.volume_mute_fill
+                              : MingCute.volume_fill,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+
+                    // Badge: In-App Video
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Default_Theme.accentColor2.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(MingCute.movie_line,
+                              size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'In-App Video',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

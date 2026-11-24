@@ -68,8 +68,8 @@ class _CategoryChipsBarState extends State<CategoryChipsBar> {
               setState(() {
                 _selectedCategory = selected ? item.name : null;
               });
-              if (selected && widget.onCategorySelected != null) {
-                widget.onCategorySelected!(item.name);
+              if (widget.onCategorySelected != null) {
+                widget.onCategorySelected!(_selectedCategory ?? '');
               }
             },
           );
