@@ -3,9 +3,14 @@ import 'package:iconsx_plus/iconsx_plus.dart';
 import 'package:Orvia/core/theme/app_theme.dart';
 
 class CategoryChipsBar extends StatefulWidget {
+  final String? selectedCategory;
   final ValueChanged<String>? onCategorySelected;
 
-  const CategoryChipsBar({super.key, this.onCategorySelected});
+  const CategoryChipsBar({
+    super.key,
+    this.selectedCategory,
+    this.onCategorySelected,
+  });
 
   @override
   State<CategoryChipsBar> createState() => _CategoryChipsBarState();
@@ -16,14 +21,31 @@ class _CategoryChipsBarState extends State<CategoryChipsBar> {
 
   static const List<_CategoryItem> _categories = [
     _CategoryItem('Podcasts', MingCute.mic_line),
-    _CategoryItem('Romance', MingCute.heart_line),
-    _CategoryItem('Feel good', MingCute.emoji_line),
     _CategoryItem('Workout', MingCute.run_line),
-    _CategoryItem('Relax', Icons.spa_rounded),
-    _CategoryItem('Energize', MingCute.lightning_line),
+    _CategoryItem('Feel good', MingCute.emoji_line),
+    _CategoryItem('Romance', MingCute.heart_line),
     _CategoryItem('Party', MingCute.music_2_line),
+    _CategoryItem('Energize', MingCute.lightning_line),
+    _CategoryItem('Relax', Icons.spa_rounded),
+    _CategoryItem('Commute', MingCute.car_line),
+    _CategoryItem('Sad', MingCute.rain_line),
     _CategoryItem('Focus', Icons.psychology_rounded),
+    _CategoryItem('Sleep', MingCute.moon_line),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.selectedCategory;
+  }
+
+  @override
+  void didUpdateWidget(covariant CategoryChipsBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedCategory != widget.selectedCategory) {
+      _selectedCategory = widget.selectedCategory;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

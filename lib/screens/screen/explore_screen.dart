@@ -34,13 +34,12 @@ import '../widgets/tab_list_widget.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:Orvia/screens/widgets/bhakti_section.dart';
 import 'package:Orvia/screens/widgets/featured_artists_section.dart';
-import 'package:Orvia/screens/widgets/indian_browse_categories.dart';
+import 'package:Orvia/screens/widgets/metrolist_mood_view.dart';
 import 'package:Orvia/screens/widgets/instrumental_section.dart';
 import 'package:Orvia/screens/widgets/navratri_special_card.dart';
 import 'package:Orvia/screens/widgets/year_collections_section.dart';
 import 'package:Orvia/screens/widgets/category_chips_bar.dart';
 import 'package:Orvia/screens/widgets/speed_dial_grid.dart';
-import 'package:Orvia/services/catalogue/category_tracks_service.dart';
 import 'package:Orvia/core/utils/track_identity.dart';
 import 'package:Orvia/src/rust/api/plugin/commands.dart';
 import 'package:Orvia/screens/screen/home_views/listen_together_screen.dart';
@@ -407,64 +406,78 @@ class _ExploreScreenState extends State<ExploreScreen>
                   delegate: SliverChildListDelegate(
                     [
                       CategoryChipsBar(
+                        selectedCategory: _selectedCategory,
                         onCategorySelected: _onCategorySelected,
                       ),
-                      SpeedDialSection(
-                        tracks: _categoryTracks,
-                        categoryTitle: _selectedCategory,
-                      ),
-                      BlocBuilder<SettingsCubit, SettingsState>(
-                        builder: (context, state) {
-                          if (state.lFMPicks) {
-                            return FutureBuilder(
-                              future: fetchLFMPicks(state.lFMPicks, context),
-                              builder: (context, snapshot) {
-                                if (snapshot.hasData &&
-                                    (snapshot.data?.isNotEmpty ?? false)) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 15.0),
-                                    child: TabSongListWidget(
-                                      list: snapshot.data!.map((e) {
-                                        return SongCardWidget(
-                                          song: e,
-                                          onTap: () {
-                                            context
-                                                .read<OrviaPlayerCubit>()
-                                                .orviaPlayer
-                                                .loadPlaylist(
-                                                  Playlist(
-                                                    tracks: snapshot.data!,
-                                                    title: 'Last.Fm Picks',
-                                                  ),
-                                                  idx:
-                                                      snapshot.data!.indexOf(e),
-                                                  doPlay: true,
-                                                );
-                                          },
-                                          onOptionsTap: () =>
-                                              showMoreBottomSheet(
-                                                  context,
-                                                  showSinglePlay: true,
-                                                  e),
-                                        );
-                                      }).toList(),
-                                      category: AppLocalizations.of(context)!
-                                          .exploreLastFmPicks,
-                                      columnSize: 3,
-                                    ),
-                                  );
-                                }
-                                return const SizedBox.shrink();
-                              },
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                      // 3-13. Master homepage structured sections
+                      if (_selectedCategory == null) ...[
+                        SpeedDialSection(
+                          tracks: _categoryTracks,
+                          categoryTitle: _selectedCategory,
+                        ),
+                        BlocBuilder<SettingsCubit, SettingsState>(
+                          builder: (context, state) {
+                            if (state.lFMPicks) {
+                              return FutureBuilder(
+                                future: fetchLFMPicks(state.lFMPicks, context),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData &&
+                                      (snapshot.data?.isNotEmpty ?? false)) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 15.0),
+                                      child: TabSongListWidget(
+                                        list: snapshot.data!.map((e) {
+                                          return SongCardWidget(
+                                            song: e,
+                                            onTap: () {
+                                              context
+                                                  .read<OrviaPlayerCubit>()
+                                                  .orviaPlayer
+                                                  .loadPlaylist(
+                                                    Playlist(
+                                                      tracks: snapshot.data!,
+                                                      title: 'Last.Fm Picks',
+                                                    ),
+                                                    idx:
+                                                        snapshot.data!.indexOf(e),
+                                                    doPlay: true,
+                                                  );
+                                            },
+                                            onOptionsTap: () =>
+                                                showMoreBottomSheet(
+                                                    context,
+                                                    showSinglePlay: true,
+                                                    e),
+                                          );
+                                        }).toList(),
+                                        category: AppLocalizations.of(context)!
+                                            .exploreLastFmPicks,
+                                        columnSize: 3,
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ],
+                      // 3-13. Master homepage structured sections or Metrolist Mood View
                       BlocBuilder<PluginBloc, PluginState>(
                         builder: (context, pluginState) {
                           final resolvers = pluginState.loadedContentResolvers;
+                          final pluginId = resolvers.isEmpty
+                              ? ''
+                              : _effectiveHomePluginId(resolvers);
+
+                          if (_selectedCategory != null) {
+                            return MetrolistMoodView(
+                              category: _selectedCategory!,
+                              pluginId: pluginId,
+                            );
+                          }
+
                           if (resolvers.isEmpty) {
                             return const SignBoardWidget(
                               message:
@@ -472,7 +485,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                               icon: MingCute.plugin_2_line,
                             );
                           }
-                          final pluginId = _effectiveHomePluginId(resolvers);
 
                           return BlocBuilder<ContentBloc, ContentState>(
                             bloc: _homeContentBloc,
@@ -601,10 +613,6 @@ class _StructuredHomeSections extends StatelessWidget {
             state: state,
           ),
         ],
-
-        // 5. Indian First Discovery
-        const SizedBox(height: 14),
-        IndianBrowseCategories(pluginId: pluginId),
 
         // 7. Iconic Indian Artists
         const SizedBox(height: 14),

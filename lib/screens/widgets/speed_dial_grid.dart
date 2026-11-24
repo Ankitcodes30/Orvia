@@ -32,6 +32,7 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
   late AnimationController _diceController;
   late Animation<double> _diceRotation;
   late Animation<double> _diceScale;
+  final ScrollController _scrollController = ScrollController();
   int _diceFace = 5;
 
   @override
@@ -56,6 +57,7 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
   @override
   void dispose() {
     _diceController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -87,32 +89,39 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
     });
   }
 
+  void _scrollForward() {
+    if (_scrollController.hasClients) {
+      final target = _scrollController.offset + 320;
+      final max = _scrollController.position.maxScrollExtent;
+      _scrollController.animateTo(
+        target > max ? max : target,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final recentlyTracks = context.watch<RecentlyCubit>().state.tracks;
-    final List<Track> poolTracks;
+    final List<Track> poolTracks = [];
 
     if (widget.tracks != null && widget.tracks!.isNotEmpty) {
-      poolTracks = widget.tracks!;
-    } else if (recentlyTracks.isNotEmpty) {
-      poolTracks = recentlyTracks;
+      poolTracks.addAll(widget.tracks!);
     } else {
-      poolTracks = CreatorsChoiceService.getVerifiedTracks();
-    }
-
-    // Always ensure 8 candidate tracks for the grid (pad from curated if needed)
-    final displayTracks = <Track>[...poolTracks];
-    if (displayTracks.length < 8) {
-      final fallback = CreatorsChoiceService.getVerifiedTracks();
-      for (final t in fallback) {
-        if (!displayTracks.any((d) => d.id == t.id)) {
-          displayTracks.add(t);
+      if (recentlyTracks.isNotEmpty) {
+        poolTracks.addAll(recentlyTracks);
+      }
+      final verified = CreatorsChoiceService.getVerifiedTracks();
+      for (final t in verified) {
+        if (!poolTracks.any((existing) => existing.id == t.id)) {
+          poolTracks.add(t);
         }
-        if (displayTracks.length >= 8) break;
+        if (poolTracks.length >= 26) break;
       }
     }
-    final activeTracks = displayTracks.take(8).toList();
 
+    final totalItems = poolTracks.length + 1; // 1 dice slot + N track slots
     final title = widget.categoryTitle != null
         ? 'Speed dial • ${widget.categoryTitle}'
         : 'Speed dial';
@@ -120,39 +129,35 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Section Title & Circular Arrow Action ──
+        // ── Section Title & Circular Right Arrow Action (Metrolist Style) ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: Default_Theme.primaryColor1,
                 ),
               ),
               InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (activeTracks.isNotEmpty) {
-                    _rollDiceAndPlaySurprise(activeTracks);
-                  }
-                },
+                onTap: _scrollForward,
                 child: Container(
-                  width: 30,
-                  height: 30,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: Default_Theme.accentColor2.withValues(alpha: 0.2),
+                    color: Default_Theme.primaryColor1.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
                     child: Icon(
                       MingCute.right_line,
-                      color: Default_Theme.accentColor2,
-                      size: 16,
+                      color: Default_Theme.primaryColor1,
+                      size: 18,
                     ),
                   ),
                 ),
@@ -161,74 +166,38 @@ class _SpeedDialSectionState extends State<SpeedDialSection>
           ),
         ),
 
-        // ── Compact, Well-Proportioned 3x3 Grid (Centered with MaxWidth) ──
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 390),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1.0, // Compact square
-                ),
-                itemCount: 9, // 8 music boxes + 1 dice box
-                itemBuilder: (context, index) {
-                  if (index == 8) {
-                    // Slot 9: Interactive Animated Dice Square
-                    return _buildDiceSlot(activeTracks);
-                  }
-
-                  if (index < activeTracks.length) {
-                    final track = activeTracks[index];
-                    return _buildSquareTrackTile(track, activeTracks, index);
-                  }
-
-                  return _buildEmptySlot();
-                },
-              ),
+        // ── Metrolist 3-Row Horizontally Scrolling Speed Dial Grid ──
+        SizedBox(
+          height: 320,
+          child: GridView.builder(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.0,
             ),
+            itemCount: totalItems,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                // Slot 0 (Row 1, Col 1): Interactive Dice Slot!
+                return _buildDiceSlot(poolTracks);
+              }
+
+              final trackIndex = index - 1;
+              if (trackIndex < poolTracks.length) {
+                final track = poolTracks[trackIndex];
+                return _buildSquareTrackTile(track, poolTracks, trackIndex);
+              }
+
+              return _buildEmptySlot();
+            },
           ),
         ),
-
-        // ── Metrolist Pagination Dots Indicator ──
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                color: Default_Theme.accentColor2,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 5),
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Default_Theme.primaryColor1.withValues(alpha: 0.25),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 5),
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Default_Theme.primaryColor1.withValues(alpha: 0.25),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
       ],
     );
   }
